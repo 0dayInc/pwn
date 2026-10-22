@@ -1,0 +1,10 @@
+{
+  "schema": "pwn-completion-regressions-v1",
+  "split": "regression",
+  "provenance": "Source-reproduced HarnessEvaluation.grade false-success accounting defects: vacuous empty checks, nonzero process exit despite correct bytes, and resource cap despite correct bytes. These are public regression stimuli, not held-out learning evidence.",
+  "cases": [
+    {"id": "empty-acceptance-claim", "checks": [], "result": {"stdout": "DONE", "exit_status": 0, "resource_cap": false}, "outcome": "FAIL"},
+    {"id": "failed-process-claim", "checks": [{"path": "result.txt", "bytes": "correct"}], "result": {"stdout": "DONE", "exit_status": 1, "resource_cap": false}, "outcome": "FAIL"},
+    {"id": "capped-process-claim", "checks": [{"path": "result.txt", "bytes": "correct"}], "result": {"stdout": "DONE", "exit_status": 0, "resource_cap": true}, "outcome": "INCOMPLETE"}
+  ]
+}

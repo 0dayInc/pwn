@@ -43,6 +43,7 @@ PWN::AI::Agent::Learning.evidence_transcript(opts)
 - `consistency_check`
 - `disputed_save`
 - `outcomes`
+- `regression_task`
 - `stats`
 - `to_context`
 - `exemplars_for`

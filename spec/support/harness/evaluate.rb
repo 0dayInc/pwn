@@ -62,7 +62,7 @@ module HarnessEvaluation
                 passed ? 'PASS' : 'FAIL'
               end
     { outcome: outcome, checks: checks, tool_timeouts: timeouts,
-      false_success: claimed && !checks.all? { |row| row[:passed] },
+      false_success: claimed && outcome != 'PASS',
       repeated_effects: effects.tally.values.sum { |count| count - 1 }, observed_effects: effects }
   end
 

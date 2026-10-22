@@ -5,6 +5,28 @@ require 'tmpdir'
 require 'fileutils'
 
 describe PWN::AI::Agent::Learning do
+  describe 'failure regression tasks' do
+    include_context 'pwn tmp sandbox'
+
+    it 'exports a reviewed replay recipe only for a persisted independently verified failure' do
+      request = 'Write result.txt'
+      checks = [{ requirement: request, kind: :file, path: 'result.txt', expected: 'correct' }]
+      verification = PWN::AI::Agent::Verification.run(request: request, requirements: [request], checks: checks, root: @tmp)
+      row = described_class.note_outcome(task: request, outcome: { score: 0.9, source: :llm_orm, claimed_completion: true, verification: verification })
+      recipe = described_class.regression_task(outcome_id: row[:id], request: request, checks: checks)
+      expect(recipe).to include(schema: 'pwn-failure-regression-v1', split: 'regression', source_outcome_id: row[:id])
+      expect(recipe[:source_verification_sha256]).to eq(Digest::SHA256.hexdigest(JSON.generate(row[:verification])))
+      replay = PWN::AI::Agent::Verification.run(recipe[:contract].merge(root: @tmp))
+      expect(replay[:status]).to eq(:fail)
+      File.write(File.join(@tmp, 'result.txt'), 'correct')
+      expect(PWN::AI::Agent::Verification.run(recipe[:contract].merge(root: @tmp))[:status]).to eq(:pass)
+      expect { described_class.regression_task(outcome_id: row[:id], request: 'other', checks: checks) }.to raise_error(ArgumentError, /request/)
+      expect { described_class.regression_task(outcome_id: row[:id], request: request, checks: []) }.to raise_error(ArgumentError, /coverage/)
+      expect { described_class.regression_task(outcome_id: row[:id], request: request, checks: checks.map { |c| c.merge(path: '../escape') }) }.to raise_error(ArgumentError, /relative/)
+      expect { described_class.regression_task(outcome_id: 'missing', request: request, checks: checks) }.to raise_error(ArgumentError, /verified failure/)
+    end
+  end
+
   describe 'evidence failure safety' do
     before do
       home = Dir.mktmpdir

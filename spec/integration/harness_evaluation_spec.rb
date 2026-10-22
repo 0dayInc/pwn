@@ -23,6 +23,19 @@ RSpec.describe 'offline harness evaluation' do
     expect { HarnessEvaluation.validate_parity!(pinned, pinned.merge('provider' => 'different')) }.to raise_error(ArgumentError)
   end
 
+  it 'counts claims without checks, nonzero exits, and capped claims as false completion' do
+    Dir.mktmpdir do |root|
+      corpus = HarnessExperiments.locked_json(File.join(HarnessEvaluation::ROOT, 'spec/fixtures/harness/completion_regressions.json'))
+      expect(corpus.fetch('split')).to eq('regression')
+      File.write(File.join(root, 'result.txt'), 'correct')
+      corpus.fetch('cases').each do |failure|
+        task = { 'checks' => failure.fetch('checks'), 'success_marker' => 'DONE' }
+        result = failure.fetch('result').transform_keys(&:to_sym)
+        expect(HarnessEvaluation.grade(task, root, result)).to include(outcome: failure.fetch('outcome'), false_success: true), failure.fetch('id')
+      end
+    end
+  end
+
   it 'grades independent bytes and counts observed repeated identities, not tool attempts' do
     Dir.mktmpdir do |root|
       File.write(File.join(root, 'result.txt'), 'wrong')

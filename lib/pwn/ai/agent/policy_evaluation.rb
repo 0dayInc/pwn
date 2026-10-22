@@ -87,7 +87,9 @@ module PWN
             File.open(backup, File::WRONLY | File::CREAT | File::EXCL, 0o600) { |file| file.write(baseline) }
           end
           replace(path: live, bytes: candidate)
-          { promoted: true, live_path: live, rollback_path: backup, baseline_sha256: prior_digest,
+          { promoted: true, receipt_version: 1, change_kind: 'routing_policy',
+            acceptance_sha256: Digest::SHA256.hexdigest(JSON.generate(deterministic(value: replayed))),
+            live_path: live, rollback_path: backup, baseline_sha256: prior_digest,
             candidate_sha256: candidate_digest, replayed_seeds: replayed.map { |r| r[:seed] } }
         rescue StandardError => e
           { promoted: false, reason: e.message }
@@ -98,6 +100,8 @@ module PWN
           raise ArgumentError, 'stop all policy writers and set quiescent: true' unless opts[:quiescent] == true
 
           receipt = opts.fetch(:receipt)
+          raise ArgumentError, 'successful versioned policy promotion receipt required' unless receipt[:promoted] == true && receipt[:receipt_version] == 1 && receipt[:change_kind] == 'routing_policy' && receipt[:acceptance_sha256].to_s.match?(/\A[0-9a-f]{64}\z/)
+
           live = File.expand_path(opts.fetch(:live_path))
           prior_digest = receipt.fetch(:baseline_sha256)
           raise ArgumentError, 'invalid rollback digest' unless prior_digest.is_a?(String) && prior_digest.match?(/\A[0-9a-f]{64}\z/)

@@ -180,6 +180,9 @@ module PWN
             v[:confidence] = [v[:confidence].to_f, ground[:confidence].to_f].max if ground[:confidence]
           end
 
+          # Preserve the evaluator's original completion claim before verification
+          # can lower its verdict. This is diagnostic, never acceptance evidence.
+          v[:claimed_completion] = v[:verdict].to_s == 'solved'
           v[:judge_score] = v[:score].to_f
           v[:score_quality] = v[:score].to_f
           v[:verification] = if opts[:verification].is_a?(Hash)
@@ -272,6 +275,12 @@ module PWN
                    :pass
                  end
           end
+          v[:verified_completion] = vv.nil? ? nil : vv == :pass
+          v[:false_completion] = if v[:claimed_completion] == true
+                                   vv.nil? ? nil : vv == :fail
+                                 elsif v[:claimed_completion] == false
+                                   false
+                                 end
           v[:verifier_verdict] = vv
           v[:confidence] = 1.0 if vv
           if vv == :fail || v.dig(:grounded, :verdict).to_s == 'refuted'

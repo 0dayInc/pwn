@@ -4,6 +4,27 @@ require 'spec_helper'
 require 'tmpdir'
 
 describe PWN::AI::Agent::Reward do
+  describe 'completion accounting' do
+    include_context 'pwn tmp sandbox'
+
+    it 'preserves a refuted completion claim through resolution and durable learning' do
+      request = 'Write answer.txt'
+      report = PWN::AI::Agent::Verification.run(request: request, requirements: [request], root: @tmp,
+                                                checks: [{ requirement: request, kind: :file, path: 'answer.txt', expected: 'correct' }])
+      result = described_class.resolve_outcome(outcome: { score: 0.95, source: :llm_orm, claimed_completion: true, verification: report })
+      expect(result).to include(verified_completion: false, false_completion: true)
+      expect(described_class.resolve_outcome(outcome: result)).to eq(result)
+      row = PWN::AI::Agent::Learning.note_outcome(task: request, outcome: result)
+      expect(row).to include(claimed_completion: true, verified_completion: false, false_completion: true)
+      expect(PWN::AI::Agent::Learning.stats).to include(completion_claims: 1, false_completions: 1, verified_completions: 0)
+    end
+
+    it 'keeps unverified claims unknown rather than labeling them false or verified' do
+      result = described_class.resolve_outcome(outcome: { score: 0.95, source: :llm_orm, claimed_completion: true })
+      expect(result).to include(verified_completion: nil, false_completion: nil)
+    end
+  end
+
   describe 'labeled transcript calibration' do
     include_context 'pwn tmp sandbox'
 

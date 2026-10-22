@@ -100,7 +100,12 @@ describe 'PWN::AI::Agent::PolicyEvaluation' do
     File.unlink(live)
     File.write(live, File.read(baseline))
     result = evaluator.promote(enabled: true, quiescent: true, baseline: baseline, candidate: candidate, reports: reports, live_path: live)
-    expect(result).to include(promoted: true)
+    expect(result).to include(promoted: true, receipt_version: 1, change_kind: 'routing_policy')
+    expect(result[:acceptance_sha256]).to match(/\A[0-9a-f]{64}\z/)
+    [result.merge(promoted: false), result.merge(receipt_version: 2), result.except(:receipt_version), result.merge(change_kind: 'skill'), result.merge(acceptance_sha256: 'invalid')].each do |invalid|
+      expect(evaluator.rollback(enabled: true, quiescent: true, live_path: live, receipt: invalid)).to include(rolled_back: false, reason: /receipt/)
+      expect(File.binread(live)).to eq(File.binread(candidate))
+    end
     expect(File.binread(live)).to eq(File.binread(candidate))
     expect(File.binread(result[:rollback_path])).to eq(File.binread(baseline))
     expect(result[:replayed_seeds]).to eq([0, 1])
