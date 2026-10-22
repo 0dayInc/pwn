@@ -16,11 +16,11 @@ digraph "PWN_MemorySkills" {
     Rem    [label="memory_remember · lean\nkey · value · category",   fillcolor="#6ee7b7"];
     Skc    [label="skill_create\nskill_add_reference",           fillcolor="#6ee7b7"];
     Note   [label="learning_note_outcome\nlearning_reflect",     fillcolor="#6ee7b7"];
-    Dist   [label="learning_distill_skill\n(session → skill)",   fillcolor="#6ee7b7"];
+    Dist   [label="learning_distill_skill\n(explicit reviewed distillation)",   fillcolor="#6ee7b7"];
     Mrec   [label="mistakes_record\nmistakes_resolve",           fillcolor="#6ee7b7"];
     Xft    [label="Learning.export_finetune\n(sessions → dataset)", fillcolor="#6ee7b7"];
     Rdpo   [label="Reward.record_preference\nexport_dpo", fillcolor="#6ee7b7"];
-    PolW   [label="Policy.begin / observe / finish\n(Q + REINFORCE)", fillcolor="#6ee7b7"];
+    PolW   [label="Policy.begin_episode / observe_step / finish\neligible attributed credit only", fillcolor="#6ee7b7"];
   }
   {rank=same; Rem; Skc; Note; Dist; Mrec; Xft; Rdpo; PolW}
 
@@ -79,7 +79,7 @@ digraph "PWN_MemorySkills" {
   Rem  -> Fidx [label="incremental\nre-embed", style=dashed, color="#fbbf24"];
   Xft  -> Fftn [color="#f59e0b"];
   Xft  -> Fses [dir=back, style=dashed, color="#fbbf24", label="mine"];
-  Xft  -> Flrn [dir=back, style=dashed, color="#fbbf24", label="success:true"];
+  Xft  -> Flrn [dir=back, style=dashed, color="#fbbf24", label="eligible verified outcomes"];
   
   Fidx -> Midx [color="#a78bfa"];
   Fmem -> Midx [style=dashed, color="#a78bfa"];

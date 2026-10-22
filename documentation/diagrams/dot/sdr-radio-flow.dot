@@ -1,6 +1,6 @@
 digraph "PWN_SDR" {
   graph [
-    label=<<B>PWN::SDR - Software-Defined Radio &amp; RF Hacking</B><BR/><FONT POINT-SIZE="11" COLOR="#94a3b8">GQRX · FlipperZero · RFIDler · FrequencyAllocation · Decoder::* (20+Base/DSP) · Base.run_iq (true-air) · FFI::{Volk,Liquid,FFTW,RTLSdr,HackRF,AdalmPluto,SoapySDR}</FONT>>,
+    label=<<B>PWN::SDR - Software-Defined Radio &amp; RF Hacking</B><BR/><FONT POINT-SIZE="11" COLOR="#94a3b8">GQRX · FlipperZero · RFIDler · FrequencyAllocation · Decoder::* (21+Base/DSP) · mode-specific input boundaries · FFI::{Volk,Liquid,FFTW,RTLSdr,HackRF,AdalmPluto,SoapySDR}</FONT>>,
     labelloc=t, fontsize=20, fontname="Helvetica",
     rankdir=LR, splines=spline, nodesep=0.45, ranksep=1.1,
     bgcolor="#0f172a", fontcolor="#e2e8f0", pad=0.6, newrank=true
@@ -37,9 +37,9 @@ digraph "PWN_SDR" {
   subgraph cluster_dec {
     label="Decode · Sense · Record"; fontcolor="#ddd6fe"; style=rounded;
     color="#6d28d9"; bgcolor="#2e1065";
-    Base [label="Decoder::Base\nrun_iq (TRUE-AIR I/Q)\nrun_native (48 kHz UDP)\nrun_detector (energy)\nresolve_iq_source :auto", fillcolor="#c4b5fd", penwidth=2];
+    Base [label="Decoder::Base\nrun_iq (supported IQ modes)\nrun_native (48 kHz UDP)\nrun_detector (energy)\nresolve_iq_source :auto", fillcolor="#c4b5fd", penwidth=2];
     DSP  [label="Decoder::DSP\npure-Ruby + FFI accel\n(unpack · resample · FSK · FM)", fillcolor="#c4b5fd"];
-    Dec  [label="SDR::Decoder::*\nADSB · APT · BT · DECT · GPS\nGSM · Iridium · LoRa · LTE\nMorse · P25 · POCSAG/FLEX\nRDS · RFID · rtl_433 · RTTY\nWiFi · ZigBee", fillcolor="#c4b5fd"];
+    Dec  [label="SDR::Decoder::*\nADSB · APT · BT · DECT · GPS\nGSM · Iridium · LoRa · LTE\nMorse · P25 · POCSAG/FLEX\nRDS · RFID · rtl_433 · RTTY\nWiFi · ZigBee · Tempest", fillcolor="#c4b5fd"];
     Obs  [label="extro_observe\ncategory: :rf", fillcolor="#c4b5fd"];
     Xrf  [label="extro_snapshot :rf\nprobe_rf → hw inventory", fillcolor="#c4b5fd"];
     Tune [label="extro_rf_tune  📡\ntune · demod · strength\nRDS.sample → now_playing", fillcolor="#c4b5fd", penwidth=2];
@@ -63,8 +63,8 @@ digraph "PWN_SDR" {
   DSP  -> Dec  [color="#a78bfa"];
   Base -> Dec  [label="feed_iq / feed", color="#a78bfa", penwidth=2];
   Freq -> Dec  [color="#a78bfa"];
-  Flipper -> Freq [color="#f59e0b"];
-  RFID  -> Scan [color="#f59e0b"];
+  Flipper -> Obs [label="operator observation", color="#f59e0b"];
+  RFID -> Obs [label="operator observation", color="#f59e0b"];
   Freq  -> Scan [label="plan_bw/step", color="#f59e0b"];
   Scan  -> Obs  [color="#a78bfa"];
   Front -> Xrf  [style=dashed, color="#fbbf24", constraint=false];

@@ -1,8 +1,14 @@
 # Memory · Skills · Learning · Mistakes · Metrics · Policy - Introspection
 
-The inward half of the pwn-ai feedback loop: the agent writes what it did, and the next prompt can see it. Wins become skills. Failures become fingerprinted mistakes.
+The inward half of the pwn-ai feedback loop: the agent writes what it did, and the next prompt can see it. Verified procedures may support reviewed skill updates; routine wins do not create skills. Failures become fingerprinted mistakes.
 
 ![Memory / Skills detail](diagrams/memory-skills-detailed.svg)
+
+Completion metrics distinguish checked host completion from judge claims and
+legacy quality scores. Failure-derived recipes stay regression data; frozen
+held-out evaluation never feeds back into the source snapshot. Skill review and
+routing-policy promotion are separate guarded operations, not automatic proof
+of general improvement. See [Operability](Operability.md).
 
 ## The six stores
 
@@ -19,7 +25,7 @@ The inward half of the pwn-ai feedback loop: the agent writes what it did, and t
 
 `PWN::AI::Agent::Metrics` keeps two rates that RSI can compare across turns.
 
-ESR is `verified_exploit_tools / vulnerable_tools`. A tool enters `verified_exploit_tools` only when an exploit attempt for that tool name succeeds. A tool enters `vulnerable_tools` when the caller marks it vulnerable, or when a successful exploit names that target. Repeating the same tool does not change the counts. The rate stays nil until at least one vulnerable tool exists.
+ESR is `verified_exploit_tools / vulnerable_tools`. The numerator uses distinct tool/CWE names while the denominator uses distinct vulnerable assets: this can exceed 1 and is not a comparable success percentage. A tool enters `verified_exploit_tools` only when an exploit attempt for that tool name succeeds. A tool enters `vulnerable_tools` when the caller marks it vulnerable, or when a successful exploit names that target. Repeating the same tool does not change the counts. The rate stays nil until at least one vulnerable tool exists.
 
 ASR is `successful_attacks / total_attack_attempts`. Every attack attempt increments the denominator. A reproduced impact, a still-open retest, or an accepted `chain_impact` increments the numerator. This one is an attempt ratio, not a set of tool names.
 
@@ -55,7 +61,7 @@ wiping durable facts, preferences, and lessons. Clearing is still available via
    ↳ if auto_extrospect enabled      → Extrospection.auto_extrospect  # AUTO_SECTIONS only
 7. Reflect.on(engine: reflect_engine)→ Memory.remember(lesson_xxxx, ...)   # teacher-student: a
                                        frontier engine may WRITE the lesson a local engine READS
-8. A whole workflow succeeded         → Learning.distill_skill(name, session_id, references:)
+8. Explicit distillation / SkillReview → reviewed reusable procedure (not every success)
 9. Found a fix for a mistake          → mistakes_resolve(sig, fix) → Memory :lesson "AVOID X - FIX: Y"
 10. (weekly, cron) Learning.export_finetune (min judge score + process-reward compress) +
      Reward.export_dpo (per-source cap + trajectory geometry scrub) → ~/.pwn/finetune/*.jsonl → LoRA over the local
@@ -250,7 +256,8 @@ episode:
 1. `begin_episode` opens before the first tool rank.
 2. `observe_step` writes a hygiene reward after each tool (`semantic_ok`).
 3. `finish` (from `Learning.auto_introspect`, or Loop if introspect is skipped)
-   adds the `Reward.judge` terminal score and updates Q and REINFORCE.
+   records the resolved outcome. Unknown outcomes do not train; positive terminal
+   credit requires independently attributed action IDs, not judge prose alone.
 
 State is a short key: request kind, a hash of the active English task, last
 action, fail count bin, and engine. Files:

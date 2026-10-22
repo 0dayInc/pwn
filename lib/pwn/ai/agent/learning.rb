@@ -456,7 +456,7 @@ module PWN
           }
           entry[:score] = score if decision || opts.key?(:score)
           if decision
-            %i[verdict confidence training_score decision_version verification verifier_verdict grounded critic_pass judge_score quality_score rationale].each do |key|
+            %i[verdict confidence training_score decision_version verification verifier_verdict grounded critic_pass judge_score quality_score rationale claimed_completion verified_completion false_completion].each do |key|
               entry[key] = decision[key] if decision.key?(key)
             end
             entry[:status] = 'unverified' if decision[:training_score].nil?
@@ -542,9 +542,42 @@ module PWN
         # Supported Method Parameters::
         # stats = PWN::AI::Agent::Learning.stats
 
+        # Export an operator-authored, inert file-check recipe from a real failure.
+        # Never mine executable commands or gold answers from model prose.
+        public_class_method def self.regression_task(opts = {})
+          row = outcomes(limit: 10_000).find { |entry| entry[:id] == opts[:outcome_id] }
+          verification = row && row[:verification]
+          raise ArgumentError, 'persisted verified failure required' unless verification.is_a?(Hash) && Reward.resolve_outcome(outcome: row)[:verifier_verdict] == :fail
+
+          request = opts[:request].to_s
+          raise ArgumentError, 'original request digest mismatch' if request.empty? || verification[:request_digest] != Digest::SHA256.hexdigest(request)
+
+          requirements = Array(verification[:requirements])
+          checks = opts[:checks]
+          raise ArgumentError, 'exact original requirement coverage required' unless checks.is_a?(Array) && !requirements.empty? && checks.all?(Hash) && checks.map { |check| check[:requirement] }.uniq.sort == requirements.sort
+          raise ArgumentError, 'original requirement spans required' unless requirements.all? { |requirement| request.include?(requirement) }
+
+          checks.each do |check|
+            path = check[:path].to_s
+            raise ArgumentError, 'only relative in-root artifact paths allowed' if path.empty? || path.start_with?('/') || path.split('/').include?('..') || path.include?("\0")
+            raise ArgumentError, 'authored file/json expected content required' unless %w[file json].include?(check[:kind].to_s) && check.key?(:expected)
+          end
+          contract = { request: request, requirements: requirements, checks: checks.map { |check| check.slice(:requirement, :kind, :path, :expected) } }
+          # Detach returned recipes from caller and ledger objects; JSON is the
+          # portable fixture format used by the existing RSpec harness.
+          contract = JSON.parse(JSON.generate(contract), symbolize_names: true)
+          { schema: 'pwn-failure-regression-v1', split: 'regression', source_outcome_id: row[:id],
+            source_verification_sha256: Digest::SHA256.hexdigest(JSON.generate(verification)),
+            contract_sha256: Digest::SHA256.hexdigest(JSON.generate(contract)), contract: contract }
+        end
+
         public_class_method def self.stats
           rows   = outcomes(limit: 10_000)
           total  = rows.length
+          claims = rows.count { |row| row[:claimed_completion] == true }
+          false_completions = rows.count { |row| row[:false_completion] == true }
+          verified_completions = rows.count { |row| row[:verified_completion] == true }
+          checked_claims = rows.count { |row| row[:claimed_completion] == true && !row[:verified_completion].nil? }
           rows = rows.reject { |r| (r[:decision_version] && r[:training_score].nil?) || r[:success].nil? }
           evaluated = rows.length
           ok     = rows.count { |r| r[:success] == true }
@@ -562,6 +595,11 @@ module PWN
           heur_ok = heur.count { |r| r[:success] == true }
           {
             total_outcomes: total,
+            completion_claims: claims,
+            checked_completion_claims: checked_claims,
+            false_completions: false_completions,
+            verified_completions: verified_completions,
+            false_completion_rate: checked_claims.positive? ? false_completions.to_f / checked_claims : nil,
             unknown_outcomes: total - evaluated,
             successes: ok,
             failures: rows.count { |r| r[:success] == false },
@@ -2396,6 +2434,13 @@ module PWN
             # Prune excess *.bak siblings under the learning directory.
             #{self}.compact!(
               max_baks: 'optional - newest bak files to keep (defaults to 5)'
+            )
+
+            # Export an inert regression contract from a persisted verified failure.
+            #{self}.regression_task(
+              outcome_id: 'required - exact id in the recent learning ledger',
+              request: 'required - complete original request matching the verifier digest',
+              checks: 'required - independently authored file/json checks with relative paths and literal expected content'
             )
 
             # Run outcomes and return its result

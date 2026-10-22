@@ -66,7 +66,7 @@ the LLM to manufacture provenance.
 | `pwn-ai-sessions` | `PWN::Sessions` | List/view/delete transcripts |
 | `pwn-ai-cron` | `PWN::Cron` | List/run/toggle scheduled jobs |
 | `pwn-ai-delegate` | `Agent::Swarm` | Send one request to a persona |
-| `toggle-debug` | `Agent::Loop` / `Plugins::Log` | Stage log per operator request to `/tmp/pwn-ai-DEBUG-<SESSION_ID>-RN.log` |
+| `toggle-debug` | `Agent::Loop` / `Plugins::Log` | Stage log per operator request to `~/.pwn/logs/pwn-ai-DEBUG-<SESSION_ID>-R<N>.log` |
 | `toggle-trace` | `Agent::Loop` / `Plugins::Log` | Turns `toggle-debug` on with TracePoint; ENTER after each engine/tool step. Pry.config, not Env. Off turns both off. |
 | `toggle-pwn-ai-speaks` | `Plugins::Voice` | TTS every final answer on/off |
 | `welcome-banner` | `PWN::Banner` | Redraw a random banner |
@@ -158,7 +158,9 @@ switch to serial, Bluetooth, or TCP and use `/msg` to retry.
 
 ## Multi-line input
 
-`pwn-ai` and `pwn-asm` use a custom `PWNMultiLineInput` reader. Plain
+`pwn-asm` and the legacy line-mode AI console use `PWNMultiLineInput`. The
+default pwn-ai curses console owns its own input/render loop; see its
+[current key table](pwn-ai-Agent.md). In the line reader, plain
 **ENTER** submits; insert a newline (keep composing) with **any** of:
 
 | Keystroke | Works on | Notes |
@@ -193,7 +195,7 @@ emulator's config on its own.
 
 ## History → Driver
 
-`~/.pwn_history` captures every line you type. When a sequence works, turn it
+`~/.pwn/pwn_history` captures every line you type. When a sequence works, turn it
 into a shipped `bin/pwn_*` driver - see
 [From REPL History to Driver](Drivers.md).
 

@@ -2,7 +2,7 @@
 
 | Module | Purpose |
 |---|---|
-| `PWN::Bounty::LifecycleAuthzReplay` | Record an authenticated browser session, then replay every request under a *different* principal to surface horizontal/vertical authz bugs |
+| `PWN::Bounty::LifecycleAuthzReplay` | Plan actor/surface/checkpoint coverage, record caller-supplied observations, and summarize stale-access evidence; it does not automatically replay HAR requests |
 
 Pairs naturally with:
 
@@ -11,11 +11,13 @@ Pairs naturally with:
 - [`PWN::Plugins::BurpSuite`](BurpSuite.md) - capture the session to replay
 
 ```ruby
-PWN::Bounty::LifecycleAuthzReplay.start(
-  har_path: 'admin_session.har',
-  replay_as: { cookie: 'session=LOW_PRIV_TOKEN' },
-  proxy: 'http://127.0.0.1:8080'
-)
+replay = PWN::Bounty::LifecycleAuthzReplay
+plan = replay.load_plan(yaml_path: '/path/to/lifecycle_authz_replay.yaml')
+run = replay.start_run(plan: plan, output_dir: '/tmp/authz-evidence')
+# Perform the authorized requests separately and record their actual results
+# with replay.record_observation(run_obj: run, checkpoint:, actor:, surface:,
+#                                status:, request:, response:, artifact_paths:).
+summary = replay.finalize_run(run_obj: run)
 ```
 
 [← Home](Home.md) · [WWW](WWW.md)

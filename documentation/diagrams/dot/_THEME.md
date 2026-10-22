@@ -16,12 +16,14 @@ SVGs feel like a single coherent product.
 | Edge default         | slate-400 | `#94a3b8` |
 | Edge highlight       | sky-400   | `#38bdf8` |
 
-Layout rules (to avoid criss-crossed edges):
+Layout guidelines (reduce crossings without inventing dependencies):
 1. `rankdir=TB` (or `LR` for pipelines), `newrank=true`, `splines=spline`.
-2. Group every layer with `{rank=same; ...}` - edges go layer→layer only.
-3. Side/back edges use `constraint=false` + `style=dashed` and are kept to ≤3 per diagram.
+2. Group related layers when helpful. Actual feedback and cross-layer calls must
+   remain explicit; do not add false edges solely to align nodes.
+3. Side/back edges may use `constraint=false` + `style=dashed`. Label whether
+   an edge is automatic, optional, or an operator-composed handoff.
 4. One `subgraph cluster_*` per logical layer with a translucent fill.
 5. Node order inside a rank matches edge destinations in the next rank
-   (Graphviz then draws parallel non-crossing edges).
+   (Graphviz may still produce crossings; inspect the rendered SVG).
 
 Rebuild everything: `./build.sh` (from `documentation/diagrams/`).

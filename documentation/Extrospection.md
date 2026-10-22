@@ -7,6 +7,25 @@ say when I need it for a better answer?"*
 
 **Primary intent = sense tools on demand**, not ambient inventory of the local host.
 
+## Evidence boundaries and living off the land
+
+`PWN::Plugins::DetectOS.living_off_the_land` inventories executable names on PATH
+plus present optional `bins:` in `native`, and reports OS/architecture,
+raw-socket capability and Docker observations. `PromptBuilder` adds its summary
+to the HOST block as `LIVING OFF THE LAND`. This is local capability evidence,
+not permission, proof of tool health, or a reason to install missing software
+automatically. Tests can supply `which:` to replace PATH discovery, plus explicit OS, capability
+and Docker fixtures to avoid other host reads. Only the OS summary is injected
+from this API; PreflightChecker supplies separate plugin-health information.
+
+Extrospection supplies observations and correlation candidates, not causal proof
+or whole-request completion. `extro_verify` uses source-specific heuristics;
+token overlap and a reachable page cannot establish arbitrary factual truth.
+Confirmed claims cannot override failed host acceptance checks. Feed entries
+below describe implemented adapters, not currently verified endpoint availability
+or access entitlements. RF tuning, serial writes, calls and packet capture are
+active operations; this documentation audit did not exercise them.
+
 | You need... | Call... |
 |---|---|
 | Weather / public page content | `extro_watch` / `extro_verify` / TransparentBrowser |
@@ -104,7 +123,7 @@ Override / extend via `PWN::Env[:ai][:agent][:extrospection][:web][:anchors]`; s
 (g) :intel obs whose feed anchor is    ×  probe_web-unreachable → downgrade weight
 ```
 
-Output tells the agent whether a failure was **its own fault** ("I called the
+Output suggests whether a failure may be **its own fault** ("I called the
 API wrong" → belongs in [Mistakes](Mistakes.md)) or **the world changed**
 ("nmap was upgraded and the flag moved", "the HackRF was unplugged") - and
 that distinction is written back into MEMORY so the next run doesn't waste
@@ -112,8 +131,9 @@ iterations rediscovering it.
 
 ## `extro_verify` - proactive fact-checking (the browser as a sense organ)
 
-`probe_rf` is a passive **ear inventory**; `extro_rf_tune` actually **listens** (tune + RDS). `PWN::Plugins::TransparentBrowser` gives Extrospection **eyes**. `extro_verify(claim:)` renders a canonical source *with JavaScript
-executed* and returns a verdict:
+`probe_rf` inventories interfaces; `extro_rf_tune` tunes and samples RDS.
+`extro_verify(claim:)` attempts browser rendering, with a REST fallback that does
+not execute JavaScript, and returns a heuristic verdict:
 
 | `kind:` | Canonical source (rendered headless) | Verdict logic |
 |---|---|---|
@@ -254,7 +274,7 @@ unreachable endpoints return `{error:...}` instead of raising.
 | `:agify` / `:genderize` / `:nationalize` | agify.io · genderize.io · nationalize.io | First-name age/gender/nationality estimates |
 | `:haveibeenpwned` | haveibeenpwned.com v3 | Breach membership - **needs** `HIBP_API_KEY` |
 | `:securitytrails` | api.securitytrails.com | Domain DNS history - **needs** `SECURITYTRAILS_API_KEY` |
-| `:keybase` | keybase.io lookup API | **crypto-proven** cross-links (Twitter/GitHub/DNS/PGP) → highest-confidence pivots |
+| `:keybase` | keybase.io lookup API | Service-reported proof metadata/cross-links; not independent local cryptographic verification or proof of real-world identity |
 | `:gravatar` | gravatar.com profile JSON | email → md5 → username, verified accounts, bio, urls |
 | `:mastodon` | `<instance>/api/v1/accounts/lookup` + WebFinger | Fediverse identity; instance defaults to `mastodon.social` |
 | `:bluesky` | public.api.bsky.app `getProfile` | DID, handle, followers, bio |
@@ -452,7 +472,7 @@ cron_create(name: 'memory_revalidate', schedule: '0 4 * * 0',
 
 ```ruby
 PWN::Env[:ai][:agent][:extrospection][:web] = {
-  anchors:          ['https://target.acme/api/version', ...],  # else DEFAULT_WEB_ANCHORS
+  anchors:          ['https://target.example.com/api/version'],  # else DEFAULT_WEB_ANCHORS
   proxy:            'tor',      # or 'http://127.0.0.1:8080' (Burp) - honored by verify/watch/probe_web
   max_anchors:      8,
   per_page_timeout: 15,

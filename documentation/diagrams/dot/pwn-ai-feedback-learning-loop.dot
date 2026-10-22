@@ -1,168 +1,32 @@
-digraph "PWN_AI_Feedback_Learning_Loop" {
-  graph [
-    label=<<B>pwn-ai - Closed Self-Improvement Loop</B><BR/><FONT POINT-SIZE="11" COLOR="#94a3b8">Introspection (self)  ⟷  Extrospection (world)  ·  Mistakes (negative)  ·  Reward + Curriculum + Policy (RL)  ·  Local-model scaffolding</FONT>>,
-    labelloc=t, fontsize=20, fontname="Helvetica",
-    rankdir=TB, splines=spline, nodesep=0.6, ranksep=1.0,
-    bgcolor="#0f172a", fontcolor="#e2e8f0", pad=0.6, newrank=true, compound=true
-  ];
-  node [fontname="Helvetica", fontsize=11, style="filled,rounded",
-        shape=box, penwidth=1.4, color="#334155", fontcolor="#0f172a"];
-  edge [fontname="Helvetica", fontsize=9, color="#94a3b8",
-        fontcolor="#cbd5e1", penwidth=1.3, arrowsize=0.8];
-
-  /* L0 ─ actors */
-  User  [label="👤  Researcher", fillcolor="#7dd3fc"];
-  LLM   [label="🤖  LLM Provider", fillcolor="#c4b5fd"];
-  World [label="🌍  Host · Net · Repo\nToolchain · RF · Web · Intel", fillcolor="#fda4af"];
-  {rank=same; User; LLM; World}
-
-  /* L1 ─ agent core */
-  subgraph cluster_core {
-    label="PWN::AI::Agent::Loop  ·  budget pressure · TaskSummarizer"; fontcolor="#ddd6fe";
-    style=rounded; color="#6d28d9"; bgcolor="#2e1065"; penwidth=2;
-    Prompt   [label="PromptBuilder\nbudget · MemoryIndex\nrelevance-ranked ctx", fillcolor="#c4b5fd"];
-    Dispatch [label="Dispatch\ntolerant parse\nToolGuard · repair_name", fillcolor="#c4b5fd"];
-Router   [label="Registry\ntool_router\nCORE + top-K",   fillcolor="#c4b5fd"];
-Plan     [label="plan_first\n(pre-pass, local)",         fillcolor="#c4b5fd"];
-TaskSum  [label="TaskSummarizer\nemit_plan! · about_to\ndedup last_brief_fp", fillcolor="#c4b5fd", penwidth=2];
-Escalate [label="escalate\n>=N fails → Swarm hint",        fillcolor="#c4b5fd", penwidth=2];
-    Result   [label="Result\nfinal answer",           fillcolor="#c4b5fd"];
-  }
-  {rank=same; Prompt; Router; Plan; TaskSum; Dispatch; Escalate; Result}
-
-  /* L2 ─ triple engines */
-  subgraph cluster_intro {
-    label="INTROSPECTION  (self)"; fontcolor="#a7f3d0";
-    style=rounded; color="#047857"; bgcolor="#022c22"; penwidth=2;
-    Metrics  [label="Metrics\nESR = verified exploit tools / vulnerable tools\nASR = successful attacks / attempts", fillcolor="#6ee7b7"];
-    Learning [label="Learning\nnote_outcome · reflect\nexemplars_for · SFT quality gate\nfact_check_local_final", fillcolor="#6ee7b7"];
-    Mistakes [label="Mistakes\nrecord · resolve\nguard · correction_hint\n[REPEATING] · [REGRESSED]", fillcolor="#6ee7b7", penwidth=2];
-    ReflectT [label="Reflect\nteacher-student\n(reflect_engine)", fillcolor="#6ee7b7", penwidth=2];
-    Reward   [label="Reward\njudge · prm · semantic_ok\nsentinel warm\nDPO scrub <=40%/src", fillcolor="#6ee7b7", penwidth=2];
-    Curric   [label="Curriculum\npractice · offline_judge\ncritic/CF geometry · gate + diet", fillcolor="#6ee7b7", penwidth=2];
-    Policy   [label="Policy\nlive Q / REINFORCE\nbegin · observe · finish\nadvisory rank only", fillcolor="#6ee7b7", penwidth=2];
-  }
-  subgraph cluster_extro {
-    label="EXTROSPECTION  (world)"; fontcolor="#fde68a";
-    style=rounded; color="#a16207"; bgcolor="#422006"; penwidth=2;
-    Snapshot  [label="snapshot · drift\nhost/net/toolchain\nrepo/env/rf/web\n(AUTO_SECTIONS=host/repo/env)", fillcolor="#fcd34d"];
-    Observe   [label="observe · intel · watch\nrecon · CVE · web DOM",             fillcolor="#fcd34d"];
-    Verify    [label="verify (browser)\nfact-check own claims\nrevalidate_memory", fillcolor="#fcd34d", penwidth=2];
-    RFTune    [label="rf_tune  📡\ntune GQRX · demod\nRDS → now_playing",           fillcolor="#fcd34d", penwidth=2];
-  }
-  {rank=same; Metrics; Learning; Mistakes; ReflectT; Reward; Curric; Policy; Snapshot; Observe; Verify; RFTune}
-
-  /* L3 ─ correlate */
-  Correlate [label="extro_correlate()\n\"I did it wrong\"  vs  \"the world changed\"",
-             fillcolor="#fda4af", penwidth=2, fontsize=12];
-
-  /* L4 ─ persistence */
-  subgraph cluster_store {
-    label="~/.pwn/"; fontcolor="#94a3b8";
-    style="rounded,dashed"; color="#334155"; bgcolor="#1e293b";
-    Fmet [label="metrics.json",       shape=cylinder, fillcolor="#fcd34d"];
-    Flrn [label="learning.jsonl",     shape=cylinder, fillcolor="#fcd34d"];
-    Fmis [label="mistakes.json",      shape=cylinder, fillcolor="#fcd34d"];
-    Fmem [label="memory.json",        shape=cylinder, fillcolor="#fcd34d"];
-    Fidx [label="memory.idx",         shape=cylinder, fillcolor="#fcd34d"];
-    Fskl [label="skills/<n>/SKILL.md",         shape=cylinder, fillcolor="#fcd34d"];
-    Fext [label="extrospection.json", shape=cylinder, fillcolor="#fcd34d"];
-    Fftn [label="finetune/*.jsonl",   shape=cylinder, fillcolor="#fcd34d"];
-    Fprf [label="preferences.jsonl", shape=cylinder, fillcolor="#fcd34d"];
-    Fpol [label="policy.json\npolicy_traj.jsonl", shape=cylinder, fillcolor="#fcd34d"];
-  }
-  {rank=same; Fmet; Flrn; Fmis; Fmem; Fidx; Fskl; Fext; Fftn; Fprf; Fpol}
-
-  /* L0 → L1 */
-  User -> Prompt   [label="task", color="#38bdf8", penwidth=2];
-  LLM  -> Dispatch [label="tool_calls", dir=both, color="#a78bfa", penwidth=2];
-  World-> Result   [style=invis];
-
-  /* L1 internal */
-  Prompt -> Router   [color="#a78bfa"];
-  Router -> Plan     [color="#a78bfa"];
-  Plan   -> TaskSum  [color="#a78bfa"];
-  TaskSum -> Dispatch [color="#a78bfa"];
-  Dispatch -> Escalate [label="turn_fails >= N", color="#fb7185", style=dashed];
-  Dispatch -> Result [color="#a78bfa"];
-  Escalate -> Result [style=invis];
-
-  /* L1 → L2 */
-  Dispatch -> Metrics  [label="record(engine:)", color="#34d399"];
-  Dispatch -> Policy   [label="observe_step", color="#34d399"];
-  Result   -> Learning [label="auto_introspect\n(deferred after reply)", color="#34d399"];
-  Result   -> Policy   [label="finish (judge)", color="#34d399"];
-  Dispatch -> Mistakes [label="on failure\nrecord()", color="#fb7185", penwidth=2];
-  User     -> Mistakes [label="\"that's wrong\"\ncheck_user_correction", color="#fb7185",
-                        style=dashed, constraint=false];
-  Dispatch -> Snapshot [label="probe", color="#f59e0b"];
-  Result   -> Observe  [label="auto_extrospect\n(AUTO_SECTIONS only)", color="#f59e0b"];
-  World    -> Snapshot [color="#fb7185", constraint=false];
-  World    -> Observe  [color="#fb7185", constraint=false];
-  World    -> Verify   [label="TransparentBrowser\n:headless", color="#38bdf8", constraint=false, penwidth=2];
-  World    -> RFTune   [label="GQRX remote\n:7356 + SDR", color="#fb7185", constraint=false, penwidth=2];
-  Dispatch -> Observe  [label="sense tools\nverify/watch/rf_tune/intel", color="#f59e0b", style=dashed, constraint=false];
-
-  /* L2 → L3 */
-  Metrics  -> Correlate [color="#34d399"];
-  Learning -> Correlate [color="#34d399"];
-  Learning -> Metrics [label="rsi_tick\nESR drop writes a lesson", style=dashed, color="#34d399", constraint=false];
-  Mistakes -> Correlate [color="#34d399"];
-  Snapshot -> Correlate [color="#f59e0b"];
-  Observe  -> Correlate [color="#f59e0b"];
-  Verify   -> Correlate [color="#f59e0b"];
-  RFTune   -> Correlate [color="#f59e0b"];
-
-  /* L3 → L4 */
-  Correlate -> Fmet [style=invis];
-  Metrics   -> Fmet [color="#94a3b8"];
-  Policy    -> Fpol [color="#94a3b8"];
-  Learning  -> Flrn [color="#94a3b8"];
-  Mistakes  -> Fmis [color="#94a3b8"];
-  Mistakes  -> Fmem [label="resolve→lesson", color="#94a3b8"];
-  Learning  -> Fmem [label="lesson", color="#94a3b8"];
-  Learning  -> Fskl [label="skill",  color="#94a3b8"];
-  Observe   -> Fext [color="#94a3b8"];
-  RFTune    -> Fext [label=":rf obs\nttl 300s", color="#94a3b8"];
-  Verify    -> Fmis [label=":refuted →\nassumption mistake", color="#fb7185", penwidth=2];
-  Verify    -> Mistakes [label=":refuted", color="#fb7185", style=dashed, constraint=false];
-  Verify    -> Fmem [label="mark stale\n[UNVERIFIED]", color="#a78bfa", style=dashed];
-  Verify    -> Fext [label=":confirmed\n:intel obs", color="#94a3b8"];
-  Learning -> Fftn [label="export_finetune", color="#94a3b8"];
-  Learning -> ReflectT [label="reflect()", color="#34d399", constraint=false];
-  ReflectT -> Fmem [label="frontier :lesson", color="#94a3b8"];
-  ReflectT -> LLM  [label="reflect_engine ≠ active", style=dashed, color="#a78bfa", constraint=false];
-  Result   -> Verify [label="fact_check_local_final\n(CVE / version claims)", color="#f59e0b", style=dashed, constraint=false];
-
-  /* feedback (dashed, non-constraining) */
-  Fmem -> Prompt [label="MEMORY block",  style=dashed, color="#fbbf24", constraint=false];
-  Fskl -> Prompt [label="SKILLS block",  style=dashed, color="#fbbf24", constraint=false];
-  Fmis -> Prompt [label="KNOWN MISTAKES\n+ KNOWN FIXES", style=dashed, color="#fb7185",
-                  constraint=false, penwidth=2];
-  Fext -> Prompt [label="EXTRO block",   style=dashed, color="#fbbf24", constraint=false];
-  Mistakes -> Dispatch [label="correction_hint\n(inline, next iter)", style=dashed,
-                        color="#fb7185", constraint=false, penwidth=2];
-  Correlate -> Prompt [label="findings → next run", style=dashed, color="#fb7185",
-                       constraint=false, penwidth=2];
-  Fidx -> Prompt [label="MemoryIndex\ncosine top-K", style=dashed, color="#fbbf24", constraint=false, penwidth=2];
-  Flrn -> Plan   [label="exemplars_for\n(few-shot, local)", style=dashed, color="#fbbf24", constraint=false];
-  Fmet -> Router [label="success_rate\n→ tie-break", style=dashed, color="#fbbf24", constraint=false];
-  Fpol -> Prompt [label="POLICY block", style=dashed, color="#fbbf24", constraint=false];
-  Fpol -> Router [label="Q-advantage\nvisits≥2", style=dashed, color="#fbbf24", constraint=false];
-  Escalate -> LLM [label="Swarm.ask(persona)\nfrontier hint", color="#a78bfa", constraint=false, penwidth=2, style=dashed];
-  Escalate -> Mistakes [label="record\n(tool:'escalation')", color="#fb7185", constraint=false, style=dashed];
-  Fftn -> LLM  [label="LoRA (weights)\ncron weekly", style=dashed, color="#fb7185", constraint=false, penwidth=2];
-  Result -> User [label="answer", color="#38bdf8", constraint=false, penwidth=2];
-  Result   -> Reward   [label="judge · prm", color="#34d399", penwidth=2];
-  Result   -> Curric   [label="critic · hindsight", color="#34d399"];
-  Dispatch -> Curric   [label="counterfactual\n[REPEATING]", color="#fb7185", style=dashed, constraint=false];
-  Reward   -> Verify   [label="verify_as_reward", style=dashed, color="#fbbf24", constraint=false];
-  Reward   -> Fprf     [label="record_preference", color="#94a3b8"];
-  Reward   -> Mistakes [label="sentinel gap", color="#fb7185", style=dashed, constraint=false];
-  Curric   -> Fprf     [label="(loser,winner)", color="#94a3b8"];
-  Curric   -> Fmis     [label="practice → resolve", color="#34d399", style=dashed];
-  Curric   -> Fftn     [label="train_and_gate", color="#94a3b8"];
-  User     -> Fprf     [label="user_correction\n→ DPO pair", color="#fb7185", style=dashed, constraint=false];
-  Fprf     -> LLM      [label="DPO (weights)\ncron weekly", style=dashed, color="#fb7185", constraint=false, penwidth=2];
-
+digraph PWN_Feedback {
+  graph [label="pwn-ai - evidence-backed feedback, not automatic improvement", labelloc=t,
+    fontsize=20, fontname="Helvetica", rankdir=TB, bgcolor="#0f172a", fontcolor="#e2e8f0", pad=0.6];
+  node [fontname="Helvetica", fontsize=11, shape=box, style="rounded,filled", fillcolor="#c4b5fd", color="#334155"];
+  edge [fontname="Helvetica", fontsize=9, color="#94a3b8", fontcolor="#cbd5e1"];
+  Request [label="Original request + additive amendments", fillcolor="#7dd3fc"];
+  Host [label="Living off the land\nDetectOS native PATH inventory API\nHOST injects OS summary + PreflightChecker health", fillcolor="#6ee7b7"];
+  Prompt [label="PromptBuilder\nbudgeted memory / skills / lessons / mistakes / policy"];
+  Loop [label="Loop / request-owned runtime\nTaskSummarizer compass is UX, not acceptance"];
+  Tools [label="Registry -> Dispatch -> actual tools\npermissions / confirmation / sandbox"];
+  World [label="Extrospection\non-demand observe / intel / watch / verify / RF etc.\nauto baseline: host / repo / env only", fillcolor="#fcd34d"];
+  Evidence [label="Host receipts / exact-target stat + digest\nexecuted authored checks; failed/unknown stay distinct", shape=cylinder, fillcolor="#fcd34d"];
+  Final [label="Completion arbiter\nno tool calls != done; all original obligations apply"];
+  Reward [label="Reward + Learning\nclaimed_completion (judge claim)\nverified_completion / false_completion\nrate denominator: checked claims", fillcolor="#6ee7b7"];
+  Mistakes [label="Mistakes / Metrics / Reflect\nfailures, fixes and diagnostic lessons\ncorrelation is not causal proof", fillcolor="#6ee7b7"];
+  Policy [label="Policy accounting + advisory ranking\npositive training credit requires independent action attribution", fillcolor="#6ee7b7"];
+  Regression [label="Learning.regression_task\nexact failure/request digest + operator-authored expected bytes\ninert file/JSON recipe; split remains regression"];
+  Eval [label="Frozen local snapshot evaluation\nnew HOME / off + baseline + candidate\npublic held-out tasks; no live LLM gain claim"];
+  Promote [label="Operator approval + stopped writers + explicit target\nfresh replay / per-task + aggregate gates\nversioned receipt / digest-bound rollback"];
+  Skill [label="SkillReview default recommend\nauto-safe limited to proven additions to existing SOPs"];
+  Weights [label="Curriculum export / optional trainer path\nseparate from routing-policy promotion\nnot proof that a live adapter improved"];
+  Request -> Loop; Host -> Prompt; Prompt -> Loop; Loop -> Tools;
+  Tools -> Evidence; Tools -> World; World -> Prompt [style=dashed];
+  Evidence -> Final; Loop -> Final; Final -> Reward;
+  Tools -> Mistakes; World -> Mistakes [label="correlate", style=dashed];
+  Reward -> Policy; Reward -> Regression [label="persisted verifier failure"];
+  Regression -> Eval [label="regression replay only; never relabel held-out", style=dashed];
+  Policy -> Eval [label="explicit frozen snapshots"]; Eval -> Promote;
+  Promote -> Policy [label="explicit local replace / rollback", style=dashed];
+  Mistakes -> Prompt [style=dashed]; Reward -> Skill; Skill -> Prompt [style=dashed];
+  Reward -> Weights [label="explicit opt-in"]; Policy -> Prompt [style=dashed];
 }

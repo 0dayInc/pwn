@@ -1,5 +1,21 @@
 # Reinforcement Learning in pwn-ai
 
+## Verified completion versus learning scores
+
+Use `verified_completion` (pass/fail/unknown), not legacy judge `success`, to
+measure delivered work. `claimed_completion` preserves the judge claim and
+`false_completion_rate` divides refuted claims by checked claims, remaining null
+when none were checked. Executable harness false-success instead compares a
+released marker against the entire run outcome, including exit status and caps.
+
+`Learning.regression_task` exports an inert file/JSON recipe from an exact
+persisted verifier failure and request digest; expected bytes are independently
+authored and its split remains `regression`. Frozen policy promotion reruns
+acceptance, checks per-task regressions and requires explicit approval/stopped
+writers; rollback needs its versioned receipt and unchanged promoted target.
+See [Harness Evaluation](Harness-Evaluation.md) and [Policy Benchmark](Policy-Benchmark.md).
+
+
 ## Retained learning evidence and session cleanup
 
 Learning outcomes can retain a versioned `evidence_ref` (`version`, `id`,
@@ -90,7 +106,7 @@ local adapter.
 That path can promote a new local adapter when the candidate beats the current
 one. Without a trainer it still **exports** the datasets and a manual CLI. Live improvement does not wait on weights.
 
-ESR and ASR are the rates RSI actually compares. ESR is `verified_exploit_tools / vulnerable_tools`. ASR is `successful_attacks / total_attack_attempts`. `Learning.rsi_tick` stores the pair and writes an `rsi` lesson when ESR falls. Tool telemetry and the judge score are separate. A passing suite is not either rate.
+ESR and ASR are the rates RSI records; only an ESR drop triggers its regression lesson. ESR is `verified_exploit_tools / vulnerable_tools`. ASR is `successful_attacks / total_attack_attempts`. `Learning.rsi_tick` stores the pair and writes an `rsi` lesson when ESR falls. Tool telemetry and the judge score are separate. A passing suite is not either rate.
 
 RSI's rate tick does not generate or promote policy candidates. For the separate
 **offline operator evaluation** path, use `pwn-ai --policy evaluate` and review
@@ -275,7 +291,7 @@ that a live language model performs better.
 | **W1** `.record_preference` | Preference ledger from corrections, resolve, counterfactual, critic, and practice. |
 | `.practice_kpi` | Week-over-week trend of repeating mistakes (outer curriculum health). |
 
-## Budget pressure (iteration ceiling)
+## Budget pressure (side-work control)
 
 When unresolved `agent_loop` / `assistant_answer` budget-exhaustion fingerprints
 dominate, the loop marks the budget path hot and tightens *side work* only:
@@ -332,7 +348,7 @@ This is the live control list. Track the outcomes, not source comments.
     :reward_llm_timeout: 12  # cheap ORM chat timeout seconds (clamped 2..30)
     :local_introspect: :failure_only   # ollama cost rule; remote always introspects
     :introspect_every_n: 3
-    :max_iters: 777          # hard cap for this request; scars do not lower it
+    :max_iters: 777          # advisory counter; not a hard completion cap
     :defer_introspect: true  # post-answer Learning after the user-visible reply
     :prompt_cache: true      # engine-native prefix cache (not ollama / openwebui)
     :tool_preference: [memory_recall, session_recall, skills_recall, pwn_eval, shell, mistakes_record, mistakes_resolve, learning_note_outcome, memory_remember, skills_update]

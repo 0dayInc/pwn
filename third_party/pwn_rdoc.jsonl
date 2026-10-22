@@ -357,6 +357,7 @@
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Learning.reconcile_verdict_tags! Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Learning.reconcile_verdict_tags!`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Learning.recover_predicted_from_session Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Learning.recover_predicted_from_session`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Learning.reflect Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Learning.reflect`: Supported Method Parameters\n\nreport = PWN::AI::Agent::Learning.reflect(\n\nsession_id: 'required - PWN::Sessions id to analyse',\ndry_run: 'optional - when true, do not write to Memory/Skills (default false)'\n\n)\n\nUses PWN::AI::Agent::Reflect (when available) to LLM-summarise the session into structured lessons. Falls back to a heuristic extractor when module_reflection is disabled so learning never stops.\n"}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Learning.regression_task Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Learning.regression_task`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Learning.requeue_conflicted Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Learning.requeue_conflicted`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Learning.reset Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Learning.reset`: Supported Method Parameters\n\nPWN::AI::Agent::Learning.reset\n"}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Learning.rl_skill_notes Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Learning.rl_skill_notes`: "}]}
@@ -368,7 +369,7 @@
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Learning.should_gc_stores? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Learning.should_gc_stores?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Learning.skill_body_without_frontmatter Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Learning.skill_body_without_frontmatter`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Learning.skills_dir Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Learning.skills_dir`: "}]}
-{"messages":[{"role":"user","content":"PWN::AI::Agent::Learning.stats Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Learning.stats`: Supported Method Parameters\n\nstats = PWN::AI::Agent::Learning.stats\n"}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Learning.stats Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Learning.stats`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Learning.to_context Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Learning.to_context`: Supported Method Parameters\n\nctx = PWN::AI::Agent::Learning.to_context(\n\nlimit: 'optional - number of recent outcomes to surface (default 5)'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Learning.transcript_text Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Learning.transcript_text`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Learning.update_skill Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Learning.update_skill`: "}]}

@@ -1,6 +1,7 @@
 # `~/.pwn/` - Persistence Map
 
-Every byte PWN remembers between processes lives here.
+Default user state lives here. Explicit artifact/output paths, worktrees,
+external services and environment overrides can place evidence elsewhere.
 
 ![~/.pwn map](diagrams/persistence-filesystem.svg)
 
@@ -35,7 +36,7 @@ Every byte PWN remembers between processes lives here.
 | `finetune/*.jsonl` | `Learning.export_finetune` · `Reward.export_dpo` | ShareGPT / OpenAI / DPO JSONL | `rm` | supervised + preference datasets - feed to a LoRA over the local model |
 | `backup/<ts>/` | `PWN::Migrate` | tree copy | rm -rf | timestamped snapshot taken before every `--migrate --fix` |
 | `quarantine/` | `PWN::Migrate` | quarantined originals | rm -rf | corrupt/incompatible state files moved aside so the owner re-seeds |
-| `~/.pwn_history` | Pry | text | rm | REPL input history |
+| `pwn_history` | Pry / pwn-ai | text | operator-managed | Shared durable input history at `~/.pwn/pwn_history` |
 
 
 ## `memory.json` safety

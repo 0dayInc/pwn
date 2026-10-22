@@ -2,7 +2,7 @@
 
 > **PWN** (/pōn/) - an open-source offensive-security automation framework and
 > continuous-security-integration platform written in Ruby.
-> 67 plugins · 48 SAST modules · 90 AWS wrappers · 22 WWW drivers · 54 CLI
+> 107 plugins · 48 SAST modules · 90 AWS wrappers · 22 WWW drivers · 56 CLI
 > executables · 6 LLM engines · a self-improving multi-agent AI · one REPL.
 
 **Repo root:** `/opt/pwn` · **This wiki:** `/opt/pwn/documentation/` ·
@@ -19,6 +19,7 @@
 | [How PWN Works](How-PWN-Works.md) | The five layers, with the architecture diagram |
 | [Installation](Installation.md) | `gem install --verbose pwn` → `pwn setup` doctor/provisioner · capability profiles · `--migrate` state doctor |
 | [General Usage](General-PWN-Usage.md) | Day-one cheat sheet |
+| [Operability and Evidence](Operability.md) | Completion, regressions, frozen evaluation, mesh and deployment boundaries |
 | [Configuration](Configuration.md) | `~/.pwn/pwn.yaml` (encrypted) - engines, keys, agent options · `pwn-vault` |
 | **[All Data-Flow Diagrams](Diagrams.md)** | **29 SVGs** in one scrollable page |
 
@@ -28,7 +29,7 @@
 |---|---|
 | [The `pwn` REPL](pwn-REPL.md) | Pry shell with the whole `PWN::` namespace pre-loaded |
 | [`pwn-ai` Autonomous Agent](pwn-ai-Agent.md) | Natural-language TUI + `pwn --ai PROMPT` one-shot · **TaskSummarizer** briefs · CORE_TOOLS until `may_finalize?` |
-| [CLI Drivers `bin/pwn_*`](CLI-Drivers.md) | 54 headless executables (`pwn` + 53 `pwn_*`) for CI/CD |
+| [CLI Drivers `bin/pwn_*`](CLI-Drivers.md) | 56 executables (`pwn`, `pwn-ai`, `pwn-capd` + 53 `pwn_*`) for CI/CD |
 | [Drivers (build your own)](Drivers.md) | Turn a REPL session into a shipped binary |
 
 ## 🤖 AI Subsystem  (`PWN::AI`)
@@ -37,7 +38,7 @@
 |---|---|
 | [AI / LLM Integration](AI-Integration.md) | OpenAI · Anthropic · Grok (OAuth) · Gemini · Ollama · Open WebUI |
 | [Agent Tool Registry](Agent-Tool-Registry.md) | 16 toolsets · **150** LLM-callable tools |
-| [Memory · Skills · Learning](Skills-Memory-Learning.md) | Introspection - self-improvement loop + 10 bundled skills on first launch |
+| [Memory · Skills · Learning](Skills-Memory-Learning.md) | Introspection, reviewed skill updates and bundled SOP/module skills on first launch |
 | [Mistakes](Mistakes.md) | **Negative feedback** - fingerprint failures · do-NOT-repeat · `[REPEATING]`/`[REGRESSED]` · inline self-correction |
 | [Reinforcement Learning](Reinforcement-Learning.md) | **`Reward` + `Curriculum` + `Policy`** - outcome/process judges · preference ledger · self-play practice · live Q / REINFORCE (advisory) · export-ready LoRA gate |
 | [Extrospection](Extrospection.md) | World-awareness - snapshot · drift · intel · **watch** · **verify** · **rf_tune** · **osint** · serial · telecomm · packet · vision · voice · correlate |
@@ -50,7 +51,7 @@
 
 | | |
 |---|---|
-| [Plugins (67)](Plugins.md) | Every `PWN::Plugins::*` module by category |
+| [Plugins (107)](Plugins.md) | Every `PWN::Plugins::*` module by category |
 | &nbsp;&nbsp;↳ [BurpSuite](BurpSuite.md) ⭐ | Preferred web proxy / scanner |
 | &nbsp;&nbsp;↳ [TransparentBrowser](Transparent-Browser.md) | Headless / visible browser automation |
 | &nbsp;&nbsp;↳ [NmapIt](NmapIt.md) | Network discovery |
@@ -60,7 +61,7 @@
 | [SAST (48 rules)](SAST.md) | Static analysis + test-case engine |
 | [WWW (22 drivers)](WWW.md) | Browser automations for real sites |
 | [AWS (90 services)](AWS.md) | Cloud-security enumeration |
-| [SDR](SDR.md) | GQRX · FlipperZero · RFIDler · SonMicro · **Decoder::* (20 protocols + Base/DSP)** · FFI-accelerated DSP |
+| [SDR](SDR.md) | GQRX · FlipperZero · RFIDler · SonMicro · **Decoder::* (21 protocols + Base/DSP)** · FFI-accelerated DSP |
 | [Blockchain](Blockchain.md) | BTC · ETH helpers |
 | [Bounty](Bounty.md) | Lifecycle / auth-replay tooling |
 | [Reports](Reporting.md) | HTML/JSON output + DefectDojo/Jira |

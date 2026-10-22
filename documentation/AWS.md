@@ -8,21 +8,22 @@ with the PWN `opts = {}` convention so they compose in the REPL and in
 
 ## Credentials
 
-Standard AWS SDK chain: `~/.aws/credentials` profile, env vars
-(`AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` / `AWS_SESSION_TOKEN`), or
-instance profile. Optionally pin in `~/.pwn/pwn.yaml` under `aws:`.
+Service wrappers expose `connect`/`disconnect`, not every AWS SDK operation
+as a PWN module method. Supply `region`, `access_key_id`, `secret_access_key`
+and optional `sts_session_token` to `connect`; retrieve credentials through
+your approved secret source without printing them. `STS.get_temp_credentials`
+is the separate assume-role helper. Inspect each module's `.help` first.
 
 ## Quick enumeration
 
 ```ruby
-PWN::AWS::STS.get_caller_identity
-PWN::AWS::IAM.list_users
-PWN::AWS::EC2.describe_instances(region: 'us-east-1')
-PWN::AWS::S3.list_buckets
-PWN::AWS::Lambda.list_functions
+# credentials is an operator-supplied Hash; never log its values.
+ec2 = PWN::AWS::EC2.connect(credentials.merge(region: 'us-east-1'))
+instances = ec2.describe_instances
+PWN::AWS::EC2.disconnect(ec2_obj: ec2)
 ```
 
-CLI: `pwn_aws_describe_resources -r us-east-1 -o out/`
+CLI: `pwn_aws_describe_resources -r us-east-1 -c /path/to/private-aws.yaml`
 
 ## Service groups
 

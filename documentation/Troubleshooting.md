@@ -100,10 +100,13 @@ fix the port via `pwn-vault` (`~/.pwn/pwn.yaml`).
 Fixed in current `PWN::Cron` / `Swarm` - both loaders now pass
 `permitted_classes: [Symbol]`. If you see it, `gem update pwn`.
 
-## Agent stops early ("max iterations")
+## Agent stops before verified completion
 
-Raise `ai.agent.max_iters` in `~/.pwn/pwn.yaml` (edit via `pwn-vault`), or
-split the request.
+Inspect the request log under `~/.pwn/logs/` (or `PWN_DEBUG_DIR`) and the
+persisted request/verification checkpoint. Increasing `max_iters` is not a
+completion fix: current Loop does not finalize merely because that count was
+reached. Preserve failure evidence and resume the unfinished objective; see
+[Session Workflow](Session-Workflow.md) and [Harness Evaluation](Harness-Evaluation.md).
 
 ## A tool is stuck at 0 % success
 

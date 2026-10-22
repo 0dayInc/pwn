@@ -1,8 +1,7 @@
 # How PWN Works
 
-PWN is five layers, each visible in the source tree. Edges only go
-**down** one layer (or sideways within a layer), which is why the diagrams
-below have no criss-crossing lines.
+This conceptual layer map groups entry points, agent control, capabilities and
+persistence. Feedback and cross-layer calls are explicit; layout is not a call graph.
 
 ![Overall Architecture](diagrams/overall-pwn-architecture.svg)
 
@@ -20,7 +19,7 @@ hardware).
 | `pwn-ai` | `lib/pwn/ai/agent/loop.rb` | Agent TUI inside the REPL |
 | `pwn --ai PROMPT` | `bin/pwn` | Headless one-shot agent (CI-friendly) |
 | `pwn setup` | `lib/pwn/setup.rb` · `bin/pwn_setup` | Post-install doctor + capability provisioner + `--migrate` state doctor (also `pwn --setup[=PROFILE]`) |
-| `bin/pwn_*` + `pwn` | 54 files | Thin OptionParser wrappers plus the `pwn` REPL / one-shot agent |
+| `bin/` (including `pwn-ai` and `pwn-capd`) | 56 files | Thin OptionParser wrappers plus the `pwn` REPL / one-shot agent |
 | `PWN::Cron` | `lib/pwn/cron.rb` | Scheduled jobs + background worker (`pwn setup`). Fresh install seeds hygiene on (`learning_consolidate_nightly`, `pwn_stores_lean_nightly`) and curriculum practice/judge/train off |
 
 ## L2 - AI agent core (`lib/pwn/ai/agent/`)
@@ -29,7 +28,7 @@ hardware).
 |---|---|
 | `Loop` | plan → **TaskSummarizer** briefs → dispatch tool_calls → observe → repeat until `may_finalize?`. No iteration-budget abort |
 | **`TaskSummarizer`** | Executive UX: every request gets an English task compass (`emit_plan!` · `about_to` as `task k/n`) - no statement/question/goal type |
-| `Registry` | JSON-Schema function definitions grouped into 16 **toolsets** · **150 tools** · `CORE_TOOLS` = `DEFAULT_PREFERENCE` (`memory_recall` · `session_recall` · `skills_recall` · `pwn_eval` · `shell` · `mistakes_record` · `mistakes_resolve` · `learning_note_outcome` · `memory_remember` · `skills_update` · `artifact_read` · `artifact_grep`) |
+| `Registry` | JSON-Schema function definitions grouped into 16 **toolsets** · **150 tools** · `CORE_TOOLS` = `DEFAULT_PREFERENCE` (`memory_recall` · `session_recall` · `skills_recall` · `pwn_eval` · `shell` · `mistakes_record` · `mistakes_resolve` · `learning_note_outcome` · `memory_remember` · `skills_update` · `artifact_read` · `artifact_grep` · `job_run` · `job_status` · `job_tail` · `job_result` · `job_kill`) |
 | `Dispatch` / `Result` | execute a tool, capture stdout/value/error/duration |
 | `PromptBuilder` | inject MEMORY / SKILLS / LEARNING / **KNOWN MISTAKES + FIXES** / METRICS / **POLICY** / EXTROSPECTION / RECENT TURNS |
 | `Metrics` · `Learning` · `Reflect` · **`Policy`** | **introspection** - how well am I doing? (Policy is live Q / REINFORCE, advisory rank only) |
@@ -45,14 +44,14 @@ call, and [Reinforcement Learning](Reinforcement-Learning.md) for how
 
 ## L3 - Capability namespaces (`lib/pwn/*`)
 
-`Plugins` (67) · `SAST` (48) · `WWW` (22) · `AWS` (90) · `SDR` · `Blockchain` ·
+`Plugins` (107) · `SAST` (48) · `WWW` (22) · `AWS` (90) · `SDR` · `Blockchain` ·
 `Bounty` · `Reports` · `FFI` · `Banner` · **`Setup`** · **`Migrate`**. First launch also seeds bundled skills from `etc/default_skills/`. Each is
 a plain module of `public_class_method def self.x(opts = {})` methods -
 callable the same way from the REPL, from `pwn_eval`, or from a driver.
 
 ## L4 - Persistence (`~/.pwn/`)
 
-Everything the framework remembers between processes lives in one directory.
+Most default user state lives under `~/.pwn`; explicit outputs and worktrees may live elsewhere.
 `PWN::Migrate` (schema-stamped, idempotent, dry-run capable) verifies and
 autofixes every file in it after a `gem update pwn`:
 
@@ -64,14 +63,14 @@ for the migrator.
 
 ## The feedback loop
 
-L2 exists to close this loop on every turn - successes become skills and
-lessons, **failures become fingerprinted mistakes with fixes**, **world state
+L2 records outcomes and may propose skills or lessons; routine success does not
+automatically create a skill. In the feedback loop, **failures become fingerprinted mistakes with fixes**, **world state
 is sensed on demand** (`extro_verify` / `extro_watch` / `extro_rf_tune` /
 `extro_osint` / `extro_serial` / `extro_telecomm` / `extro_packet` /
 `extro_vision` / `extro_voice` / `extro_intel`) and correlated against those
 failures, a **cheap LLM judge scores the final answer** (token overlap only if the engine is unavailable) and a **process reward
 model tags each tool step**, **Policy records the live MDP step** and updates
-Q / REINFORCE when the judge scores the turn, and **the prompt blocks**
+Q / REINFORCE only for eligible resolved outcomes with independently attributed positive credit, and **the prompt blocks**
 (MEMORY · SKILLS · LEARNING · KNOWN MISTAKES/FIXES · TOOL EFFECTIVENESS ·
 POLICY · EXTROSPECTION · RECENT TURNS) are re-injected into the next system
 prompt.

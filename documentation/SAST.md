@@ -1,6 +1,8 @@
 # `PWN::SAST` - Static Application Security Testing
 
-48 modules in `PWN::SAST`: 45 language-aware scan rules plus `Factory`, `TestCaseEngine`, and `Version`.
+48 top-level modules in `PWN::SAST`. `Factory` is the Java XML-factory/XXE
+pattern rule, not the rule loader; `TestCaseEngine` executes rules.
+The `pwn_sast` driver orchestrates the selected rules.
 Source: `lib/pwn/sast/*.rb`. CLI: `bin/pwn_sast`.
 
 ![SAST pipeline](diagrams/code-scanning-sast.svg)
@@ -9,15 +11,17 @@ Source: `lib/pwn/sast/*.rb`. CLI: `bin/pwn_sast`.
 
 ```bash
 # CLI driver
-pwn_sast -d /path/to/src -o /tmp/sast_out
+pwn_sast --help  # inspect the installed driver's source/output options
 ```
 
 ```ruby
 # REPL / pwn_eval
-findings = PWN::SAST::Factory.start(dir_path: '/path/to/src')
-PWN::Reports::SAST.generate(dir_path: '/path/to/src',
-                            results_hash: findings,
-                            output_dir: '/tmp/sast_out')
+require 'fileutils'
+rows = PWN::SAST::Factory.scan(dir_path: '/path/to/src')
+FileUtils.mkdir_p('/tmp/sast_out')
+PWN::Reports::SAST.generate(dir_path: '/tmp/sast_out',
+                            results_hash: { data: rows },
+                            report_name: 'report')
 ```
 
 ## Rule families (48 modules)
@@ -30,14 +34,15 @@ PWN::Reports::SAST.generate(dir_path: '/path/to/src',
 | **Crypto / secrets** | `MD5` · `SSL` · `Keystore` · `PaddingOracle` · `PrivateKey` · `Signature` · `Token` · `Password` · `Base64` · `HTTPAuthorizationHeader` |
 | **Memory / native** | `BannedFunctionCallsC` · `UseAfterFree` |
 | **Infra / meta** | `AWS` · `AMQPConnectAsGuest` · `ApacheFileSystemUtilAPI` · `PomVersion` · `Version` · `Port` · `Logger` · `ThrowErrors` · `TaskTag` · `Emoticon` |
-| **Engine** | `Factory` (loader) · `TestCaseEngine` (probe generator) |
+| **Engine** | `Factory` (Java XML-factory/XXE rule) · `TestCaseEngine` (probe generator) |
 
 ## Write a rule
 
 Each rule implements `self.scan(opts = {})` taking `dir_path:` and returning an
-array of `{file:, line:, match:, cwe:, severity:}` hashes. Copy any existing
-rule in `lib/pwn/sast/`, add your regex/AST logic, and it's auto-loaded by
-`Factory`.
+array of TestCaseEngine result rows (including timestamp, security references,
+filename/line and raw/test-case content). Inspect an existing rule and the
+report renderer rather than inventing a findings schema. Add its namespace
+autoload, paired spec and generated module skill; the driver selects rules.
 
 ## Downstream
 

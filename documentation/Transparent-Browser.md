@@ -15,7 +15,7 @@ JS-heavy.
 b = PWN::Plugins::TransparentBrowser.open(
   browser_type: :headless,           # :chrome | :firefox | :headless | :rest
   proxy:        'http://127.0.0.1:8080',
-  with_devtools: true
+  devtools:     true
 )
 b[:browser].goto 'https://target'
 b[:browser].text_field(name: 'q').set 'pwn'

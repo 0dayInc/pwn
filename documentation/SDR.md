@@ -15,7 +15,7 @@
 | `RFIDler` | 125 kHz RFID reader/emulator |
 | `SonMicroRFID` | SM130 13.56 MHz reader |
 | `FrequencyAllocation` | ITU/FCC band-plan lookup - "what lives at 433.92 MHz?" |
-| **`Decoder::*`** | 20 protocol demodulators/decoders (+ Base/DSP helpers) - `ADSB APT Bluetooth DECT FLEX GPS GSM Iridium LoRa LTE Morse P25 Pager POCSAG RDS RFID RTL433 RTTY WiFi ZigBee` |
+| **`Decoder::*`** | 21 protocol demodulators/decoders (+ Base/DSP helpers) - `ADSB APT Bluetooth DECT FLEX GPS GSM Iridium LoRa LTE Morse P25 Pager POCSAG RDS RFID RTL433 RTTY Tempest WiFi ZigBee` |
 
 ## CLI
 
@@ -57,14 +57,15 @@ See skill `pwn_gqrx_scanner_fast_vs_iterative_scanning` for the full trade-off.
 ## REPL example
 
 ```ruby
-g = PWN::SDR::GQRX.connect(host: '127.0.0.1', port: 7356)
-PWN::SDR::GQRX.set_freq(gqrx_sock: g, freq: 433_920_000)
-PWN::SDR::GQRX.set_demod(gqrx_sock: g, demod: 'AM')
-snap = PWN::SDR::GQRX.get_spectrum_snapshot(gqrx_sock: g)
-PWN::SDR::FrequencyAllocation.lookup(freq: 433_920_000)
-# => { band: 'ISM 433', typical: ['garage doors', 'weather stations', ...] }
+g = PWN::SDR::GQRX.connect(target: '127.0.0.1', port: 7356)
+PWN::SDR::GQRX.init_freq(gqrx_sock: g, freq: '433.920.000',
+                        demodulator_mode: :AM, keep_alive: true)
+snap = PWN::SDR::GQRX.get_spectrum_snapshot(gqrx_sock: g, nfft: 2048)
+plans = PWN::SDR::FrequencyAllocation.band_plans
+PWN::SDR::GQRX.disconnect(gqrx_sock: g)
 ```
 
+This is active tuning of an already running GQRX instance, not an offline test.
 
 ## Native DSP acceleration (`PWN::FFI`)
 
@@ -100,39 +101,26 @@ iq = PWN::FFI::HackRF.capture(freq_hz: 433_920_000, rate_hz: 10e6, samples: 262_
 
 See [FFI](FFI.md) for the full binding surface and design rules.
 
-## True-air I/Q decode (`Base.run_iq`)
+## Decode input boundaries
 
-Every `PWN::SDR::Decoder::*` module can decode straight from hardware I/Q
-without GQRX in the loop. `Base.run_iq` auto-selects the first working
-front-end (`:file` -> `:rtlsdr` -> `:adalm_pluto` -> `:hackrf` -> `:soapy`),
-streams, unpacks, and feeds the module's demodulator. If no hardware or
-capture file is present it degrades gracefully to `Base.run_detector`
-(energy/burst characterizer) so you still get structured JSONL output.
+The current registry has 24 aliases mapping to 21 protocol modules, including
+`Tempest`; `Flex` is the Ruby constant behind `:flex`. It is not a claim of full
+protocol or live-air coverage. See the mode-by-mode
+[SDR Decoder Coverage](SDR-Decoder-Coverage.md) matrix before choosing a source.
 
-```ruby
-# Force a specific radio, sample rate, or replay a capture file:
-fo = PWN::SDR::GQRX.init_freq(freq: '929.612.500', decoder: :flex)
-fo[:iq_source] = :hackrf          # or :rtlsdr / :adalm_pluto / :soapy / :file
-fo[:iq_rate]   = 2_048_000
-fo[:iq_file]   = '/tmp/flex.cu8'  # replay instead of live air
-PWN::SDR::Decoder::Flex.decode(freq_obj: fo)
+Use each public decoder's `.help` and explicit `source: :file`, `file:`,
+`sample_rate:` and `iq_format:` controls for an offline replay. Do not call
+`GQRX.init_freq(decoder: ...)` merely to construct a fixture: it can start decoding
+and perform live I/O. Audio, MPX, amplitude traces, synchronized symbols and raw
+IQ are different inputs; a parser success does not prove RF acquisition.
 
-# Or drive the pipeline directly:
-PWN::SDR::Decoder::Base.run_iq(
-  freq_obj:    fo,
-  protocol:    'ADSB',
-  demod:       PWN::SDR::Decoder::ADSB::Demod.new,
-  sample_rate: 2_000_000,
-  source:      :auto           # :rtlsdr|:hackrf|:adalm_pluto|:soapy|:file
-)
-```
-
-| Decoder | Air path | I/Q entry point |
-|---|---|---|
-| ADSB, Bluetooth, DECT, GPS, GSM, Iridium, LoRa, LTE, P25, RFID, RTL433, WiFi, ZigBee | `run_iq` (wideband) | `#feed_iq(iq, rate:)` |
-| APT, FLEX, Morse, Pager, POCSAG, RTTY | `run_iq(fm_demod: true)` or `run_native` | `#feed(audio)` |
-| RDS | GQRX built-in RDS (`RDS.sample`) | n/a |
-
+`Base.run_iq` streams supported integer IQ sources through DSP to a supplied
+demodulator. Its low-level default permits an energy-detector fallback, but
+protocol `.decode` methods can require `fallback: :raise`. An energy observation
+is never payload decoding. Explicit `.detect` exposes detection separately.
+RDS's default GQRX polling is station metadata, while its native `redsea` backend
+accepts MPX. GPS, LTE, RTL433 and RFID have mode-specific native boundaries;
+missing executables/libraries and unsupported modes must remain visible.
 
 ## RF ↔ Extrospection
 

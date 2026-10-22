@@ -1,6 +1,6 @@
 digraph "PWN_RE" {
   graph [
-    label=<<B>Reverse Engineering &amp; Binary Exploitation</B><BR/><FONT POINT-SIZE="11" COLOR="#94a3b8">pwn-asm · Assembly · XXD · FFI · Radare2 banners</FONT>>,
+    label=<<B>Reverse Engineering &amp; Binary Exploitation</B><BR/><FONT POINT-SIZE="11" COLOR="#94a3b8">pwn-asm · Assembly · XXD · REDB · Radare2 · GDBMI · ExploitDev</FONT>>,
     labelloc=t, fontsize=20, fontname="Helvetica",
     rankdir=LR, splines=spline, nodesep=0.45, ranksep=1.2,
     bgcolor="#0f172a", fontcolor="#e2e8f0", pad=0.6, newrank=true
@@ -15,7 +15,7 @@ digraph "PWN_RE" {
   subgraph cluster_static {
     label="Static"; fontcolor="#a7f3d0"; style=rounded;
     color="#047857"; bgcolor="#022c22";
-    XXD  [label="Plugins::XXD\nhex dump / patch", fillcolor="#6ee7b7"];
+    XXD  [label="XXD · REDB · Radare2\nhex / binary analysis", fillcolor="#6ee7b7"];
     BDBA [label="BlackDuckBinaryAnalysis\nSBOM · CVE match", fillcolor="#6ee7b7"];
   }
   subgraph cluster_disasm {
@@ -27,7 +27,7 @@ digraph "PWN_RE" {
   subgraph cluster_dyn {
     label="Dynamic"; fontcolor="#fecaca"; style=rounded;
     color="#b91c1c"; bgcolor="#450a0a";
-    FFI  [label="PWN::FFI::Stdio\nnative calls",   fillcolor="#fda4af"];
+    FFI  [label="GDBMI · ProcessTube\ndebug / process I/O",   fillcolor="#fda4af"];
     Fuzz [label="Plugins::Fuzz\ntargeted crashes",  fillcolor="#fda4af"];
   }
   Xpl [label="Exploit PoC\nMetasploit module", fillcolor="#c4b5fd"];

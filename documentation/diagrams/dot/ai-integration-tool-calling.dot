@@ -27,7 +27,7 @@ digraph "PWN_AI_Integration" {
   subgraph cluster_api {
     label="Provider APIs"; fontcolor="#fecaca"; style="rounded,dashed";
     color="#b91c1c"; bgcolor="#450a0a";
-    A1 [label="api.openai.com",    fillcolor="#fda4af"];
+    A1 [label="api.openai.com (API key)\nchatgpt.com/backend-api/codex (OAuth)",    fillcolor="#fda4af"];
     A2 [label="api.anthropic.com", fillcolor="#fda4af"];
     A3 [label="api.x.ai\nauth.x.ai", fillcolor="#fda4af"];
     A4 [label="generativelanguage\n.googleapis.com", fillcolor="#fda4af"];

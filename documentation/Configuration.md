@@ -1,8 +1,8 @@
 # Configuration - `~/.pwn/pwn.yaml`
 
-Everything configurable in PWN lives in **one encrypted YAML file**, loaded by
+Provider and plugin configuration lives in **one encrypted YAML file**, loaded by
 `PWN::Config.refresh_env` at driver startup and exposed in-process as the
-frozen constant **`PWN::Env`** (a redacted copy is available as
+constant **`PWN::Env`** (whose nested settings are mutable) (a redacted copy is available as
 `PWN::EnvRedacted`).
 
 The file is **AES-encrypted at rest** by `PWN::Plugins::Vault`. Its key/IV
@@ -146,7 +146,7 @@ ai:
     escalation_persona: escalator  # Swarm persona for a 3-line corrective hint after enough in-turn failures. nil = disabled.
     local_introspect: failure_only # End-of-turn auto_introspect policy for local engines: always | failure_only | every_n.
     policy: true                   # Live tabular Q / REINFORCE. Advisory only; never replaces TaskSummarizer / plan_first. false disables.
-    toolsets: ~                    # Allow-list of toolsets exposed to the agent. nil = all. Valid: cron, curriculum, extrospection, learning, memory, metrics, policy, pwn, reward, sessions, skills, swarm, terminal.
+    toolsets: ~                    # Allow-list of toolsets exposed to the agent. nil = all. Valid: cron, curriculum, extrospection, http, learning, manifest, mcp, memory, metrics, policy, pwn, reward, sessions, skills, swarm, terminal.
     extrospection:
       web:
         anchors:                   # URLs the headless browser fingerprints on extro_snapshot(sections:[:web]). Alias: web_anchors.
@@ -230,16 +230,17 @@ plugins:
       active: LongFast             # Which named channel block below `pwn-mesh` uses for TX/RX.
       LongFast:                    # Channel definition - name is arbitrary, referenced by `active:` above.
         psk: 'AQ=='                # Channel pre-shared key (base64). 'AQ==' = Meshtastic default public key. Redacted.
-        region: US/UT              # LoRa region tag (regulatory band).
+        region: US/UT              # Opaque MQTT topic prefix, NOT a firmware regulatory-band selector.
         topic: 2/e/#               # MQTT topic filter to subscribe/publish for this channel.
-        channel_num: 8             # Meshtastic channel index (slot number on the device).
+        channel_num: 8             # Legacy channel metadata, NOT a radio slot.
+        radio_index: 0            # Explicit enabled radio slot when needed; verify device configuration.
         from: '!deadbeef'          # Sender node id used on outbound packets. Optional - defaults to !<mqtt client_id>.
         short_name:                # Optional display name for that from node. When set, it replaces the last four bytes of from.
       PWN:                         # Example second (private) channel definition.
         psk: ...                     # Private channel pre-shared key (base64). Redacted.
-        region: US/UT              # LoRa region tag for this channel.
+        region: US/UT              # Opaque MQTT topic prefix for this channel.
         topic: 2/e/PWN/#           # MQTT topic filter for this channel.
-        channel_num: 99            # Meshtastic channel index for this channel.
+        channel_num: 99            # Legacy metadata; use radio_index for an explicit enabled device slot.
   shodan:
     api_key: ...                     # Shodan API key - passed as api_key: to PWN::Plugins::Shodan.*. Redacted.
 
@@ -279,6 +280,13 @@ PWN::Config.refresh_env
 
 ## Full key reference
 
+The Consumed by column includes private implementation helpers (for example
+Loop `plan_first`/`escalate` and Extrospection probes), not only public APIs.
+Use module `.help` for callable entry points. This annotated example is not a
+verbatim copy of every runtime default; the installed `Config.env_template` is
+the default schema, and migrations preserve existing operator values.
+
+
 ### `ai` - AI engines & agent loop
 
 | Key path | Type | Default | Consumed by | Purpose |
@@ -291,7 +299,7 @@ PWN::Config.refresh_env
 | `ai.<engine>.system_role_content` | String | ethical-hacker persona | `PWN::AI::Agent::PromptBuilder`, `PWN::Plugins::REPL` | Base system prompt prepended to MEMORY / SKILLS / LEARNING / EXTROSPECTION blocks. |
 | `ai.<engine>.temp` | Float | `1.0` | `PWN::AI::<Engine>.chat` | Sampling temperature. |
 | `ai.<engine>.max_prompt_length` | Integer | per-engine | `PWN::AI::<Engine>`, `PWN::Plugins::REPL` | Soft input-context ceiling used for prompt truncation / chunking. |
-| `ai.anthropic.max_tokens` | Integer | `8192` | `PWN::AI::Anthropic.chat_tool_loop` | Max **output** tokens per response. Raise if tool-call JSON truncates. |
+| `ai.anthropic.max_tokens` | Integer | `8192` | `PWN::AI::Anthropic.chat_with_tools` | Max **output** tokens per response. Raise if tool-call JSON truncates. |
 | `ai.openai.max_tokens` | Integer | `16384` | `PWN::AI::OpenAI.chat` | Max **output** tokens per response. Mapped to OpenAI's wire param `max_completion_tokens` (legacy env key `max_completion_tokens` still accepted). |
 | `ai.ollama.embed_model` | String | provider default | `PWN::MemoryIndex` | Local embedding model tag used to build `~/.pwn/memory.idx` for **relevance-ranked** MEMORY injection. Falls back to substring recall when unset / unreachable. |
 | `ai.ollama.num_ctx` | Integer | `32768` | `PWN::AI::Ollama.chat_with_tools` | Context window sent as `options.num_ctx` on the native `/api/chat` call. Ollama's own default (2048) truncates the pwn-ai system prompt. |
@@ -324,7 +332,7 @@ PWN::Config.refresh_env
 | `ai.agent.max_depth` | Integer | `3` | `PWN::AI::Agent::Swarm` | Recursion guard for `agent_ask` / `agent_debate` sub-agents spawning sub-agents. |
 | `ai.agent.auto_introspect` | Boolean | `true` | `PWN::AI::Agent::Learning.auto_introspect` | Run outcome logging + lesson mining after every final answer. Toggle live via `learning_auto_introspect_toggle`. |
 | `ai.agent.auto_extrospect` | Boolean | `true` | `PWN::AI::Agent::Extrospection.auto_extrospect` | Ambient baseline after every final answer (`AUTO_SECTIONS` = host/repo/env only; never spawns GUI/JVM tools). Sense tools (`intel`/`verify`/`watch`/`rf_tune`/`observe`) stay on-demand. Toggle live via `extro_auto_toggle`. |
-| `ai.agent.toolsets` | Array\<String\> \| `nil` | `nil` (all) | `bin/pwn`, `PWN::Plugins::REPL`, `PWN::AI::Agent::Registry` | Allow-list of toolsets exposed to the agent. Valid: `cron`, `curriculum`, `extrospection`, `learning`, `memory`, `metrics`, `policy`, `pwn`, `reward`, `sessions`, `skills`, `swarm`, `terminal`. |
+| `ai.agent.toolsets` | Array\<String\> \| `nil` | `nil` (all) | `bin/pwn`, `PWN::Plugins::REPL`, `PWN::AI::Agent::Registry` | Allow-list of toolsets exposed to the agent. Valid: `cron`, `curriculum`, `extrospection`, `http`, `manifest`, `mcp`, `learning`, `memory`, `metrics`, `policy`, `pwn`, `reward`, `sessions`, `skills`, `swarm`, `terminal`. |
 | `ai.agent.shell_bash` | Boolean | `false` | `PWN::AI::Agent::ToolGuard.shell_bash?` | When true, `shell` runs via `bash -lc` so bash-only syntax is allowed. Default is POSIX `/bin/sh` and bashisms are rejected with a rewrite hint. |
 | `ai.agent.plan_first` | Boolean \| `nil` | `nil` (auto: `true` when `ai.active` is `ollama` or `openwebui`) | `PWN::AI::Agent::Loop.plan_first` | Plan-then-act pre-pass: the model must emit a numbered tool plan (as an assistant message) *before* it may dispatch anything. Cheap chain-of-thought scaffolding for local models. |
 | `ai.agent.tool_router` | Boolean \| `nil` | `nil` (auto: `true` for `ollama` / `openwebui`) | `PWN::AI::Agent::Registry.definitions` | Dynamic tool-set slimming: expose only `Registry::CORE_TOOLS` + the top-K keyword-relevant schemas for *this* request. Ties break on historical `Metrics` success rate, then `ai.agent.tool_preference`. |
@@ -336,12 +344,12 @@ PWN::Config.refresh_env
 | `ai.agent.critic` | Boolean \| `nil` | `nil` (auto: on for remote, off for ollama) | `PWN::AI::Agent::Curriculum.critic` | Tool-armed constitutional self-critic reviews (and may `shell`/`extro_verify`) every final answer before it is returned. |
 | `ai.agent.red_team_plan` | Boolean \| `nil` | `nil` (auto: on for remote, off for ollama) | `PWN::AI::Agent::Curriculum.red_team_plan` | Adversarial review of the `plan_first` numbered plan, grounded in Metrics/Mistakes/`extro_drift` telemetry, before the first dispatch. |
 | `ai.agent.counterfactual` | Boolean \| `nil` | `nil` (auto: on for remote, off for ollama) | `PWN::AI::Agent::Curriculum.counterfactual` | On `[REPEATING]`, fork an alt-persona branch, judge both, and record the `(loser, winner)` DPO preference pair. |
-| `ai.agent.hindsight` | Boolean | `true` | `PWN::AI::Agent::Curriculum.hindsight` | Hindsight Experience Replay - relabel a failed trajectory as `success:true` for whatever it *did* accomplish. Free positive samples from failures. |
+| `ai.agent.hindsight` | Boolean | `true` | `PWN::AI::Agent::Curriculum.hindsight` | Hindsight Experience Replay - record what a failed trajectory did accomplish as `success: 'soft'`; excluded from hard supervised success export. |
 | `ai.agent.policy` | Boolean | `true` | `PWN::AI::Agent::Policy` | Live tabular Q-learning + REINFORCE. Records `(s,a,r,s')` per tool step, trains on `Reward.judge` at episode end, and adds a small Q-advantage term to `Registry.rank`. Advisory only: never replaces TaskSummarizer or plan_first. |
 | `ai.agent.reward_llm` | Boolean \| `nil` | `nil` (auto: on for remote, off for ollama) | `PWN::AI::Agent::Reward.judge` / `.prm` | Use a cheap LLM teacher for outcome/process judges even when `module_reflection` is false. Local ollama stays heuristic unless this is `true`. |
 | `ai.agent.reward_model` | String \| `nil` | `nil` | `Reward.judge` / `.prm` | Optional cheaper model id for the ORM/PRM chat. Falls back to `ai.reflect_model`, then the active engine default. |
 | `ai.agent.reward_llm_timeout` | Integer | `12` | `Reward.judge` / `.prm` | Seconds for the cheap ORM chat (clamped 2..30). Fail fast to the overlap heuristic rather than a 900s hang. |
-| `ai.agent.verify_as_reward` | Boolean \| `nil` | `nil` (auto: ~10% local / always frontier when a claim matches) | `PWN::AI::Agent::Reward.verify_as_reward` | Ground the LLM judge score by browser-verifying any checkable claim in the final via `extro_verify`; verdict caps/floors `Reward.judge`. |
+| `ai.agent.verify_as_reward` | Boolean \| `nil` | `nil` (auto: ~10% local / always frontier when a claim matches) | `PWN::AI::Agent::Reward.verify_as_reward` | Ground the LLM judge score by browser-verifying any checkable claim in the final via `extro_verify`; refutation can cap the judge; one confirmed claim cannot establish whole-request completion. |
 | `ai.agent.extrospection.web.anchors` | Array\<String\> | `DEFAULT_WEB_ANCHORS` | `PWN::AI::Agent::Extrospection.probe_web` | URLs the headless browser fingerprints on `extro_snapshot(sections:[:web])`. Alias: `web_anchors`. |
 | `ai.agent.extrospection.web.proxy` | String | - | `Extrospection.probe_web` / `.verify` / `.watch` | Upstream proxy for `PWN::Plugins::TransparentBrowser` (e.g. `tor`, `http://127.0.0.1:8080`). |
 | `ai.agent.extrospection.web.max_anchors` | Integer | `8` | `Extrospection.probe_web` | Cap on anchors rendered per snapshot. |
@@ -400,9 +408,9 @@ PWN::Config.refresh_env
 | `plugins.meshtastic.mqtt.ack_timeout` | Integer | `5` | `pwn-mesh` | Optional MQTT ack timeout seconds. |
 | `plugins.meshtastic.channel.active` | String | `LongFast` | `pwn-mesh` | Which named channel block below is used for TX/RX. |
 | `plugins.meshtastic.channel.<NAME>.psk` | String (b64) | `AQ==` | `pwn-mesh` | Channel pre-shared key. |
-| `plugins.meshtastic.channel.<NAME>.region` | String | - | `pwn-mesh` | LoRa region tag (e.g. `US/UT`). |
+| `plugins.meshtastic.channel.<NAME>.region` | String | - | `pwn-mesh` | Complete opaque MQTT prefix (e.g. `US/UT`), not the firmware regulatory region. |
 | `plugins.meshtastic.channel.<NAME>.topic` | String | - | `pwn-mesh` | MQTT topic filter to subscribe/publish (e.g. `2/e/#`). |
-| `plugins.meshtastic.channel.<NAME>.channel_num` | Integer | - | `pwn-mesh` | Meshtastic channel index. |
+| `plugins.meshtastic.channel.<NAME>.channel_num` | Integer | - | `pwn-mesh` | Legacy channel metadata, not a radio slot; use `radio_index` or resolved device channel metadata. |
 | `plugins.meshtastic.channel.<NAME>.from` | String | `!<mqtt client_id>` | `pwn-mesh` | Sender node id used on outbound packets. |
 | `plugins.meshtastic.channel.<NAME>.short_name` | String | - | `pwn-mesh` | Optional short name for that `from` node. A non-empty value is shown instead of the last four bytes of `from`. |
 | `plugins.shodan.api_key` | String | - | `PWN::Plugins::Shodan` | Shodan API key (passed as `api_key:` to `Shodan.*`). |
@@ -458,8 +466,8 @@ agent system prompt.
 
 ## Related files under `~/.pwn/`
 
-`pwn.yaml` is the only file you edit; everything else is machine-written
-state. See **[Persistence](Persistence.md)** for the full map
+`pwn.yaml` is edited through the vault UI. Personas and SOP skills have
+separate operator-editable files; other files include machine-written state. See **[Persistence](Persistence.md)** for the full map
 (`.schema`, `memory.json`, `memory.idx`, `learning.jsonl`,
 `preferences.jsonl`, `mistakes.json`, `metrics.json`,
 `reward_sentinel.json`, `extrospection.json`, `sessions/`,

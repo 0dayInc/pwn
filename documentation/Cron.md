@@ -36,7 +36,7 @@ does not remove existing per-job lines.
 
 ## Seeded self-improvement jobs (`PWN::Cron.install_defaults`)
 
-`pwn setup --migrate` (schema `v1`) seeds five jobs into every fresh
+`pwn setup --migrate` and first-launch default installation seed six jobs into a fresh
 `~/.pwn/cron/jobs.yml` via `PWN::Cron.install_defaults`:
 
 | Name | Schedule | Enabled | Ruby |
@@ -44,11 +44,12 @@ does not remove existing per-job lines.
 | `curriculum_practice_nightly` | `0 3 * * *` | **no** | `Curriculum.practice(limit: 3)` - opt-in; runs `Loop.run` with real tools |
 | `curriculum_offline_judge` | `30 3 * * *` | **no** | `Curriculum.offline_judge(...)` - opt-in; spends API tokens |
 | `curriculum_train_weekly` | `0 4 * * 0` | **no** | `Curriculum.train_and_gate(dry_run: true)` - opt-in; needs trainer+GPU to actually train |
+| `session_cleanup` | `45 3 * * *` | **yes** | Guarded unsummarized-session cleanup with backups, dependency checks and activity leases; see [Installation](Installation.md) |
 | `learning_consolidate_nightly` | `0 5 * * *` | **yes** | `Learning.consolidate` - memory GC |
 | `pwn_stores_lean_nightly` | `15 5 * * *` | **yes** | `Learning.gc_stores!` - lean memory, learning.jsonl, mistakes, policy, sessions |
 
 - **practice / judge / train** ship **disabled**. Practice self-plays via `Loop.run` (shell, browsers). Judge hits the live model. Train is a no-op without a LoRA trainer. Enable with `cron_enable` when you want that loop.
-- **consolidate + lean** stay on: they only touch `~/.pwn` files so the injected MEMORY / LEARNING / session tail stays high-signal.
+- **consolidate + lean + session cleanup** stay on: they operate on local `~/.pwn` state; cleanup can delete eligible transcripts after verified backups and guards, so the injected MEMORY / LEARNING / session tail stays high-signal.
 
 - **practice** - top unresolved `Mistakes` under `Reward.judge`; auto-`resolve` with ≥2 holdouts
 - **offline_judge** - backfill outcome/process labels + plan calibration from PLAN `p(success)=` so `:failure_only` local introspect does not starve the corpus; also runs `Reward.warm_sentinel` so the reward-sentinel window can fill on local hosts

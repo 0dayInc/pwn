@@ -11,7 +11,7 @@ digraph "PWN_HistToDriver" {
         fontcolor="#cbd5e1", penwidth=1.3, arrowsize=0.8];
 
   Explore [label="🐚  Explore in REPL\ncall PWN::Plugins::*", fillcolor="#7dd3fc"];
-  Hist    [label="~/.pwn_history\nPry `history` cmd", shape=cylinder, fillcolor="#fcd34d"];
+  Hist    [label="~/.pwn/pwn_history\nPry `history` cmd", shape=cylinder, fillcolor="#fcd34d"];
   Extract [label="copy working lines", fillcolor="#6ee7b7"];
 
   subgraph cluster_out {

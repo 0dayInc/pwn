@@ -35,13 +35,14 @@ Nuclei and SBOM leads stay recon observations until a later `verify` reproduces 
 ## Example
 
 ```ruby
-findings = PWN::SAST::Factory.start(dir_path: './src')
+require 'fileutils'
+rows = PWN::SAST::Factory.scan(dir_path: './src')
+FileUtils.mkdir_p('./out')
 PWN::Reports::SAST.generate(
-  dir_path: './src', results_hash: findings, output_dir: './out'
+  dir_path: './out', results_hash: { data: rows }, report_name: 'report'
 )
-PWN::Plugins::DefectDojo.importscan(
-  engagement_id: 42, file: './out/report.json', scan_type: 'PWN SAST'
-)
+# Importing is a separate authenticated operation; use DefectDojo.help and
+# pwn_defectdojo_importscan --help for the installed integration's contract.
 ```
 
 [← Home](Home.md) · [SAST](SAST.md) · [Fuzzing](Fuzzing.md)

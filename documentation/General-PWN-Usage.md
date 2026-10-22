@@ -5,7 +5,7 @@
 ```bash
 $ pwn                         # interactive REPL
 $ pwn --ai "scan 10.0.0.0/24 with NmapIt and summarize open services"
-$ pwn_nmap_discover_tcp_udp -t 10.0.0.0/24 -o out/   # headless driver
+$ pwn_nmap_discover_tcp_udp -t 10.0.0.0/24 -r out/   # headless driver
 ```
 
 ## Check / provision this host
@@ -24,7 +24,7 @@ See [Installation](Installation.md) for every flag and the
 
 ```ruby
 PWN.help                            # top-level help
-PWN::Plugins.constants.sort         # list all 67 plugins
+PWN::Plugins.constants.sort         # list all 107 plugins
 PWN::Plugins::NmapIt.help           # per-plugin usage
 PWN::Setup.check                    # capability doctor from inside the REPL
 PWN::Migrate.status                 # ~/.pwn state-file compatibility rows
@@ -45,7 +45,7 @@ history                             # what you've typed → copy into a driver
 | `pwn-ai-sessions` | List / view / delete transcripts |
 | `pwn-ai-cron` | List / run scheduled jobs |
 | `pwn-ai-delegate` | Hand a task to a Swarm persona |
-| `toggle-debug` | Stage log per request to `/tmp/pwn-ai-DEBUG-<SESSION_ID>-RN.log` |
+| `toggle-debug` | Stage log per request to `~/.pwn/logs/pwn-ai-DEBUG-<SESSION_ID>-R<N>.log` (or `PWN_DEBUG_DIR`) |
 | `toggle-trace` | Same as `toggle-debug` plus TracePoint; ENTER after each loop step. Pry.config, not Env. Off turns both off. |
 | `toggle-pwn-ai-speaks` | TTS every final answer on/off |
 | `welcome-banner` | Redraw a random `PWN::Banner` |
@@ -141,7 +141,10 @@ scan = PWN::Plugins::BurpSuite.active_scan(burp_obj: burp,
          target_url: 'http://scanme.nmap.org')
 
 # 4. report
-PWN::Reports::SAST.generate(dir_path: '/tmp/src', output_dir: '/tmp/out')
+# Burp output is not SAST input; use its own report generator.
+PWN::Plugins::BurpSuite.generate_scan_report(
+  burp_obj: burp, target_url: 'http://scanme.nmap.org',
+  output_dir: '/tmp/out', report_type: 'HTML')
 ```
 
 Then say the same thing in English inside `pwn-ai` and watch the agent do it.

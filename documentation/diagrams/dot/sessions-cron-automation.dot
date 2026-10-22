@@ -30,7 +30,7 @@ digraph "PWN_SessionsCron" {
   }
   {rank=same; Reflect; Fire; Resume}
 
-  Next [label="Next pwn-ai session\ncontext restored", fillcolor="#7dd3fc"];
+  Next [label="Next pwn-ai session\nselected context / new prompt jobs", fillcolor="#7dd3fc"];
 
   Now -> Sess  [label="append", color="#f59e0b"];
   Now -> Cron  [label="cron_create", color="#f59e0b"];

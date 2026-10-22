@@ -17,7 +17,7 @@ digraph "PWN_REPL" {
     color="#6d28d9"; bgcolor="#2e1065"; penwidth=2;
     Prompt  [label="pwn[v0.5.x]:001 >>>", fillcolor="#c4b5fd"];
     Preload [label="autoload PWN::*\nBanner · MonkeyPatch", fillcolor="#c4b5fd"];
-    Hist    [label="~/.pwn_history\nreplay · edit", fillcolor="#c4b5fd"];
+    Hist    [label="~/.pwn/pwn_history\nreplay · edit", fillcolor="#c4b5fd"];
   }
   {rank=same; Prompt; Preload; Hist}
 

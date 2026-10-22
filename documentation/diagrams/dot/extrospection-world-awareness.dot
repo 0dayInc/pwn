@@ -43,7 +43,7 @@ digraph "PWN_Extrospection" {
     Obs   [label="extro_observe\nrecon · vuln · intel · target\nnetwork · env · rf · web\nosint · serial · telecomm\npacket · vision · voice", fillcolor="#fcd34d"];
     Intel [label="extro_intel\nCVE / exploit lookup",  fillcolor="#fcd34d"];
     Watch [label="extro_watch\nrender → DOM SHA-256\nscreenshot · TLS fp", fillcolor="#fcd34d"];
-    Verify[label="extro_verify\n:cve · :version · :doc · :generic\n→ :confirmed | :refuted | :unknown", fillcolor="#fcd34d", penwidth=2];
+    Verify[label="extro_verify\n:cve · :version · :doc · :generic\nheuristic: confirmed | refuted | unknown", fillcolor="#fcd34d", penwidth=2];
     RFTune[label="extro_rf_tune  📡\ntune GQRX · demod · strength\nRDS PI/PS/RadioText → now_playing", fillcolor="#fcd34d", penwidth=2];
     OsintT[label="extro_osint  🕵️\npublic APIs aggregate\nphone · FCC · patent · person", fillcolor="#fcd34d", penwidth=2];
     SerT  [label="extro_serial  🔌\nopen · payload · drain\nPWN::Plugins::Serial", fillcolor="#fcd34d", penwidth=2];
@@ -51,7 +51,7 @@ digraph "PWN_Extrospection" {
     PktT  [label="extro_packet  📦\ncapture · summarise pcap\ntshark/PacketFu", fillcolor="#fcd34d", penwidth=2];
     VisT  [label="extro_vision  👁\nOCR · barcode/QR", fillcolor="#fcd34d", penwidth=2];
     VoxT  [label="extro_voice  🔊\nTTS · STT · inventory", fillcolor="#fcd34d", penwidth=2];
-    Corr  [label="extro_correlate\njoin with Learning\n+ Mistakes + Memory", fillcolor="#fcd34d", penwidth=2];
+    Corr  [label="extro_correlate\ncandidate correlations\nLearning + Mistakes + Memory", fillcolor="#fcd34d", penwidth=2];
   }
   {rank=same; Snap; Drift; Obs; Intel; Watch; Verify; RFTune; OsintT; SerT; TelT; PktT; VisT; VoxT; Corr}
 

@@ -1,7 +1,7 @@
 # `PWN::FFI` - Native Calls for DSP & RF Front-Ends
 
-Thin `ffi`-gem bindings to **already-installed** system shared objects. Nothing
-is compiled at `gem install` time, nothing shells out. If a `.so` is missing the
+Thin `ffi`-gem bindings to **already-installed** system shared objects. The binding wrappers do not compile at `gem install` time or shell out.
+Optional bundled DSP acceleration requires a separate explicit build. If a `.so` is missing the
 module still loads and `.available?` returns `false` so callers fall back to
 pure Ruby.
 
@@ -35,6 +35,8 @@ as `ok` / `MISSING` and knows the correct package name on `apt` / `dnf` /
 | **`HackRF`** | `libhackrf` | Open/tune/rate/gains + **callback RX streaming** (`start_rx`/`read_sync`/`stop_rx`/`capture`) of raw cs8 I/Q. |
 | **`AdalmPluto`** | `libiio` (+ `libad9361`) | ADALM-Pluto (ad9361-phy). `open`/`configure`/`start_rx`/`read_sync`/`stop_rx`/`capture` of cs16 I/Q; USB or `ip:192.168.2.1`. |
 | **`SoapySDR`** | `libSoapySDR` | Enumerate every Soapy-backed front-end (RTL-SDR, HackRF, Airspy, Pluto, LimeSDR, UHD, ...) **and** stream cs16 I/Q from any of them (`open`/`configure`/`start_rx`/`read_sync`/`stop_rx`/`close`). |
+| `DSPNative` | bundled PWN DSP shared object | Optional packed DSP kernels; requires an explicit native build |
+| `Capstone` / `Keystone` | libcapstone / libkeystone | Optional disassembly/assembly backends |
 | `Stdio` | `libc` | Classic `puts` / `printf` / `scanf` for shellcode / format-string research. |
 
 ## Design rules
@@ -44,8 +46,8 @@ as `ok` / `MISSING` and knows the correct package name on `apt` / `dnf` /
 2. **No install-time compile.** Use the system package (`libvolk-dev`,
    `libliquid-dev`, `libfftw3-dev`, `libhackrf-dev`, `libiio-dev`, ...). Install
    them all with **`pwn setup --profile sdr`** (see [Installation](Installation.md)).
-   On hosts without them every `.available?` is `false` and pure-Ruby paths
-   keep working.
+   Missing numerical backends can use supported Ruby fallbacks; missing
+   radio libraries cannot manufacture hardware I/O or protocol support.
 3. **Namespace hygiene.** `PubFFI = ::FFI` (defined once in `lib/pwn/ffi.rb`)
    avoids the `PWN::FFI` vs `::FFI` collision when modules `extend PubFFI::Library`.
 4. **Uniform front-end contract.** Every hardware binding exposes the same
@@ -86,29 +88,17 @@ PWN::FFI::SoapySDR.close(handle: h)
 iq = PWN::FFI::HackRF.capture(freq_hz: 1_090_000_000, rate_hz: 2_000_000, samples: 262_144)
 ```
 
-## True-air decode: how this drives `PWN::SDR::Decoder::*`
+## Decoder integration boundaries
 
-Every decoder module now has a **true over-the-air I/Q path** via
-`PWN::SDR::Decoder::Base.run_iq`, which:
+Shared Base/DSP code can use these bindings for integer IQ streams and numerical
+acceleration. Available bindings are not proof of a connected radio, supported
+protocol mode, sufficient sample rate or realtime throughput. A detector output
+is not a decoded payload. Protocol entry points and required native processes
+are documented in [SDR Decoder Coverage](SDR-Decoder-Coverage.md).
 
-1. Calls `Base.resolve_iq_source(source: :auto)` to pick the first working
-   front-end in order `:file` -> `:rtlsdr` -> `:adalm_pluto` -> `:hackrf` ->
-   `:soapy` (or a forced `:source`).
-2. Streams raw I/Q via the uniform `read_sync` contract above.
-3. Unpacks (`cu8`/`cs8`/`cs16`) and either hands complex samples to
-   `demod#feed_iq(iq, rate:)` or FM-demodulates first and calls
-   `demod#feed(audio)` for narrowband protocols.
-4. Emits the same JSONL-logged Hash frames every decoder already produces.
-5. Falls back to `Base.run_detector` (energy characterizer) when no hardware
-   or capture file is present, so the operator still gets structured output.
-
-| Decoder | Air path | I/Q entry point |
-|---|---|---|
-| ADSB, Bluetooth, DECT, GPS, GSM, Iridium, LoRa, LTE, P25, RFID, RTL433, WiFi, ZigBee | `run_iq` (wideband) | `#feed_iq(iq, rate:)` |
-| APT, FLEX, Morse, Pager, POCSAG, RTTY | `run_iq(fm_demod: true)` or `run_native` (GQRX 48 kHz UDP) | `#feed(audio)` |
-| RDS | GQRX built-in RDS decoder (`RDS.sample`) | n/a |
-
-No decoder shells out; Ruby remains the orchestrator.
+Some protocol modes invoke native executables (for example `rtl_433`, `proxmark3`,
+`gnss-sdr`, `redsea` and the LTE bridge); “no decoder shells out” is not a current
+contract. Keep offline fixture, native-backend and live RF evidence separate.
 
 **See also:** [SDR](SDR.md) - [Hardware](Hardware.md)
 

@@ -18,9 +18,9 @@ agent code never cares which model is behind it.
 | `openwebui` | `PWN::AI::OpenWebUI` | `key:` (JWT / API token) + `base_uri:` | Open WebUI gateway - OpenAI-compatible `/api/v1/chat/completions` plus proxied Ollama `/ollama/api/*` (including embed) |
 
 > PWN is **model-agnostic**. `ai.<engine>.model` is passed straight through to
-> the provider - the codebase and docs deliberately never name a specific
-> model id so you can point each engine at whatever the vendor currently
-> ships (or whatever `ollama list` shows locally).
+choose a provider-supported model ID (or a tag from `ollama list`).
+Provider-specific reasoning/endpoint compatibility logic still exists; changing
+`base_uri` alone does not implement Azure or Bedrock authentication/protocols.
 
 ## Selecting an engine
 
@@ -79,7 +79,7 @@ The harness adapts to the *class* of engine, not the model name:
 |---|---|---|
 | **PromptBuilder.budget** | full MEMORY / METRICS / MISTAKES / LEARNING / EXTRO blocks | tightened via `ai.ollama.prompt_budget` (extro off by default) |
 | **MEMORY ranking** | relevance-ranked when a local Ollama `embed_model` is reachable, else newest-first | relevance-ranked via `PWN::MemoryIndex` (`~/.pwn/memory.idx`) |
-| **Tool schemas shipped** | all toolsets | `CORE_TOOLS` + top-K keyword matches when `ai.agent.tool_router` is on (default on). Ties also honor `tool_preference`. |
+| **Tool schemas shipped** | Loop normally requests core-only schemas; explicit Registry callers may request more | `CORE_TOOLS` + top-K keyword matches when `ai.agent.tool_router` is on (default on). Ties also honor `tool_preference`. |
 | **Pre-pass** | none | `plan_first` numbered tool plan before first dispatch |
 | **Intent route** | always | `request_intent` only (greeting / howto / recall cheap paths). There is no request type. Every other turn gets a TaskSummarizer compass and CORE_TOOLS. |
 | **Few-shot** | none | `Learning.exemplars_for(request)` splices a prior successful trace |

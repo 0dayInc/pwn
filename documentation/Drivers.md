@@ -1,8 +1,8 @@
 # Drivers - Turn a REPL Session into a Shipped Binary
 
 A **driver** is a small executable in `bin/` that wires `OptionParser` to one
-or more `PWN::` calls. All 53 shipped `pwn_*` binaries follow the same
-15-line template.
+or more `PWN::` calls. The example below is a minimal pattern, not a claim
+that every driver has the same options or implementation.
 
 ![History → Driver → CI](diagrams/history-to-drivers.svg)
 
@@ -11,7 +11,8 @@ or more `PWN::` calls. All 53 shipped `pwn_*` binaries follow the same
 1. **Prototype in the REPL** until the calls work.
 2. `history` → copy the winning lines.
 3. Drop them into the template below as `bin/pwn_<name>`.
-4. `chmod +x bin/pwn_<name>` · add to `pwn.gemspec` executables · `rake install`.
+4. `chmod +x bin/pwn_<name>`; track it in Git for gemspec discovery and test it
+   before `bundle exec rake install`. Do not commit or publish without review.
 5. (Optional) `learning_distill_skill(name: '<name>')` so the agent knows the
    procedure too.
 
@@ -23,6 +24,8 @@ or more `PWN::` calls. All 53 shipped `pwn_*` binaries follow the same
 
 require 'optparse'
 require 'pwn'
+require 'json'
+require 'fileutils'
 
 opts = {}
 OptionParser.new do |o|
@@ -33,9 +36,12 @@ end.parse!
 
 raise OptionParser::MissingArgument, '-t' unless opts[:target]
 
-result = PWN::Plugins::NmapIt.port_scan(target: opts[:target])
-PWN::Reports::Fuzz.generate(result: result, dir_path: opts[:out]) if opts[:out]
-puts result
+raise OptionParser::MissingArgument, '-o' unless opts[:out]
+FileUtils.mkdir_p(opts[:out])
+xml = File.join(opts[:out], 'scan.xml')
+PWN::Plugins::NmapIt.port_scan(targets: opts[:target], xml: xml)
+result = PWN::Plugins::NmapIt.inventory(xml_file: xml)
+puts JSON.pretty_generate(result)
 ```
 
 ## Three artifact types from one REPL session

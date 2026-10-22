@@ -1,5 +1,90 @@
 # Deployment fingerprints and fair harness evaluation
 
+## Evidence-backed improvement lifecycle
+
+This extends the existing `Verification` → `Reward` → `Learning` ledger and
+`PolicyEvaluation`/RSpec harness; there is no second evaluator or automatic
+self-promotion loop.
+
+### Completion accounting
+
+`Reward.resolve_outcome` exposes `verified_completion` independently of the
+legacy judge-quality `success` field. It is true only for complete host check
+coverage, false for a verifier failure, and null when evidence is unavailable.
+`Reward.judge` preserves the evaluator's pre-verification `solved` verdict in
+`claimed_completion`. `false_completion` is true when that claim is independently
+refuted, null when a claim has not been checked, and false for a checked pass or
+an explicit nonclaim. These are **judge claims**, not a semantic classifier of
+arbitrary assistant prose. Trusted host callers may explicitly supply the claim
+to `resolve_outcome`; model-facing tools cannot create trusted checks.
+
+`Learning.note_outcome` persists these fields without reinterpreting them.
+`Learning.stats` reports completion claims, checked claims, verified completions,
+false completions, and a false-completion rate whose denominator is **checked
+claims**, not all attempts. The rate is null without checked claims. Old ledger
+rows remain unknown for these new metrics; no migration fabricates labels.
+Existing quality scores and training eligibility retain their previous semantics;
+use verified completion, not legacy success rate, as acceptance evidence.
+
+The executable harness independently counts a released success marker as false
+success whenever the whole run is not PASS. Empty checks, failed processes and
+resource-capped runs cannot hide behind correct bytes or vacuous `all?` checks.
+The locked `completion_regressions.json` corpus records those source-reproduced
+accounting defects; RSpec executes it alongside the existing CLI fault lanes.
+
+### Turn observed failures into reviewable regressions
+
+Use the exact persisted outcome ID, original request, and independently authored
+expected bytes (never derive gold from the failed answer):
+
+```ruby
+recipe = PWN::AI::Agent::Learning.regression_task(
+  outcome_id: failure_id,
+  request: original_request,
+  checks: [{ requirement: original_request, kind: :file,
+             path: 'result.txt', expected: "correct\n" }]
+)
+# Within an RSpec example, using a fresh disposable fixture directory:
+report = PWN::AI::Agent::Verification.run(recipe[:contract].merge(root: fixture_root))
+expect(report[:status]).to eq(:pass)
+```
+
+Export is read-only and only accepts a persisted verifier failure among the most
+recent 10,000 outcomes. The request digest and original requirement coverage must
+match. Recipes contain source outcome identity, verification/contract SHA-256,
+and a fixed `regression` split. Only relative file/JSON checks are supported;
+commands, HTTP checks and raw tool traces are not mined or executed. Expected
+content remains an operator-reviewed input, not independently attested history.
+Review/redact the request and gold before saving a recipe in `spec/fixtures/harness`
+and add its reproduction/setup under RSpec. Do not put an inspected regression in
+the held-out split. The recipe itself verifies outputs; it does not autonomously
+replay potentially destructive historical actions.
+
+### Frozen acceptance and versioned local promotion
+
+Reuse the existing policy CLI (`pwn-ai --policy evaluate`, `promote`, `rollback`)
+and frozen snapshots, rather than updating live stores during evaluation.
+`PolicyEvaluation.evaluate` runs the existing standalone worker with a cleared
+environment and disposable HOME; off/baseline/candidate use frozen policy bytes
+and independently checked tasks. The split-corpus executable experiments clone
+frozen training HOMEs per trial, check input/snapshot hashes and reject duplicate
+cross-split prompts or inputs. The held-out set is public and fixed: it tests
+infrastructure and this local controller, not general live model intelligence.
+
+Promotion still re-executes each submitted acceptance report, checks provenance,
+requires both filesystem environments, rejects aggregate **and per-task**
+regressions, and requires an independent held-out gain. Successful receipts now
+include `receipt_version: 1`, `change_kind: routing_policy`, and
+`acceptance_sha256` over deterministic fresh reports in addition to exact baseline
+and candidate digests. Preserve the returned JSON in a distinct receipt file.
+Rollback requires that successful versioned receipt and refuses intervening live
+updates or changed backups. Old unversioned receipts are deliberately rejected;
+retain their backups for explicit operator recovery rather than guessing a version.
+These receipts are local audit records, not cryptographic attestations against a
+hostile local writer. Both writes still require explicit approval, an explicit
+live path and operator-attested stopped policy writers. This does not promote
+arbitrary skills, model weights or external service changes.
+
 ## Deployment diagnosis
 
 `PWN::RuntimeFingerprint.report(expected_root: '/intended/gem/lib')` is read-only.
@@ -179,10 +264,12 @@ Unknown usage/cost and uninstrumented all-learning activity remain null. The
 parent supervisor kills the process group on wall cap and records INCOMPLETE,
 never success. A generic child error is not silently converted into a pass.
 
-## Recorded offline integration acceptance
+## Historical offline integration acceptance
 
-Final integration artifacts are retained under `/tmp/pwn-harness-final-acceptance`.
-These are local execution results, not live provider scores:
+The prior integration recorded artifacts under `/tmp/pwn-harness-final-acceptance`.
+That temporary path is not a shipped or durable evidence archive. The following
+counts describe that historical run, not a rerun of the current checkout or live
+provider scores; reproduce the commands above for current acceptance:
 
 - `HOME=/tmp/pwn-harness-final-acceptance/home bundle exec rake`:
   **4369 examples, 0 failures**, then **1150 files, no RuboCop offenses**, exit 0

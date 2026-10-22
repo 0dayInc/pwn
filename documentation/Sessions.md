@@ -29,6 +29,13 @@ appended as JSON-per-line to `~/.pwn/sessions/<id>.jsonl`.
 | `sessions_stats` | totals across the whole directory |
 | `sessions_lean` | prune stubs and aged unreferenced transcripts; compact oversized tool/assistant content (pins gold outcomes and open-mistake refs) |
 
+Session titles, dependency pins and shared activity leases are described in
+[Installation](Installation.md). Scheduled cleanup is not equivalent to deleting
+all old transcripts. Verified retained learning evidence can release some source
+pins only after migration/readback; see [Reinforcement Learning](Reinforcement-Learning.md).
+Exact unfinished requests resume through `pwn-ai --resume-session ID`, not a new
+one-shot session.
+
 ## File format
 
 ```json
