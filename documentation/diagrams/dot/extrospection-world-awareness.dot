@@ -1,105 +1,50 @@
 digraph "PWN_Extrospection" {
   graph [
-    label=<<B>PWN::AI::Agent::Extrospection - On-demand sensing + ambient baseline</B><BR/><FONT POINT-SIZE="11" COLOR="#94a3b8">PRIMARY: intel · verify · watch · rf_tune · osint · serial · telecomm · packet · vision · voice · observe  ·  SECONDARY: snapshot/drift (AUTO_SECTIONS=host/repo/env)</FONT>>,
+    label=<<B>PWN::AI::Agent::Extrospection - On-demand sensing + ambient baseline</B><BR/><FONT POINT-SIZE="11" COLOR="#94a3b8">automatic host / repo / env only · other probes and actions are on demand · observations are not completion proof</FONT>>,
     labelloc=t, fontsize=20, fontname="Helvetica",
-    rankdir=LR, splines=spline, nodesep=0.5, ranksep=1.3,
-    bgcolor="#0f172a", fontcolor="#e2e8f0", pad=0.6, newrank=true
+    rankdir=TB, splines=polyline, nodesep=0.45, ranksep=0.5,
+    bgcolor="#0f172a", fontcolor="#e2e8f0", pad=0.4, newrank=true, compound=true
   ];
   node [fontname="Helvetica", fontsize=11, style="filled,rounded",
-        shape=box, penwidth=1.4, color="#334155", fontcolor="#0f172a"];
-  edge [fontname="Helvetica", fontsize=9, color="#94a3b8",
+        shape=box, penwidth=1.3, color="#334155", fontcolor="#0f172a",
+        fillcolor="#fcd34d", margin="0.22,0.16", width=3.8];
+  edge [fontname="Helvetica", fontsize=10, color="#94a3b8",
         fontcolor="#cbd5e1", penwidth=1.3, arrowsize=0.8];
 
-  /* col 0 ─ world */
-  subgraph cluster_world {
-    label="Outside World"; fontcolor="#fecaca"; style="rounded,dashed";
-    color="#b91c1c"; bgcolor="#450a0a";
-    Host  [label="host\nuname · distro · arch",       fillcolor="#fda4af"];
-    Net   [label="net\ninterfaces · listening ports", fillcolor="#fda4af"];
-    Tool  [label="toolchain (presence)\nnmap/git (safe --ver)\nburp/msf/gqrx PATH only", fillcolor="#fda4af"];
-    Repo  [label="repo · env\nHEAD · dirty · ruby/gem", fillcolor="#fda4af"];
-    RFhw  [label="rf  📡\nrtl-sdr · hackrf · flipper\ngqrx sock · serial devs", fillcolor="#fda4af"];
-    Web   [label="web  🌐\nanchors · targets\nrendered DOM · TLS cert", fillcolor="#fda4af"];
-    Feeds [label="intel feeds\nNVD · CIRCL · Exploit-DB", fillcolor="#fda4af"];
-    OSINT [label="osint  🕵️\nphone · FCC · patent\nIP/ASN · CT · person", fillcolor="#fda4af"];
-    Serial[label="serial  🔌\nttyUSB/ACM · by-id\nUART / AT modem", fillcolor="#fda4af"];
-    Telco [label="telecomm  ☎️\nBareSIP · SIP ports\nPSTN / VoIP", fillcolor="#fda4af"];
-    Pkt   [label="packet  📦\ntshark · tcpdump\npcap summarise", fillcolor="#fda4af"];
-    Vis   [label="vision  👁\ntesseract OCR\nzbar QR/barcode", fillcolor="#fda4af"];
-    Voice [label="voice  🔊\nespeak TTS · whisper STT\nsox / festival", fillcolor="#fda4af"];
+  subgraph cluster_auto {
+    label="AMBIENT BASELINE  ·  automatic scope"; fontsize=12;
+    style="rounded,filled"; color="#334155"; fillcolor="#1e293b";
+    Baseline [fillcolor="#7dd3fc", label="AUTO_SECTIONS = host / repo / env\nHost: OS / distribution / architecture\nRepository: HEAD / dirty state\nEnvironment: Ruby / gem information\nNo automatic network / RF / browser sensing"];
+    Snapshot [label="SNAPSHOT + DRIFT\nextro_snapshot: selected probes\nextro_drift: delta against prior baseline\nExplicit snapshots can request other sections\nToolchain inventory uses safe version checks\nor PATH presence; not general tool execution"];
+    Baseline -> Snapshot [label="auto_extrospect", color="#38bdf8"];
   }
-  {rank=same; Host; Net; Tool; Repo; RFhw; Web; Feeds; OSINT; Serial; Telco; Pkt; Vis; Voice}
 
-  /* col 0.5 ─ transport */
-  TB [label="PWN::Plugins::\nTransparentBrowser\n:headless (→ :rest fallback)",
-      fillcolor="#7dd3fc", penwidth=2];
-
-  /* col 1 ─ engine */
-  subgraph cluster_eng {
-    label="Extrospection Engine"; fontcolor="#fde68a"; style=rounded;
-    color="#a16207"; bgcolor="#422006"; penwidth=2;
-    Snap  [label="extro_snapshot\nprobe_host/net/toolchain/repo/env\nrf/web/osint/serial/telecomm\npacket/vision/voice\n(auto = host/repo/env only)", fillcolor="#fcd34d"];
-    Drift [label="extro_drift\ndelta vs baseline",     fillcolor="#fcd34d"];
-    Obs   [label="extro_observe\nrecon · vuln · intel · target\nnetwork · env · rf · web\nosint · serial · telecomm\npacket · vision · voice", fillcolor="#fcd34d"];
-    Intel [label="extro_intel\nCVE / exploit lookup",  fillcolor="#fcd34d"];
-    Watch [label="extro_watch\nrender → DOM SHA-256\nscreenshot · TLS fp", fillcolor="#fcd34d"];
-    Verify[label="extro_verify\n:cve · :version · :doc · :generic\nheuristic: confirmed | refuted | unknown", fillcolor="#fcd34d", penwidth=2];
-    RFTune[label="extro_rf_tune  📡\ntune GQRX · demod · strength\nRDS PI/PS/RadioText → now_playing", fillcolor="#fcd34d", penwidth=2];
-    OsintT[label="extro_osint  🕵️\npublic APIs aggregate\nphone · FCC · patent · person", fillcolor="#fcd34d", penwidth=2];
-    SerT  [label="extro_serial  🔌\nopen · payload · drain\nPWN::Plugins::Serial", fillcolor="#fcd34d", penwidth=2];
-    TelT  [label="extro_telecomm  ☎️\nBareSIP status/dial\ninventory SIP", fillcolor="#fcd34d", penwidth=2];
-    PktT  [label="extro_packet  📦\ncapture · summarise pcap\ntshark/PacketFu", fillcolor="#fcd34d", penwidth=2];
-    VisT  [label="extro_vision  👁\nOCR · barcode/QR", fillcolor="#fcd34d", penwidth=2];
-    VoxT  [label="extro_voice  🔊\nTTS · STT · inventory", fillcolor="#fcd34d", penwidth=2];
-    Corr  [label="extro_correlate\ncandidate correlations\nLearning + Mistakes + Memory", fillcolor="#fcd34d", penwidth=2];
+  subgraph cluster_web {
+    label="ON DEMAND  ·  web / public intelligence"; fontsize=12;
+    style="rounded,dashed,filled"; color="#94a3b8"; fillcolor="#1e293b";
+    Web [fillcolor="#6ee7b7", label="INDEPENDENT LOOKUPS / WATCHES\nextro_intel: NVD / CIRCL / Exploit-DB\nextro_osint: phone / FCC / patent / IP / person\nextro_watch: DOM hash / screenshot / TLS\nextro_verify: CVE / version / doc / generic\nWeb: TransparentBrowser headless → REST fallback"];
+    Verdict [label="RECORDING / HEURISTIC VERDICTS\nIntel records when record:true; watch stores web data\nVerify: confirmed / refuted / unknown\nWith commit: confirmed → intel; refuted → Mistakes\nrevalidate_memory: confident refutation marks\n:fact [UNVERIFIED date] + stale web observation"];
+    Web -> Verdict [label="selected operation"];
   }
-  {rank=same; Snap; Drift; Obs; Intel; Watch; Verify; RFTune; OsintT; SerT; TelT; PktT; VisT; VoxT; Corr}
 
-  /* col 2 ─ store + prompt + feedback sinks */
-  Store  [label="~/.pwn/\nextrospection.json", shape=cylinder, fillcolor="#fcd34d"];
-  Shots  [label="~/.pwn/extrospection/\nweb/*.png", shape=cylinder, fillcolor="#fcd34d"];
-  Prompt [label="EXTROSPECTION\nblock in system prompt", fillcolor="#c4b5fd"];
-  Mist   [label="Mistakes.record\n(tool:'assumption')\n→ KNOWN MISTAKES", fillcolor="#fca5a5", penwidth=2];
-  Mem    [label="PWN::Memory :fact\n[UNVERIFIED yyyy-mm-dd]\n(revalidate_memory)", fillcolor="#c4b5fd"];
-  {rank=same; Store; Shots; Prompt; Mist; Mem}
+  subgraph cluster_sense {
+    label="ON DEMAND  ·  devices / media / observations"; fontsize=12;
+    style="rounded,dashed,filled"; color="#94a3b8"; fillcolor="#1e293b";
+    Sense [fillcolor="#6ee7b7", label="INDEPENDENT TOOLS / ACTIONS\nextro_rf_tune: GQRX / strength / RDS\nextro_serial: UART open / payload / drain\nextro_telecomm: BareSIP status / dial\nextro_packet: capture / pcap summary\nextro_vision: OCR / QR; extro_voice: TTS / STT"];
+    Observe [label="OBSERVATION BOUNDARY\nOn-demand calls use available plugins / hardware\nActions may affect devices or external services\nextro_observe records supplied observations\nCategories: recon / vuln / intel / target / network\nenv / RF / web / OSINT / serial / telecomm\npacket / vision / voice"];
+    Sense -> Observe [label="record operation results"];
+  }
+  {rank=same; Baseline; Web; Sense}
+  {rank=same; Snapshot; Verdict; Observe}
 
-  Host  -> Snap  [color="#fb7185"];
-  Net   -> Snap  [color="#fb7185"];
-  Tool  -> Drift [color="#fb7185"];
-  Repo  -> Drift [color="#fb7185"];
-  RFhw  -> Obs   [label="probe_rf", color="#fb7185"];
-  RFhw  -> RFTune[label="tune · RDS", color="#fb7185", penwidth=2];
-  Feeds -> Intel [color="#fb7185"];
-
-  Web   -> TB    [color="#fb7185"];
-  TB    -> Snap  [label="probe_web\n(opt-in)", color="#38bdf8"];
-  TB    -> Watch [label="goto · text\nscreenshot", color="#38bdf8"];
-  TB    -> Verify[label="render\ncanonical source", color="#38bdf8", penwidth=2];
-
-  Snap  -> Store [color="#f59e0b"];
-  Drift -> Store [color="#f59e0b"];
-  Obs   -> Store [color="#f59e0b"];
-  Intel -> Store [label="record:true", color="#f59e0b"];
-  Watch -> Store [label="category::web", color="#f59e0b"];
-  Watch -> Shots [color="#f59e0b"];
-  RFTune-> Store [label="category::rf\nnow_playing", color="#f59e0b", penwidth=2];
-  OSINT -> OsintT[label="public APIs", color="#fb7185", penwidth=2];
-  Serial-> SerT  [label="UART I/O", color="#fb7185", penwidth=2];
-  Telco -> TelT  [label="SIP/HTTP", color="#fb7185", penwidth=2];
-  Pkt   -> PktT  [label="capture", color="#fb7185", penwidth=2];
-  Vis   -> VisT  [label="OCR", color="#fb7185", penwidth=2];
-  Voice -> VoxT  [label="TTS/STT", color="#fb7185", penwidth=2];
-  OsintT-> Store [label="category::osint", color="#f59e0b", penwidth=2];
-  SerT  -> Store [label="category::serial", color="#f59e0b"];
-  TelT  -> Store [label="category::telecomm", color="#f59e0b"];
-  PktT  -> Store [label="category::packet", color="#f59e0b"];
-  VisT  -> Store [label="category::vision", color="#f59e0b"];
-  VoxT  -> Store [label="category::voice", color="#f59e0b"];
-  Verify-> Mist  [label=":refuted", color="#fb7185", penwidth=2];
-  Verify-> Store [label=":confirmed\n:intel obs (ttl 30d)", color="#f59e0b"];
-  Verify-> Mem   [label="revalidate_memory\nmark stale :fact", color="#a78bfa", style=dashed];
-  Corr  -> Prompt[label="findings", color="#a78bfa", penwidth=2];
-  Store -> Prompt[label="inject", style=dashed, color="#fbbf24"];
-  Store -> Corr  [style=dashed, color="#fbbf24", constraint=false];
-  Mem   -> Corr  [label="rule (f)\nstale :fact", style=dashed, color="#a78bfa", constraint=false];
+  subgraph cluster_retention {
+    label="RETAINED WORLD MODEL  ·  not ground truth"; fontsize=12;
+    style="rounded,filled"; color="#334155"; fillcolor="#1e293b";
+    Store [label="~/.pwn/extrospection.json\nSnapshot + baseline / categorized observations\nWatch screenshots: ~/.pwn/extrospection/web/*.png\nPersistence depends on operation / options", width=5.2];
+    Context [fillcolor="#c4b5fd", label="extro_correlate: candidate correlations, not causal proof\nJoin world state with Metrics / Learning / Mistakes / Memory\nPromptBuilder: EXTROSPECTION when context is expanded\nBudgeted advisory context; recheck before relying on stale data", width=5.2];
+    Store -> Context [label="read retained state", style=dashed];
+  }
+  Snapshot -> Store [ltail=cluster_auto, lhead=cluster_retention, label="snapshot / delta", color="#f59e0b"];
+  Verdict -> Store [ltail=cluster_web, lhead=cluster_retention, label="recorded observations", color="#f59e0b"];
+  Observe -> Store [ltail=cluster_sense, lhead=cluster_retention, label="categorized results", color="#f59e0b"];
 }

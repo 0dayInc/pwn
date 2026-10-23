@@ -1,34 +1,56 @@
 digraph PWN_Architecture {
-  graph [label="PWN - runtime ownership and evidence flow", labelloc=t, fontsize=22,
-    fontname="Helvetica", rankdir=TB, bgcolor="#0f172a", fontcolor="#e2e8f0", pad=0.6];
-  node [fontname="Helvetica", fontsize=11, shape=box, style="rounded,filled", fillcolor="#c4b5fd", color="#334155"];
-  edge [fontname="Helvetica", fontsize=9, color="#94a3b8", fontcolor="#cbd5e1"];
-  Operator [label="Operator / CI", fillcolor="#7dd3fc"];
-  Entry [label="pwn / pwn-ai CLI and curses\n56 executables total", fillcolor="#7dd3fc"];
-  Mesh [label="pwn-mesh\nprimary radio or MQTT + optional secondary MQTT\n@ai / private channel / whitelist gate", fillcolor="#7dd3fc"];
-  Runtime [label="RequestRuntime + Loop\noriginal objective / additive steering\ncheckpoint / permissions / uncertain effects"];
-  Prompt [label="PromptBuilder\nmemory / skills / lessons / mistakes / policy\nHOST: DetectOS summary + PreflightChecker"];
-  Registry [label="Registry: 16 toolsets / 150 tools\nnormal Loop: core-only + relevant MCP"];
-  Provider [label="Configured provider adapter\nrequest-local routing and retry ownership", fillcolor="#fda4af"];
-  Dispatch [label="Dispatch / ToolGuard / confirmation / sandbox"];
-  Capabilities [label="107 plugin modules / 48 SAST modules\n90 AWS wrappers / 22 WWW drivers\nSDR / blockchain / reports / FFI", fillcolor="#6ee7b7"];
-  Target [label="Authorized target / external service / hardware\nrequires separate live validation", fillcolor="#fda4af"];
-  Evidence [label="Host observations / exact-target artifacts\nSessions / request checkpoints", shape=cylinder, fillcolor="#fcd34d"];
-  Verify [label="Finalization arbiter + Verification\ncurrent bytes / authored checks / complete coverage"];
-  Outcome [label="Verified / failed / unknown or incomplete\nnot model prose alone", fillcolor="#7dd3fc"];
-  Learn [label="Reward / Learning / Mistakes / Metrics\nclaim and verified-completion fields\nPolicy positive credit needs attribution"];
-  Stores [label="Default ~/.pwn stores\nplus explicit artifact/worktree paths", shape=cylinder, fillcolor="#fcd34d"];
-  Swarm [label="Swarm nested Loop / Solve\nparent rechecks child artifact receipts"];
-  Cron [label="Cron scheduler\nhygiene on / curriculum opt-in"];
-  Operator -> Entry; Operator -> Mesh;
-  Entry -> Runtime; Mesh -> Runtime [label="eligible received @ai only"];
-  Runtime -> Prompt; Runtime -> Registry; Prompt -> Provider; Registry -> Provider;
-  Provider -> Dispatch [label="tool calls"]; Dispatch -> Capabilities;
-  Capabilities -> Target; Dispatch -> Evidence; Evidence -> Runtime [label="observations"];
-  Runtime -> Verify; Evidence -> Verify; Verify -> Outcome;
-  Outcome -> Learn; Learn -> Stores; Stores -> Prompt [style=dashed];
-  Dispatch -> Swarm; Swarm -> Runtime [label="child turn", style=dashed];
-  Cron -> Runtime [label="prompt jobs"]; Cron -> Learn [label="explicit maintenance"];
-  Outcome -> Entry [label="release result", style=dashed];
-  Outcome -> Mesh [label="origin-bound reply; submission != RF delivery", style=dashed];
+  graph [
+    label=<<B>PWN - Overall Architecture</B><BR/><FONT POINT-SIZE="11" COLOR="#94a3b8">runtime ownership · evidence flow · verified outcomes</FONT>>,
+    labelloc=t, fontsize=20, fontname="Helvetica",
+    rankdir=TB, splines=polyline, nodesep=0.5, ranksep=0.48,
+    bgcolor="#0f172a", fontcolor="#e2e8f0", pad=0.4, newrank=true, compound=true
+  ];
+  node [fontname="Helvetica", fontsize=11, shape=box, style="filled,rounded",
+        fillcolor="#c4b5fd", penwidth=1.3, color="#334155", fontcolor="#0f172a", margin="0.22,0.16"];
+  edge [fontname="Helvetica", fontsize=10, color="#94a3b8",
+        fontcolor="#cbd5e1", penwidth=1.3, arrowsize=0.8];
+
+  // Ownership map, not a complete call graph. Internal repetition is summarized
+  // inside Runtime; shared state and asynchronous work are not return arrows.
+  subgraph cluster_entry {
+    label="01  ACCESS  ·  operator / CI"; labelloc=t; fontsize=12;
+    style="rounded,filled"; color="#334155"; fillcolor="#1e293b";
+    Entry [fillcolor="#7dd3fc", width=5.1,
+      label="pwn / pwn-ai  ·  REPL, curses and headless CLI\npwn-mesh: received @ai + private channel + whitelist\nCron: asynchronous prompt jobs; curriculum opt-in"];
+  }
+  subgraph cluster_control {
+    label="02  CONTROL  ·  request-owned agent runtime"; fontsize=12;
+    style="rounded,filled"; color="#334155"; fillcolor="#1e293b";
+    Runtime [width=5.1,
+      label="RequestRuntime + Loop\nOwn objective, additive steering and checkpoints\nPromptBuilder + Registry: context and available tools\nRepeat tool / observation turns; optional Swarm / Solve"];
+  }
+  subgraph cluster_execution {
+    label="03  EXECUTION  ·  host-owned tools"; fontsize=12;
+    style="rounded,filled"; color="#334155"; fillcolor="#1e293b";
+    Execute [fillcolor="#6ee7b7", width=5.1,
+      label="Dispatch + ToolGuard + confirmation + sandbox\nPlugins / SAST / AWS / WWW / SDR / Blockchain / Reports\nShell, Ruby and MCP integrations\nDirect REPL / driver calls can also use these capabilities"];
+  }
+  subgraph cluster_evidence {
+    label="04  ACCEPTANCE  ·  evidence, not model prose"; fontsize=12;
+    style="rounded,filled"; color="#334155"; fillcolor="#1e293b";
+    Accept [width=5.1,
+      label="Host observations + exact-target artifact receipts\nFinalization arbiter + Verification: all obligations\nParent rechecks child artifacts; authored checks / current bytes\nRelease verified, failed, or unknown / incomplete result"];
+  }
+  subgraph cluster_state {
+    label="05  RETENTION  ·  durable evidence and advisory context"; fontsize=12;
+    style="rounded,filled"; color="#334155"; fillcolor="#1e293b";
+    State [fillcolor="#fcd34d", width=5.1,
+      label="Sessions / Learning / Mistakes / Metrics / Policy\nDefault ~/.pwn stores; explicit artifacts may live elsewhere\nLater PromptBuilder reads memory, skills, lessons and policy\nCron hygiene is asynchronous; improvement is not automatic"];
+  }
+  Provider [fillcolor="#fda4af", label="MODEL BOUNDARY\nConfigured provider adapter\nRequest-local routing and retries\nModel output is not host evidence"];
+  Target [fillcolor="#fda4af", label="WORLD BOUNDARY\nExternal services / targets / hardware\nLive behavior needs separate validation\nRadio submission is not RF delivery"];
+
+  {rank=same; Runtime; Provider}
+  {rank=same; Execute; Target}
+  Entry -> Runtime [ltail=cluster_entry, lhead=cluster_control, label="agent requests", color="#38bdf8", weight=10];
+  Runtime -> Execute [ltail=cluster_control, lhead=cluster_execution, label="selected tool calls", color="#38bdf8", weight=10];
+  Execute -> Accept [ltail=cluster_execution, lhead=cluster_evidence, label="observed results / receipts", color="#38bdf8", weight=10];
+  Accept -> State [ltail=cluster_evidence, lhead=cluster_state, label="record outcomes and evidence", weight=10];
+  Runtime -> Provider [dir=both, label="context / proposals", constraint=false];
+  Execute -> Target [dir=both, label="as required", style=dashed, constraint=false];
 }

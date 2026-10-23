@@ -1,32 +1,55 @@
 digraph PWN_Feedback {
-  graph [label="pwn-ai - evidence-backed feedback, not automatic improvement", labelloc=t,
-    fontsize=20, fontname="Helvetica", rankdir=TB, bgcolor="#0f172a", fontcolor="#e2e8f0", pad=0.6];
-  node [fontname="Helvetica", fontsize=11, shape=box, style="rounded,filled", fillcolor="#c4b5fd", color="#334155"];
-  edge [fontname="Helvetica", fontsize=9, color="#94a3b8", fontcolor="#cbd5e1"];
-  Request [label="Original request + additive amendments", fillcolor="#7dd3fc"];
-  Host [label="Living off the land\nDetectOS native PATH inventory API\nHOST injects OS summary + PreflightChecker health", fillcolor="#6ee7b7"];
-  Prompt [label="PromptBuilder\nbudgeted memory / skills / lessons / mistakes / policy"];
-  Loop [label="Loop / request-owned runtime\nTaskSummarizer compass is UX, not acceptance"];
-  Tools [label="Registry -> Dispatch -> actual tools\npermissions / confirmation / sandbox"];
-  World [label="Extrospection\non-demand observe / intel / watch / verify / RF etc.\nauto baseline: host / repo / env only", fillcolor="#fcd34d"];
-  Evidence [label="Host receipts / exact-target stat + digest\nexecuted authored checks; failed/unknown stay distinct", shape=cylinder, fillcolor="#fcd34d"];
-  Final [label="Completion arbiter\nno tool calls != done; all original obligations apply"];
-  Reward [label="Reward + Learning\nclaimed_completion (judge claim)\nverified_completion / false_completion\nrate denominator: checked claims", fillcolor="#6ee7b7"];
-  Mistakes [label="Mistakes / Metrics / Reflect\nfailures, fixes and diagnostic lessons\ncorrelation is not causal proof", fillcolor="#6ee7b7"];
-  Policy [label="Policy accounting + advisory ranking\npositive training credit requires independent action attribution", fillcolor="#6ee7b7"];
-  Regression [label="Learning.regression_task\nexact failure/request digest + operator-authored expected bytes\ninert file/JSON recipe; split remains regression"];
-  Eval [label="Frozen local snapshot evaluation\nnew HOME / off + baseline + candidate\npublic held-out tasks; no live LLM gain claim"];
-  Promote [label="Operator approval + stopped writers + explicit target\nfresh replay / per-task + aggregate gates\nversioned receipt / digest-bound rollback"];
-  Skill [label="SkillReview default recommend\nauto-safe limited to proven additions to existing SOPs"];
-  Weights [label="Curriculum export / optional trainer path\nseparate from routing-policy promotion\nnot proof that a live adapter improved"];
-  Request -> Loop; Host -> Prompt; Prompt -> Loop; Loop -> Tools;
-  Tools -> Evidence; Tools -> World; World -> Prompt [style=dashed];
-  Evidence -> Final; Loop -> Final; Final -> Reward;
-  Tools -> Mistakes; World -> Mistakes [label="correlate", style=dashed];
-  Reward -> Policy; Reward -> Regression [label="persisted verifier failure"];
-  Regression -> Eval [label="regression replay only; never relabel held-out", style=dashed];
-  Policy -> Eval [label="explicit frozen snapshots"]; Eval -> Promote;
-  Promote -> Policy [label="explicit local replace / rollback", style=dashed];
-  Mistakes -> Prompt [style=dashed]; Reward -> Skill; Skill -> Prompt [style=dashed];
-  Reward -> Weights [label="explicit opt-in"]; Policy -> Prompt [style=dashed];
+  graph [
+    label=<<B>PWN::AI::Agent - Feedback + Learning Loop</B><BR/><FONT POINT-SIZE="11" COLOR="#94a3b8">evidence-backed feedback · not automatic improvement</FONT>>,
+    labelloc=t, fontsize=20, fontname="Helvetica",
+    rankdir=TB, splines=polyline, nodesep=0.55, ranksep=0.42,
+    bgcolor="#0f172a", fontcolor="#e2e8f0", pad=0.4, newrank=true
+  ];
+  node [fontname="Helvetica", fontsize=11, shape=box, style="filled,rounded",
+        fillcolor="#c4b5fd", penwidth=1.3, color="#334155", fontcolor="#0f172a", margin="0.22,0.16", width=4.6];
+  edge [fontname="Helvetica", fontsize=10, color="#94a3b8",
+        fontcolor="#cbd5e1", penwidth=1.3, arrowsize=0.8];
+
+  // Two independently initiated lifecycles. The evaluation lane reads explicitly
+  // selected frozen state, not a live automatic handoff from every request.
+  subgraph cluster_turn {
+    label="REQUEST LIFECYCLE  ·  read top to bottom"; fontsize=12;
+    style="rounded,filled"; color="#334155"; fillcolor="#1e293b";
+    Prepare [fillcolor="#7dd3fc", label="1  PREPARE\nOriginal request + additive amendments\nPromptBuilder: recalled memory / skills / lessons / policy\nHOST: DetectOS summary + PreflightChecker"];
+    Execute [label="2  ACT + OBSERVE\nLoop + Registry + Dispatch: repeat tool / observation turns\nPermissions, confirmation and sandbox\nExtrospection on demand; auto baseline: host / repo / env"];
+    Verify [fillcolor="#fcd34d", label="3  CHECK THE EVIDENCE\nHost receipts + exact-target bytes / digests\nAuthored checks + complete original obligation coverage\nCompletion arbiter: verified / failed / unknown"];
+    Account [fillcolor="#6ee7b7", label="4  RECORD FEEDBACK\nReward + Learning: judge claim != verified completion\nFalse-completion rate uses checked claims\nMistakes / Metrics / Reflect: diagnostic lessons"];
+    Retain [fillcolor="#fcd34d", label="5  RETAIN ADVISORY CONTEXT\nPolicy accounting + ranking: positive training credit\nrequires independent action attribution\nSkillReview: recommend by default; limited auto-safe SOP edits"];
+    Reuse [fillcolor="#7dd3fc", label="6  INFORM A LATER TURN\nPromptBuilder recalls retained context as budget permits\nThis closes the context loop, not a proof of improvement\nTaskSummarizer compass is UX, never acceptance"];
+    Prepare -> Execute [color="#38bdf8"];
+    Execute -> Verify [label="host evidence boundary", color="#38bdf8"];
+    Verify -> Account [label="preserve failed / unknown", color="#38bdf8"];
+    Account -> Retain;
+    Retain -> Reuse [label="later context read", style=dashed];
+  }
+
+  subgraph cluster_evaluation {
+    label="EVALUATION / PROMOTION  ·  explicit operator workflow"; fontsize=12;
+    style="rounded,dashed,filled"; color="#94a3b8"; fillcolor="#1e293b";
+    Select [label="A  SELECT FROZEN INPUTS\nExplicit baseline + candidate policy snapshots\nRead recorded policy state, not live online writers\nNo automatic handoff from the request lifecycle"];
+    Regression [label="B  KEEP EVALUATION SPLITS SEPARATE\nOptional Learning.regression_task: persisted verifier failure\nExact request digest + operator-authored file / JSON gold\nInert regression recipe; never relabel as held-out"];
+    Evaluate [label="C  EVALUATE LOCALLY\nPolicyEvaluation: disposable HOME + frozen bytes\nOff / baseline / candidate; public fixed held-out tasks\nRegression replay stays separate from held-out evidence"];
+    Promote [fillcolor="#6ee7b7", label="D  GATE + EXPLICITLY PROMOTE\nFresh replay; per-task + aggregate nonregression\nHeld-out gain; both filesystem environments\nApproval + stopped writers + explicit live policy target"];
+    Receipt [fillcolor="#fcd34d", label="E  VERSION + RETAIN ROLLBACK EVIDENCE\nRouting-policy replacement only; versioned receipt\nDigest-bound rollback refuses intervening live writes\nNo claim of general live LLM improvement"];
+    Select -> Regression;
+    Regression -> Evaluate [label="reviewed inputs; distinct splits"];
+    Evaluate -> Promote [label="acceptance gates", style=dashed];
+    Promote -> Receipt [label="only after approval and passing gates"];
+  }
+
+  // Alignment only: no fabricated flow between independently initiated lanes.
+  {rank=same; Prepare; Select}
+  {rank=same; Execute; Regression}
+  {rank=same; Verify; Evaluate}
+  {rank=same; Account; Promote}
+  {rank=same; Retain; Receipt}
+
+  Trainer [fillcolor="#1e293b", fontcolor="#cbd5e1", style="rounded,dashed,filled",
+    label="SEPARATE OPTIONAL WEIGHT PATH\nCurriculum export / configured trainer is opt-in\nNot routing-policy promotion or proof of adapter gains\nScheduled curriculum jobs are disabled by default"];
+  {rank=same; Reuse; Trainer}
 }
