@@ -158,7 +158,7 @@ describe 'menu chronology routing' do
   let(:records) { [{ id: 'new-record', timestamp: 10 }, { id: 'old-record', timestamp: 0 }] }
 
   {
-    '/sessions list' => ['PWN::Sessions', :list, :array],
+    '/sessions list' => ['PWN::Sessions', :catalog, :nested],
     '/cron list' => ['PWN::Cron', :list, :map],
     '/cron create hourly fixture' => ['PWN::Cron', :create, :nested],
     '/cron run fixture' => ['PWN::Cron', :run, :json],
@@ -176,7 +176,7 @@ describe 'menu chronology routing' do
                when :nested then { results: records }
                when :json then JSON.generate(results: records)
                end
-      result = [{ id: 'new-record', mtime: 10 }, { id: 'old-record', mtime: 0 }] if line == '/sessions list'
+      result = { sessions: [{ id: 'new-record', mtime: 10 }, { id: 'old-record', mtime: 0 }] } if line == '/sessions list'
       original = Marshal.dump(result)
       allow(Object.const_get(namespace)).to receive(method).and_return(result)
       allow(PWN::AI::MCP).to receive(:backends).and_return([{ name: 'fixture' }]) if namespace == 'PWN::AI::MCP'

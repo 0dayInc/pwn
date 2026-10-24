@@ -2268,6 +2268,7 @@
 {"messages":[{"role":"user","content":"PWN::JSONText.help Usage"},{"role":"assistant","content":"`PWN::JSONText.help`: "}]}
 {"messages":[{"role":"user","content":"PWN::JSONText.prepare Usage"},{"role":"assistant","content":"`PWN::JSONText.prepare`: Supported Method Parameters\n\nsafe = PWN::JSONText.prepare(\n\nvalue: 'required - string, hash, or array that may contain binary-tagged text',\ndepth: 'optional - nesting already walked; containers stop at 100'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::Memory.archive_expired! Usage"},{"role":"assistant","content":"`PWN::Memory.archive_expired!`: "}]}
+{"messages":[{"role":"user","content":"PWN::Memory.atomic_write Usage"},{"role":"assistant","content":"`PWN::Memory.atomic_write`: "}]}
 {"messages":[{"role":"user","content":"PWN::Memory.authors Usage"},{"role":"assistant","content":"`PWN::Memory.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
 {"messages":[{"role":"user","content":"PWN::Memory.clear Usage"},{"role":"assistant","content":"`PWN::Memory.clear`: Supported Method Parameters\n\nPWN::Memory.clear(force: true)\n"}]}
 {"messages":[{"role":"user","content":"PWN::Memory.current_session_id Usage"},{"role":"assistant","content":"`PWN::Memory.current_session_id`: "}]}
@@ -2290,6 +2291,8 @@
 {"messages":[{"role":"user","content":"PWN::Memory.save Usage"},{"role":"assistant","content":"`PWN::Memory.save`: Supported Method Parameters\n\nPWN::Memory.save(mem: memory_hash)\n"}]}
 {"messages":[{"role":"user","content":"PWN::Memory.session_turns Usage"},{"role":"assistant","content":"`PWN::Memory.session_turns`: "}]}
 {"messages":[{"role":"user","content":"PWN::Memory.to_context Usage"},{"role":"assistant","content":"`PWN::Memory.to_context`: Supported Method Parameters\n\ncontext = PWN::Memory.to_context(limit: 20) (used internally by pwn-ai hook to inject into system prompt)\n"}]}
+{"messages":[{"role":"user","content":"PWN::Memory.transaction Usage"},{"role":"assistant","content":"`PWN::Memory.transaction`: "}]}
+{"messages":[{"role":"user","content":"PWN::Memory.transaction_owned? Usage"},{"role":"assistant","content":"`PWN::Memory.transaction_owned?`: "}]}
 {"messages":[{"role":"user","content":"PWN::Memory.turn_pairs Usage"},{"role":"assistant","content":"`PWN::Memory.turn_pairs`: "}]}
 {"messages":[{"role":"user","content":"PWN::MemoryIndex.authors Usage"},{"role":"assistant","content":"`PWN::MemoryIndex.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
 {"messages":[{"role":"user","content":"PWN::MemoryIndex.available? Usage"},{"role":"assistant","content":"`PWN::MemoryIndex.available?`: Supported Method Parameters\n\nbool = PWN::MemoryIndex.available?\n"}]}
@@ -4632,14 +4635,18 @@
 {"messages":[{"role":"user","content":"PWN::Sessions.append Usage"},{"role":"assistant","content":"`PWN::Sessions.append`: Supported Method Parameters\n\nPWN::Sessions.append(\n\nsession_id: 'required',\nrole: 'user|assistant|system|observation',\ncontent: 'the message or obs'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::Sessions.authors Usage"},{"role":"assistant","content":"`PWN::Sessions.authors`: "}]}
 {"messages":[{"role":"user","content":"PWN::Sessions.bounded_title Usage"},{"role":"assistant","content":"`PWN::Sessions.bounded_title`: "}]}
+{"messages":[{"role":"user","content":"PWN::Sessions.catalog Usage"},{"role":"assistant","content":"`PWN::Sessions.catalog`: "}]}
 {"messages":[{"role":"user","content":"PWN::Sessions.cleanup_transcript_valid? Usage"},{"role":"assistant","content":"`PWN::Sessions.cleanup_transcript_valid?`: "}]}
 {"messages":[{"role":"user","content":"PWN::Sessions.compact_transcript! Usage"},{"role":"assistant","content":"`PWN::Sessions.compact_transcript!`: "}]}
+{"messages":[{"role":"user","content":"PWN::Sessions.complete_policy_trajectory? Usage"},{"role":"assistant","content":"`PWN::Sessions.complete_policy_trajectory?`: "}]}
 {"messages":[{"role":"user","content":"PWN::Sessions.create Usage"},{"role":"assistant","content":"`PWN::Sessions.create`: Supported Method Parameters\n\nsession = PWN::Sessions.create(\n\ntitle: 'optional - human title, capped at seven whitespace-separated words',\nsource: 'optional - e.g. pwn-ai',\nid: 'optional - fixed session id (tests / replay); default timestamp_hex',\nactive: 'optional - return an owned lease with the new session'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::Sessions.deactivate Usage"},{"role":"assistant","content":"`PWN::Sessions.deactivate`: Supported Method Parameters\n\nPWN::Sessions.deactivate(lease: ‘required - handle returned by activate’)\n"}]}
 {"messages":[{"role":"user","content":"PWN::Sessions.delete Usage"},{"role":"assistant","content":"`PWN::Sessions.delete`: Supported Method Parameters\n\nPWN::Sessions.delete(\n\nsession_id: 'required',\nforce: 'optional - Boolean bypass pin policy (default false)'\n\n)\n"}]}
+{"messages":[{"role":"user","content":"PWN::Sessions.dependency_error_owners Usage"},{"role":"assistant","content":"`PWN::Sessions.dependency_error_owners`: "}]}
 {"messages":[{"role":"user","content":"PWN::Sessions.dependency_ids Usage"},{"role":"assistant","content":"`PWN::Sessions.dependency_ids`: "}]}
 {"messages":[{"role":"user","content":"PWN::Sessions.dependency_index Usage"},{"role":"assistant","content":"`PWN::Sessions.dependency_index`: Supported Method Parameters\n\nreferences = PWN::Sessions.dependency_index\n"}]}
 {"messages":[{"role":"user","content":"PWN::Sessions.dependency_select Usage"},{"role":"assistant","content":"`PWN::Sessions.dependency_select`: "}]}
+{"messages":[{"role":"user","content":"PWN::Sessions.dependency_units Usage"},{"role":"assistant","content":"`PWN::Sessions.dependency_units`: "}]}
 {"messages":[{"role":"user","content":"PWN::Sessions.dependency_value Usage"},{"role":"assistant","content":"`PWN::Sessions.dependency_value`: "}]}
 {"messages":[{"role":"user","content":"PWN::Sessions.event_dependency_ids Usage"},{"role":"assistant","content":"`PWN::Sessions.event_dependency_ids`: "}]}
 {"messages":[{"role":"user","content":"PWN::Sessions.expand_tokens Usage"},{"role":"assistant","content":"`PWN::Sessions.expand_tokens`: "}]}
@@ -4650,6 +4657,8 @@
 {"messages":[{"role":"user","content":"PWN::Sessions.load Usage"},{"role":"assistant","content":"`PWN::Sessions.load`: Supported Method Parameters\n\ntranscript = PWN::Sessions.load(session_id: ‘required’)\n"}]}
 {"messages":[{"role":"user","content":"PWN::Sessions.memory_dependency_ids Usage"},{"role":"assistant","content":"`PWN::Sessions.memory_dependency_ids`: "}]}
 {"messages":[{"role":"user","content":"PWN::Sessions.metadata Usage"},{"role":"assistant","content":"`PWN::Sessions.metadata`: "}]}
+{"messages":[{"role":"user","content":"PWN::Sessions.mistake_dependency_ids Usage"},{"role":"assistant","content":"`PWN::Sessions.mistake_dependency_ids`: "}]}
+{"messages":[{"role":"user","content":"PWN::Sessions.practice_dependency_ids Usage"},{"role":"assistant","content":"`PWN::Sessions.practice_dependency_ids`: "}]}
 {"messages":[{"role":"user","content":"PWN::Sessions.previous_id Usage"},{"role":"assistant","content":"`PWN::Sessions.previous_id`: Supported Method Parameters\n\nid = PWN::Sessions.previous_id(\n\nexclude_session_id: 'optional - current session to skip'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::Sessions.protected_session_ids Usage"},{"role":"assistant","content":"`PWN::Sessions.protected_session_ids`: "}]}
 {"messages":[{"role":"user","content":"PWN::Sessions.provisional_title Usage"},{"role":"assistant","content":"`PWN::Sessions.provisional_title`: "}]}
@@ -4658,12 +4667,15 @@
 {"messages":[{"role":"user","content":"PWN::Sessions.redact Usage"},{"role":"assistant","content":"`PWN::Sessions.redact`: "}]}
 {"messages":[{"role":"user","content":"PWN::Sessions.refresh_title Usage"},{"role":"assistant","content":"`PWN::Sessions.refresh_title`: "}]}
 {"messages":[{"role":"user","content":"PWN::Sessions.register_activity_owner Usage"},{"role":"assistant","content":"`PWN::Sessions.register_activity_owner`: "}]}
+{"messages":[{"role":"user","content":"PWN::Sessions.request_checkpoint_dependencies Usage"},{"role":"assistant","content":"`PWN::Sessions.request_checkpoint_dependencies`: "}]}
 {"messages":[{"role":"user","content":"PWN::Sessions.resolve Usage"},{"role":"assistant","content":"`PWN::Sessions.resolve`: "}]}
 {"messages":[{"role":"user","content":"PWN::Sessions.retain Usage"},{"role":"assistant","content":"`PWN::Sessions.retain`: "}]}
+{"messages":[{"role":"user","content":"PWN::Sessions.retention_status Usage"},{"role":"assistant","content":"`PWN::Sessions.retention_status`: Supported Method Parameters\n\nstatus = PWN::Sessions.retention_status(session_id: id, references: index)\n"}]}
 {"messages":[{"role":"user","content":"PWN::Sessions.sessions_dir Usage"},{"role":"assistant","content":"`PWN::Sessions.sessions_dir`: Supported Method Parameters\n\ndir = PWN::Sessions.sessions_dir\n"}]}
 {"messages":[{"role":"user","content":"PWN::Sessions.stats Usage"},{"role":"assistant","content":"`PWN::Sessions.stats`: Supported Method Parameters\n\nstats = PWN::Sessions.stats\n"}]}
 {"messages":[{"role":"user","content":"PWN::Sessions.stub_session? Usage"},{"role":"assistant","content":"`PWN::Sessions.stub_session?`: "}]}
 {"messages":[{"role":"user","content":"PWN::Sessions.summary_title_valid? Usage"},{"role":"assistant","content":"`PWN::Sessions.summary_title_valid?`: "}]}
+{"messages":[{"role":"user","content":"PWN::Sessions.support_path Usage"},{"role":"assistant","content":"`PWN::Sessions.support_path`: Supported Method Parameters\n\npath = PWN::Sessions.support_path(kind: :metadata, session_id: id)\n"}]}
 {"messages":[{"role":"user","content":"PWN::Sessions.title_status Usage"},{"role":"assistant","content":"`PWN::Sessions.title_status`: Supported Method Parameters\n\nstatus = PWN::Sessions.title_status(session_id: ‘required - canonical session ID’)\n"}]}
 {"messages":[{"role":"user","content":"PWN::Sessions.to_llm_messages Usage"},{"role":"assistant","content":"`PWN::Sessions.to_llm_messages`: "}]}
 {"messages":[{"role":"user","content":"PWN::Sessions.to_response_history Usage"},{"role":"assistant","content":"`PWN::Sessions.to_response_history`: Supported Method Parameters\n\nhistory_for_ai = PWN::Sessions.to_response_history(session_id:) (converts transcript to the response_history format used by PWN::AI::* .chat)\n"}]}

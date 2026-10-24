@@ -221,12 +221,18 @@ incomplete metadata is unknown, never named. `/sessions list` and cleanup share
 `title_source`, `is_summarized`, `classification` and `title_reason`. Classification
 does not establish deletion safety: malformed records, symlinks and uncertain pin
 stores remain protected. Age alone does not preserve an unsummarized session.
-Version 5 backs up unreferenced unsummarized sessions before a guarded `Sessions.delete`
-call that bypasses the ordinary age pin. Current sessions and every known
-learning/mistake/memory reference remain protected. `/sessions list` exposes
-`dependencies` as an array of files **referencing this session** (empty when
-none), not files this session depends on. `dependency_errors` lists unknown,
-malformed or unsafe stores; cleanup fails closed when it is nonempty.
+Version 7 backs up unreferenced unsummarized sessions before a guarded `Sessions.delete`
+call that bypasses the ordinary age pin. `/sessions list` shows only valid
+LLM-summary-title or valid dependency-backed sessions, excluding sessions with
+attributed dependency errors. Active leases protect bytes even when a session
+is hidden. Explicit resume and `Sessions.list(include_hidden: true)` still reach
+hidden records. `dependencies` lists files **referencing this session**, not
+files it depends on. Per-session `dependency_errors` contains only safely
+attributed errors; `unresolved_dependency_stores` reports global uncertainty.
+The index's `errors` remains the unattributed store list: it blocks apply and is
+reported as `unresolved_store_remediation`, never copied onto every session.
+Parsed rows are validated independently so an invalid shared row does not
+invalidate unrelated good records.
 The shared index follows defined structural fields, not ID-looking text.
 Dependency-backed sessions remain visible and resumable, not archived away.
 Vault/config/credential payloads and historical backups are not scanned.
@@ -242,9 +248,27 @@ are rechecked under per-ID/transcript locks. `ledger.json` records exact IDs,
 hashes, skips and completed deletions; dry-run JSON contains metadata only and
 creates no archive. Backups are for recovery, not an automatic reference
 resolver: referenced placeholders remain in the active list until a separately
-verified archive-aware lookup policy exists. No memory, learning or mistake
-records are rewritten. The process checks and advisory locks do not claim a
-transactional guarantee against arbitrary non-cooperating external writers.
+verified archive-aware lookup policy exists. Invalid learning evidence rows with
+one proven session owner can be removed with their inactive session under the
+Learning writer lock. The entire original shared store is backed up; only the
+invalid row is removed, keeping unrelated rows byte-for-byte. Prepared/committed
+`dependency_removals` ledger entries record hashes, row locators and backup paths.
+Approval and locked rechecks bind both transcript and dependency fingerprints.
+Valid references still protect a session; conflicting valid/invalid references,
+multiple owners, and attributed stores without a cooperating permanent writer
+lock report `unresolved_dependency_remediation` and remain physically untouched.
+Memory, its archive, and Mistakes now use permanent reentrant store transactions
+covering complete read-modify-write operations, including Learning consolidation
+and noise purging. Single-owner invalid map entries can be removed under those
+locks with whole-store backups and prepared/committed ledgers; unrelated map
+entries retain their values (JSON formatting may change). Stale expiry snapshots
+cannot remove refreshed memory. Corrupt Mistakes input raises rather than
+falling back to an empty map. Other stores (including disputed learning, findings,
+policy trajectories and event logs) remain unresolved when no safe targeted writer
+protocol exists. Deploy all cooperating writers before enabling remediation; old
+installed writers do not honor the new locks. No shared store is wiped. The process
+checks and advisory locks do not claim a transactional guarantee against
+arbitrary non-cooperating external writers.
 
 The cleanup-specific pins additionally preserve every session ID referenced in
 retained learning, mistake and durable memory stores, including non-gold learning

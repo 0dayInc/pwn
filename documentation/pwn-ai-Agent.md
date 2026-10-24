@@ -39,8 +39,68 @@ The curses console exposes these local views through the command menu:
   Running phase checkpoints are atomically persisted before publication, including
   actual check records, uncovered requirements and repair reasons.
   Worktrees isolate edits, **not** arbitrary code execution or network access.
-* `/sessions cleanup` previews the same provenance/dependency policy as scheduled
-  cleanup. Inspect the exact IDs, paths, fingerprints, retention reasons and
+* `/sessions list [offset] [limit]` is a page, not a retention limit. The
+  envelope reports `returned`, visible `total`, `physical_sessions`,
+  `filtered_sessions`, `has_previous` and `has_more`, plus a disjoint root-entry
+  `storage` breakdown. Filtered transcripts remain physically retained and explicitly
+  resumable. Neither pagination nor layout migration deletes summarized sessions.
+* Offline housekeeping migration is separate from ordinary cleanup. After deploying
+  matching source and stopping **all** launchers, workers and cron schedulers, run
+  from the checkout:
+
+  ```ruby
+  require 'pwn'
+  require './etc/default_cron/session_cleanup'
+  PWN::SessionCleanup.reorganize # metadata-only plan; no changes
+  PWN::SessionCleanup.reorganize(dry_run: false, writers_stopped: true)
+  PWN::SessionCleanup.run(dry_run: true) # inspect remaining retention categories
+  # Only after reviewing the ledger and approving cleanup:
+  PWN::SessionCleanup.run(dry_run: false)
+  ```
+
+  Launch Ruby with `bundle exec ruby -Ilib` so this uses matching source, not an
+  older installed gem. `writers_stopped` is an operator assertion, not a way to
+  bypass held leases or unknown legacy owners. Backups and prepared/committed
+  ledgers live in private `~/.pwn/session_cleanup_archive` directories. The layout
+  migration moves unreferenced metadata and lease inodes under `sessions/support`;
+  new trace support also uses that layout. Existing trace paths and dependency-backed
+  metadata stay at their exact locations to preserve evidence anchors and are
+  reported in `retained_support`. Canonical transcripts stay at the root. Abandoned numeric-PID transcript temp
+  files are removed only after exact recoverable backups in this offline operation.
+  Held own-process capability markers stay in place; other active owners block.
+  Readers accept legacy and compact paths, including partially completed moves.
+  Do not restart old binaries after applying the layout. Unknown files, mesh
+  mappings and request checkpoints remain untouched. Complete policy trajectories
+  are self-contained training provenance, not transcript-retention edges; incomplete
+  legacy trajectories and other unresolved evidence consumers still retain sources.
+* Historical IDs are not automatically transcript dependencies. The shared index
+  validates self-contained Mistakes records (error/fix/counters), Memory reflection
+  values, Extrospection drift observations and Curriculum practice results before
+  treating their session IDs as provenance. These stores are not rewritten or
+  deleted by this classification. Incomplete records still pin their identified
+  source; malformed containers remain diagnostics. No summary or training label
+  is invented. Mistakes' previous-turn readers and Memory's session-turn reader
+  operate on the caller's current session, not historical occurrence IDs.
+  Curriculum's practice log is an audit log, not a replay/evaluation queue.
+* Actual Learning transcript consumers retain full redacted, content-addressed
+  evidence through the existing migration before transcript deletion. Sessions.load,
+  Curriculum.offline_judge discovery and Reward PRM copy-on-write annotation use
+  the verified evidence; source hashes and complete source equality are checked
+  before releasing a live transcript. Overlapping provenance records no longer
+  prevent that preservation/re-index/deletion transaction.
+* Swarm `personas.json` is different: `Swarm.ask` calls `persona_session`, which
+  reuses its ID and acquires a writable-session lease for `Loop.run`. `retire`
+  removes an agents.yml registration, not that association; an explicit persona
+  or later respawn can reuse it. There is no persisted association-completed or
+  retired-session marker. Neither old mtime, an absent registry name nor a
+  completed bus message proves a map obsolete. Such mappings remain protected,
+  even with a Learning snapshot, because a read-only training artifact is not a
+  writable continuation. Cleanup does not silently archive them or impose a cap.
+* `/sessions cleanup` runs the same maintenance operation as bundled cron:
+  validate, preserve supported learning evidence, remediate attributable invalid
+  records with recoverable backups, re-index, and remove eligible inactive sessions.
+  `/sessions cleanup --dry-run` previews without changing evidence or deleting
+  sessions. Inspect the exact IDs, paths, fingerprints, retention reasons and
   uncertainty. `a`, then Enter confirms only the displayed candidate set.
   Newly discovered or changed records are excluded. Apply rechecks activity,
   references and source bytes under locks, backs up candidate bytes, and reports

@@ -233,9 +233,9 @@ describe PWN::AI::Agent::Swarm do
       text_only: true
     )
     expect(PWN::Sessions.sessions_dir).to eq(File.join(@swarm_home, 'sessions'))
-    expect(PWN::Sessions.list.length).to eq(1)
-    expect(PWN::Sessions.active?(session_id: PWN::Sessions.list.first[:id])).to be(false)
-    expect(PWN::Sessions.list.map { |session| session[:path] }).to all(start_with(File.join(@swarm_home, 'sessions', '')))
+    expect(PWN::Sessions.list(include_hidden: true).length).to eq(1)
+    expect(PWN::Sessions.active?(session_id: PWN::Sessions.list(include_hidden: true).first[:id])).to be(false)
+    expect(PWN::Sessions.list(include_hidden: true).map { |session| session[:path] }).to all(start_with(File.join(@swarm_home, 'sessions', '')))
     expect(described_class.honesty_unmet).to eq([])
     expect(Array(Thread.current[:pwn_swarm_honesty])).to eq([])
     expect(Thread.current[:pwn_swarm_id]).to be_nil

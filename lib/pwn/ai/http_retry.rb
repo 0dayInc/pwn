@@ -31,6 +31,9 @@ module PWN
       # Resolve provider defaults from the active request without mutating Env.
       public_class_method def self.provider_config(opts = {})
         engine = opts[:engine]
+        title_config = Thread.current[:pwn_session_title_config]
+        return title_config[engine] if title_config
+
         owner = Thread.current[:pwn_request_runtime]
         return owner.provider_config(engine) if owner.respond_to?(:provider_config)
 

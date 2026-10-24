@@ -40,7 +40,7 @@ RSpec.describe 'Bundled session cleanup' do
     bytes = File.read(PWN::Cron.jobs_file)
     expect(PWN::Cron).not_to receive(:install_native_job)
     PWN::Cron.install_defaults
-    expect(File.read(helper)).to include('# PWN managed default: session_cleanup v6')
+    expect(File.read(helper)).to include('# PWN managed default: session_cleanup v9')
     expect(File.read(PWN::Cron.jobs_file)).to eq(bytes)
   end
 
@@ -67,6 +67,6 @@ RSpec.describe 'Bundled session cleanup' do
       RbConfig.ruby, '-I', File.expand_path('../../../lib', __dir__), helper, '--dry-run'
     )
     expect(status.success?).to be(true), error
-    expect(JSON.parse(output)).to include('dry_run' => true, 'scanned' => 0, 'deleted_ids' => [])
+    expect(JSON.parse(output)).to include('dry_run' => true, 'scanned' => 0, 'deleted' => 0)
   end
 end

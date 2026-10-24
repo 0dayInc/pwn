@@ -93,14 +93,15 @@ describe 'menu command result routes' do
   end
 
   it 'resumes by exact Unicode title or id through plural commands and lists both fields' do
-    session = PWN::Sessions.create(id: 'resume_title', title: 'Café  "login" repair')
-    ['/sessions resume Café  "login" repair', '/sessions resume \'Café  "login" repair\'', '/sessions resume resume_title', '　/sessions　resume　Café  "login" repair　'].each do |line|
+    session = PWN::Sessions.create(id: '20200101_010203_abcdef13', title: 'Café  "login" repair')
+    File.write(File.join(PWN::Sessions.sessions_dir, '20200101_010203_abcdef13.meta.json'), JSON.generate(title: 'Café  "login" repair', title_source: 'summary', summary: 'Reviewed the login repair.', summary_turns: 1))
+    ['/sessions resume Café  "login" repair', '/sessions resume \'Café  "login" repair\'', '/sessions resume 20200101_010203_abcdef13', '　/sessions　resume　Café  "login" repair　'].each do |line|
       pry.config.pwn_ai_session_id = 'before'
       expect(PWN::Plugins::REPL.pwn_ai_dispatch_slash!(request: line, pry: pry)).to be(true)
       expect(pry.config.pwn_ai_session_id).to eq(session[:id])
     end
     ['/sessions list'].each do |line|
-      expect { PWN::Plugins::REPL.pwn_ai_dispatch_slash!(request: line, pry: pry) }.to output(a_string_including('id: resume_title', 'title: Café  "login" repair')).to_stdout
+      expect { PWN::Plugins::REPL.pwn_ai_dispatch_slash!(request: line, pry: pry) }.to output(a_string_including('id: 20200101_010203_abcdef13', 'title: Café  "login" repair')).to_stdout
     end
   end
 
@@ -118,14 +119,14 @@ describe 'menu command result routes' do
 
   it 'lists and resumes the same seven-word legacy title with stable id fallback on collisions' do
     title = 'One two three four five six seven'
-    PWN::Sessions.create(id: 'capped_resume')
-    File.write(File.join(PWN::Sessions.sessions_dir, 'capped_resume.meta.json'), JSON.generate(title: "#{title} eight nine", title_source: 'summary'))
+    PWN::Sessions.create(id: '20200101_010203_abcdef14')
+    File.write(File.join(PWN::Sessions.sessions_dir, '20200101_010203_abcdef14.meta.json'), JSON.generate(title: "#{title} eight nine", title_source: 'summary', summary: 'Summarized the prior conversation.', summary_turns: 1))
     expect { PWN::Plugins::REPL.pwn_ai_dispatch_slash!(request: '/sessions list', pry: pry) }.to output(a_string_including("title: #{title}\n")).to_stdout
     PWN::Plugins::REPL.pwn_ai_dispatch_slash!(request: "/sessions resume '#{title}'", pry: pry)
-    expect(pry.config.pwn_ai_session_id).to eq('capped_resume')
+    expect(pry.config.pwn_ai_session_id).to eq('20200101_010203_abcdef14')
     PWN::Sessions.create(id: 'capped_duplicate', title: "#{title} ten")
-    expect { PWN::Plugins::REPL.pwn_ai_dispatch_slash!(request: "/sessions resume #{title}", pry: pry) }.to output(a_string_including('NOTICE', 'Ambiguous', 'capped_resume', 'capped_duplicate', '/sessions resume <ID>')).to_stdout
-    expect(pry.config.pwn_ai_session_id).to eq('capped_resume')
+    expect { PWN::Plugins::REPL.pwn_ai_dispatch_slash!(request: "/sessions resume #{title}", pry: pry) }.to output(a_string_including('NOTICE', 'Ambiguous', '20200101_010203_abcdef14', 'capped_duplicate', '/sessions resume <ID>')).to_stdout
+    expect(pry.config.pwn_ai_session_id).to eq('20200101_010203_abcdef14')
     PWN::Plugins::REPL.pwn_ai_dispatch_slash!(request: '/sessions resume capped_duplicate', pry: pry)
     expect(pry.config.pwn_ai_session_id).to eq('capped_duplicate')
   end
@@ -139,11 +140,27 @@ describe 'menu command result routes' do
     expect(pry.config.pwn_ai_session_id).to eq('original')
   end
 
+  it 'keeps the current provisional session in both command routes without summary provenance' do
+    allow(Dir).to receive(:home).and_return(@tmp)
+    sid = PWN::Sessions.create[:id]
+    PWN::Sessions.provisional_title(session_id: sid, request: 'Investigate certificate chain')
+    pry.config.pwn_ai_session_id = sid
+    expect { PWN::Plugins::REPL.pwn_ai_dispatch_slash!(request: '/sessions list', pry: pry) }.to output(a_string_including("id: #{sid}", 'active: true', 'title: Investigate certificate chain')).to_stdout
+    PWN::Plugins::REPL::AI.add_commands
+    allow(Pry).to receive(:history).and_return(Pry::History.new(file_path: File.join(@tmp, 'active_history')))
+    output = StringIO.new
+    legacy = Pry.new(output: output, quiet: true)
+    legacy.config.pwn_ai_session_id = sid
+    legacy.eval('pwn-ai-sessions list')
+    expect(output.string).to include("id: #{sid}", 'active: true', 'title: Investigate certificate chain')
+    expect(PWN::Sessions.title_status(session_id: sid)[:is_summarized]).to be(false)
+  end
+
   it 'preserves the configured Pry output stream for legacy command aliases' do
     PWN::Plugins::REPL::AI.add_commands
     allow(Pry).to receive(:history).and_return(Pry::History.new(file_path: File.join(@tmp, 'alias_history')))
     allow(PWN::Memory).to receive(:recall).and_return(record)
-    allow(PWN::Sessions).to receive_messages(list: record, stats: record)
+    allow(PWN::Sessions).to receive_messages(catalog: record, stats: record)
     allow(PWN::Cron).to receive_messages(list: record, run: record)
     ['pwn-ai-memory list', 'pwn-ai-memory recall fixture', 'pwn-ai-sessions list', 'pwn-ai-sessions stats', 'pwn-ai-cron list', 'pwn-ai-cron run fixture'].each do |line|
       output = StringIO.new
@@ -166,8 +183,8 @@ describe 'menu command result routes' do
     '/cron' => ['PWN::Cron', :list],
     '/cron list' => ['PWN::Cron', :list],
     '/cron run fixture' => ['PWN::Cron', :run],
-    '/sessions' => ['PWN::Sessions', :list],
-    '/sessions list' => ['PWN::Sessions', :list],
+    '/sessions' => ['PWN::Sessions', :catalog],
+    '/sessions list' => ['PWN::Sessions', :catalog],
     '/sessions stats' => ['PWN::Sessions', :stats],
     '/memory' => ['PWN::Memory', :recall],
     '/memory list' => ['PWN::Memory', :recall],

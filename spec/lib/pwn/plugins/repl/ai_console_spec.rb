@@ -9,6 +9,7 @@ describe 'operator workspace navigation' do
 
   before do
     allow(Dir).to receive(:home).and_return(@tmp)
+    FileUtils.mkdir_p(File.join(@tmp, '.pwn'))
     stub_const('PWN::AI::Agent::SkillReview::LEDGER', File.join(@tmp, 'skill_review.jsonl'))
     stub_const('PWN::AI::Agent::OpenGoal::GOAL_FILE', File.join(@tmp, 'open_goal.json'))
     allow(Pry).to receive(:history).and_return(Pry::History.new(file_path: File.join(@tmp, 'pwn_history')))
@@ -249,24 +250,162 @@ describe 'operator workspace navigation' do
     text = console.send(:operator_content).join
     expect(text).to include('ruby check.rb', 'observed failure', 'tested-revision', 'cancelled')
   end
+end
+
+describe 'session maintenance command workers' do
+  include_context 'pwn tmp sandbox'
+
+  before do
+    allow(Dir).to receive(:home).and_return(@tmp)
+    FileUtils.mkdir_p(File.join(@tmp, '.pwn'))
+    allow(Pry).to receive(:history).and_return(Pry::History.new(file_path: File.join(@tmp, 'pwn_history')))
+  end
+
+  let(:pry) { Pry.new }
+  let(:console) { PWN::Plugins::REPL::AIConsole::Console.new(pry: pry, input: StringIO.new, curses: nil, getch: nil) }
+
+  def open_view(line)
+    console.submit(line)
+    Timeout.timeout(5) do
+      while console.instance_variable_get(:@operator_view)&.dig(:loading)
+        console.instance_variable_get(:@operator_worker)&.join(0.01)
+        console.send(:drain)
+      end
+    end
+  end
+
+  after { console.send(:stop_worker) }
+
+  it 'routes cleanup off the input owner and delivers completion after safe cancellation' do
+    require File.expand_path('../../../../../etc/default_cron/session_cleanup', __dir__)
+    entered = Queue.new
+    release = Queue.new
+    owner = Thread.current
+    reader, writer = IO.pipe
+    console.instance_variable_set(:@input, reader)
+    console.instance_variable_set(:@tool_input, writer)
+    allow(PWN::SessionCleanup).to receive(:maintain) do |**options|
+      entered << [Thread.current, options]
+      release.pop
+      { fixture: 'committed deletion' }
+    end
+    allow(PWN::SessionCleanup).to receive(:summary) { |result| result }
+    allow(PWN::Plugins::REPL).to receive(:pwn_ai_print_result) do |value:|
+      console.instance_variable_get(:@events) << [:command, value.inspect]
+    end
+    Timeout.timeout(2) { console.submit('/sessions cleanup') }
+    thread, options = Timeout.timeout(2) { entered.pop }
+    expect(thread).not_to eq(owner)
+    expect(options[:dry_run]).to be(false)
+    console.handle("\u0014")
+    console.handle(:page_up)
+    console.submit('/sessions cleanup')
+    expect(PWN::SessionCleanup).to have_received(:maintain).once
+    console.handle("\u0003")
+    expect(thread).to be_alive
+    release << true
+    expect(thread.join(2)).to eq(thread)
+    console.send(:drain)
+    expect(console.send(:busy?)).to be_falsey
+    text = console.instance_variable_get(:@timeline).map { |row| row[1] }.join
+    expect(text).to include('committed deletion', 'not undone')
+    expect(text).not_to include('Request cancelled')
+  ensure
+    release << true if release
+    console.instance_variable_get(:@worker)&.join(2)
+    reader&.close
+    console.instance_variable_get(:@tool_input)&.close
+  end
+
+  it 'keeps navigation and input alive through the real maintenance learning lock and queues errors' do
+    require File.expand_path('../../../../../etc/default_cron/session_cleanup', __dir__)
+    allow(PWN::SessionCleanup).to receive(:legacy_owners).and_return([])
+    stub_const('PWN::AI::Agent::Learning::LEARNING_FILE', File.join(@tmp, '.pwn', 'learning.jsonl'))
+    sid = PWN::Sessions.create[:id]
+    reader, writer = IO.pipe
+    console.instance_variable_set(:@input, reader)
+    console.instance_variable_set(:@tool_input, writer)
+    events = console.instance_variable_get(:@events)
+    output = PWN::Plugins::REPL::AIConsole::EventIO.new(events)
+    allow(PWN::Plugins::REPL).to receive(:pwn_ai_print_result).and_wrap_original do |method, **options|
+      method.call(options.merge(output: output))
+    end
+    lock = PWN::AI::Agent::Learning.send(:learning_lock)
+    entered = Queue.new
+    allow(PWN::AI::Agent::Learning).to receive(:migrate_evidence).and_wrap_original do |method, **options|
+      entered << true
+      method.call(options)
+    end
+    Timeout.timeout(2) { console.submit('/sessions cleanup') }
+    Timeout.timeout(2) { entered.pop }
+    worker = console.instance_variable_get(:@worker)
+    expect(worker.join(0.05)).to be_nil
+    console.submit('/input fixture')
+    expect(reader.read_nonblock(8)).to eq("fixture\n")
+    console.handle("\u0014")
+    console.handle(:page_up)
+    console.handle("\u0003")
+    expect(File).to exist(File.join(PWN::Sessions.sessions_dir, "#{sid}.jsonl"))
+    PWN::AI::Agent::Learning.send(:learning_unlock, lock: lock)
+    lock = nil
+    expect(worker.join(5)).to eq(worker)
+    console.send(:drain)
+    expect(File).not_to exist(File.join(PWN::Sessions.sessions_dir, "#{sid}.jsonl"))
+    expect(console.instance_variable_get(:@timeline).select { |row| row[0] == :command }.map { |row| row[1] }.join).to include('deleted: 1')
+    allow(PWN::SessionCleanup).to receive(:maintain).and_raise(IOError, 'fixture maintenance failed')
+    console.submit('/sessions cleanup')
+    expect(console.instance_variable_get(:@worker).join(2)).not_to be_nil
+    console.send(:drain)
+    expect(console.instance_variable_get(:@timeline).map { |row| row[1] }.join).to include('IOError: fixture maintenance failed')
+    expect(console.send(:busy?)).to be_falsey
+  ensure
+    PWN::AI::Agent::Learning.send(:learning_unlock, lock: lock) if lock
+    console.instance_variable_get(:@worker)&.join(5)
+    reader&.close
+    console.instance_variable_get(:@tool_input)&.close
+  end
 
   it 'previews cleanup and applies only unchanged explicitly approved candidates' do
     require File.expand_path('../../../../../etc/default_cron/session_cleanup', __dir__)
     allow(PWN::SessionCleanup).to receive(:legacy_owners).and_return([])
     old = PWN::Sessions.create[:id]
-    open_view('/sessions cleanup')
+    open_view('/sessions cleanup --dry-run')
     expect(console.send(:operator_content).join).to include(old)
     late = PWN::Sessions.create[:id]
     console.handle('a')
     expect(File).to exist(File.join(PWN::Sessions.sessions_dir, "#{old}.jsonl"))
-    console.handle("\r")
+    reader, writer = IO.pipe
+    console.instance_variable_set(:@input, reader)
+    console.instance_variable_set(:@tool_input, writer)
+    entered = Queue.new
+    release = Queue.new
+    allow(PWN::SessionCleanup).to receive(:run).and_wrap_original do |method, **options|
+      entered << true
+      release.pop
+      method.call(**options)
+    end
+    Timeout.timeout(2) { console.handle("\r") }
+    Timeout.timeout(2) { entered.pop }
+    console.handle("\e")
+    console.handle("\u0003")
+    release << true
+    expect(console.instance_variable_get(:@worker).join(5)).not_to be_nil
+    console.send(:drain)
     expect(File).not_to exist(File.join(PWN::Sessions.sessions_dir, "#{old}.jsonl"))
     expect(File).to exist(File.join(PWN::Sessions.sessions_dir, "#{late}.jsonl"))
+  ensure
+    release << true if release
+    console.instance_variable_get(:@worker)&.join(5)
+    reader&.close
+    console.instance_variable_get(:@tool_input)&.close
   end
 
   it 'searches sessions by stable ID and resumes the selected ID without changing a draft' do
     first = PWN::Sessions.create(title: 'Duplicate title')[:id]
     second = PWN::Sessions.create(title: 'Duplicate title')[:id]
+    [first, second].each do |id|
+      File.write(File.join(PWN::Sessions.sessions_dir, "#{id}.meta.json"), JSON.generate(title: 'Duplicate title', title_source: 'summary', summary: 'Fixture summary', summary_turns: 2))
+    end
     pry.config.pwn_ai_session_id = first
     editor = console.instance_variable_get(:@editor)
     editor.replace('unfinished draft')
@@ -287,6 +426,8 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
   include_context 'pwn tmp sandbox'
 
   before do
+    allow(Dir).to receive(:home).and_return(@tmp)
+    FileUtils.mkdir_p(File.join(@tmp, '.pwn'))
     @history_path = File.join(@tmp, 'pwn_history')
     @request_history = Pry::History.new(file_path: @history_path)
     allow(Pry).to receive(:history).and_return(@request_history)
@@ -373,6 +514,40 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
     FileUtils.rm_rf(workspace) if workspace
   end
 
+  it 'coalesces title jobs per session and never drops a different pending session' do
+    ids = 3.times.map { PWN::Sessions.create[:id] }
+    ids.each_with_index { |sid, index| PWN::Sessions.append(session_id: sid, role: 'user', content: "Session topic #{index}") }
+    reached = Queue.new
+    release = Queue.new
+    calls = []
+    allow(PWN::AI::Router).to receive(:summarize) do |opts|
+      calls << opts[:text]
+      if calls.length == 1
+        reached << true
+        release.pop
+      end
+      JSON.generate(title: "Conversation #{calls.length}", summary: opts[:text])
+    end
+    console = PWN::Plugins::REPL::AIConsole::Console.new(pry: Pry.new, input: StringIO.new, curses: nil, getch: nil)
+    console.send(:queue_title_update, ids[0])
+    Timeout.timeout(5) { reached.pop }
+    console.send(:queue_title_update, ids[1])
+    console.send(:queue_title_update, ids[2])
+    console.send(:queue_title_update, ids[1])
+    release << true
+    Timeout.timeout(5) do
+      while console.instance_variable_get(:@title_worker)
+        console.send(:drain)
+        Thread.pass
+      end
+    end
+    expect(calls.length).to eq(3)
+    ids.each { |sid| expect(PWN::Sessions.title_status(session_id: sid)[:is_summarized]).to be(true) }
+  ensure
+    release << true if release
+    console&.instance_variable_get(:@title_worker)&.kill
+  end
+
   it 'paints provisional and asynchronously updated summary titles in the actual SESSION pane' do
     reached = Queue.new
     release = Queue.new
@@ -390,18 +565,27 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
       expect(PWN::Sessions.metadata(session_id: opts[:session_id])[:title]).to eq('Investigate login and repair all expired certificates')
       PWN::Sessions.append(session_id: opts[:session_id], content: opts[:request])
       PWN::Sessions.append(session_id: opts[:session_id], role: 'assistant', content: 'Certificate repaired')
+      PWN::Env[:ai] = { active: :ollama, ollama: { model: 'later-model', base_uri: 'http://fixture.invalid' } }
       'Certificate repaired'
     end
     submitted = false
     unblocked = false
-    launch('Investigate login and repair all expired certificates today'.chars) do
+    listed = false
+    keys = 'Investigate login and repair all expired certificates today'.chars
+    launch(keys) do
       unless submitted
         submitted = true
         @pry.config.pwn_ai_session_id = PWN::Sessions.create[:id]
         next "\r"
       end
-      if !reached.empty? && !unblocked
+      if !reached.empty? && !listed
+        listed = true
+        keys.concat("/sessions list\n".chars)
+      end
+      if listed && @rendered.map(&:last).join.include?('active: true') && !unblocked
         expect(@paint.join).to include('SESSION Investigate login and repair all expired certificates')
+        expect(@rendered.map(&:last).join).to include(@pry.config.pwn_ai_session_id, 'title: Investigate login and repair all expired certificates')
+        expect(PWN::Sessions.title_status(session_id: @pry.config.pwn_ai_session_id)[:is_summarized]).to be(false)
         unblocked = true
         release << true
       end
@@ -416,7 +600,8 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
   end
 
   it 'resumes the displayed title after async renaming through curses with surrounding whitespace and restores history' do
-    sid = PWN::Sessions.create(id: 'displayed_title', title: 'Café  "login" repair')[:id]
+    sid = PWN::Sessions.create(id: '20200101_010203_abcdef12', title: 'Café  "login" repair')[:id]
+    File.write(File.join(PWN::Sessions.sessions_dir, "#{sid}.meta.json"), JSON.generate(title: 'Café  "login" repair', title_source: 'summary', summary: 'Fixture summary', summary_turns: 1))
     PWN::Sessions.append(session_id: sid, role: 'user', content: 'Prior fixture request')
     PWN::Sessions.append(session_id: sid, role: 'assistant', content: 'Prior fixture answer')
     requested = false
@@ -2518,7 +2703,7 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
   it 'keeps network slash commands off the event thread so tool prompts can receive explicit input' do
     entered = Queue.new
     expect(PWN::AI::Agent::Loop).not_to receive(:run)
-    expect(PWN::Plugins::REPL).to receive(:pwn_ai_dispatch_slash!).with(request: '/mcp call fixture', pry: anything) do
+    expect(PWN::Plugins::REPL).to receive(:pwn_ai_dispatch_slash!).with(request: '/mcp call fixture', pry: anything, raise_errors: true) do
       entered << true
       puts "local command received: #{$stdin.gets}"
       true

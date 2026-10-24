@@ -119,7 +119,7 @@ module PWN
       id = opts[:session_id].to_s
       raise ArgumentError, 'Invalid session id' unless id.match?(/\A[A-Za-z0-9][A-Za-z0-9_-]{0,127}\z/)
 
-      dir = File.join(PWN::Sessions.sessions_dir, id)
+      dir = File.dirname(PWN::Sessions.support_path(kind: :trace, session_id: id))
       raise ArgumentError, 'Symlinked trace directory' if File.symlink?(dir)
 
       File.join(dir, 'trace.jsonl')

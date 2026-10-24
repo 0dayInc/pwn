@@ -255,7 +255,7 @@ module PWN
       {
         name: 'session_cleanup',
         schedule: '45 3 * * *',
-        ruby: "require File.join(PWN::Cron.cron_dir, 'session_cleanup.rb'); PWN::SessionCleanup.run(dry_run: false)",
+        ruby: "require File.join(PWN::Cron.cron_dir, 'session_cleanup.rb'); PWN::SessionCleanup.maintain(dry_run: false)",
         enabled: true
       },
       {

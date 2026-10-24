@@ -63,15 +63,18 @@ module PWN
           FileUtils.mkdir_p(File.dirname(MISTAKES_FILE))
           return {} unless File.exist?(MISTAKES_FILE)
 
-          JSON.parse(File.read(MISTAKES_FILE), symbolize_names: true)
-        rescue StandardError
-          {}
+          store = JSON.parse(File.read(MISTAKES_FILE), symbolize_names: true)
+          raise IOError, 'Invalid mistakes map' unless store.is_a?(Hash)
+
+          store
         end
 
         # Supported Method Parameters::
         # PWN::AI::Agent::Mistakes.save(store: hash)
 
         public_class_method def self.save(opts = {})
+          return PWN::Memory.transaction(path: MISTAKES_FILE) { save(opts) } unless PWN::Memory.transaction_owned?(path: MISTAKES_FILE)
+
           store = opts[:store] ||= {}
           FileUtils.mkdir_p(File.dirname(MISTAKES_FILE))
           atomic_write(path: MISTAKES_FILE, body: JSON.pretty_generate(store))
@@ -195,6 +198,8 @@ module PWN
         # the caller (Loop.run) can drive cross-session repeat detection.
 
         public_class_method def self.record(opts = {})
+          return PWN::Memory.transaction(path: MISTAKES_FILE) { record(opts) } unless PWN::Memory.transaction_owned?(path: MISTAKES_FILE)
+
           tool  = opts[:tool].to_s
           error = opts[:error].to_s
           return nil if tool.empty? || error.strip.empty?
@@ -272,6 +277,8 @@ module PWN
         # )
 
         public_class_method def self.resolve(opts = {})
+          return PWN::Memory.transaction(path: MISTAKES_FILE) { resolve(opts) } unless PWN::Memory.transaction_owned?(path: MISTAKES_FILE)
+
           sig = opts[:signature].to_s
           fix = opts[:fix].to_s
           raise 'ERROR: signature is required' if sig.empty?
@@ -416,6 +423,8 @@ module PWN
         }.freeze
 
         public_class_method def self.extinguish!(opts = {})
+          return PWN::Memory.transaction(path: MISTAKES_FILE) { extinguish!(opts) } unless PWN::Memory.transaction_owned?(path: MISTAKES_FILE)
+
           sig = opts[:signature].to_s
           return nil if sig.empty?
 
@@ -457,6 +466,8 @@ module PWN
         # Auto-resolve parked items that already have a known extinguish recipe
         # so the operator inbox does not keep scars the loop can close itself.
         public_class_method def self.extinguish_parked!(opts = {})
+          return PWN::Memory.transaction(path: MISTAKES_FILE) { extinguish_parked!(opts) } unless PWN::Memory.transaction_owned?(path: MISTAKES_FILE)
+
           limit = (opts[:limit] || 20).to_i
           dry = opts[:dry_run] ? true : false
           rows = load.values.select do |m|
@@ -495,6 +506,8 @@ module PWN
         end
 
         public_class_method def self.park(opts = {})
+          return PWN::Memory.transaction(path: MISTAKES_FILE) { park(opts) } unless PWN::Memory.transaction_owned?(path: MISTAKES_FILE)
+
           sig = opts[:signature].to_s
           raise 'ERROR: signature is required' if sig.empty?
 
@@ -692,6 +705,8 @@ module PWN
         end
 
         public_class_method def self.note_hint_outcome(opts = {})
+          return PWN::Memory.transaction(path: MISTAKES_FILE) { note_hint_outcome(opts) } unless PWN::Memory.transaction_owned?(path: MISTAKES_FILE)
+
           sig = (opts[:signature] || signature(tool: opts[:tool], error: opts[:error])).to_s
           return nil if sig.empty?
 
@@ -777,6 +792,8 @@ module PWN
         # drop after Memory already holds mistake_fix_<sig>.
 
         public_class_method def self.lean!(opts = {})
+          return PWN::Memory.transaction(path: MISTAKES_FILE) { lean!(opts) } unless PWN::Memory.transaction_owned?(path: MISTAKES_FILE)
+
           dry = opts[:dry_run] ? true : false
           max_resolved = (opts[:max_resolved_kept] || MAX_RESOLVED_KEPT).to_i
           min_age = (opts[:resolved_min_age_days] || RESOLVED_MIN_AGE_DAYS).to_f
@@ -878,6 +895,8 @@ module PWN
         # PWN::AI::Agent::Mistakes.reset
 
         public_class_method def self.reset
+          return PWN::Memory.transaction(path: MISTAKES_FILE) { reset } unless PWN::Memory.transaction_owned?(path: MISTAKES_FILE)
+
           FileUtils.rm_f(MISTAKES_FILE)
           {}
         end

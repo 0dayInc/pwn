@@ -23,6 +23,31 @@ module PWN
     EPHEMERAL_KEY_PREFIXES = %w[session_].freeze
     EPHEMERAL_TTL_SECS = 7 * 86_400
 
+    # Permanent writer inode; nested calls share ownership only in this thread
+    # and process. Never unlink this lock when replacing a data file.
+    public_class_method def self.transaction(opts = {})
+      path = File.expand_path(opts[:path] || MEMORY_FILE)
+      return yield if transaction_owned?(path: path)
+
+      FileUtils.mkdir_p(File.dirname(path))
+      File.open("#{path}.write.lock", File::RDWR | File::CREAT | File::NOFOLLOW, 0o600) do |lock|
+        lock.flock(File::LOCK_EX)
+        owners = (Thread.current[:pwn_store_transactions] ||= {})
+        owners[path] = Process.pid
+        begin
+          yield
+        ensure
+          owners.delete(path)
+        end
+      end
+    end
+
+    # Test ownership without mistaking an inherited post-fork marker for a lock.
+    public_class_method def self.transaction_owned?(opts = {})
+      path = File.expand_path(opts[:path] || MEMORY_FILE)
+      Thread.current[:pwn_store_transactions]&.fetch(path, nil) == Process.pid
+    end
+
     # Supported Method Parameters::
     #   memory = PWN::Memory.load
     public_class_method def self.load
@@ -47,6 +72,8 @@ module PWN
     # Supported Method Parameters::
     #   PWN::Memory.save(mem: memory_hash)
     public_class_method def self.save(opts = {})
+      return transaction(path: MEMORY_FILE) { save(opts) } unless PWN::Memory.transaction_owned?(path: MEMORY_FILE)
+
       mem = opts[:mem] ||= {}
       force = opts[:force] ? true : false
       FileUtils.mkdir_p(File.dirname(MEMORY_FILE))
@@ -58,8 +85,15 @@ module PWN
         warn "[pwn-ai/memory] refusing empty overwrite of #{File.size(path)}B #{path} (pass force:true to clear)"
         return load_raw_or_empty(path: path)
       end
+      atomic_write(path: path, body: JSON.pretty_generate(mem))
+      mem
+    end
+
+    # Caller holds the permanent store transaction across read and replacement.
+    private_class_method def self.atomic_write(opts = {})
+      path = opts[:path]
+      body = opts[:body]
       tmp = File.join(File.dirname(path), ".#{File.basename(path)}.#{Process.pid}.tmp")
-      body = JSON.pretty_generate(mem)
       File.open(tmp, File::WRONLY | File::CREAT | File::TRUNC, 0o644) do |f|
         f.flock(File::LOCK_EX)
         f.write(body)
@@ -67,7 +101,7 @@ module PWN
         f.fsync
       end
       File.rename(tmp, path)
-      mem
+      File.open(File.dirname(path), File::RDONLY, &:fsync)
     ensure
       FileUtils.rm_f(tmp) if defined?(tmp) && tmp && File.exist?(tmp)
     end
@@ -93,6 +127,8 @@ module PWN
     #     ttl: 'optional - seconds until stale (M3; consolidate evicts stale low-conf first)'
     #   )
     public_class_method def self.remember(opts = {})
+      return transaction(path: MEMORY_FILE) { remember(opts) } unless PWN::Memory.transaction_owned?(path: MEMORY_FILE)
+
       key = opts[:key]
       value = opts[:value]
       category = opts[:category] || :fact
@@ -479,7 +515,9 @@ module PWN
     #     force: 'optional - Boolean bypass protect policy (default false)'
     #   )
     # Refuses PROTECT_KEY_PREFIXES / PROTECT_CATEGORIES unless force:true.
-    public_class_method def self.forget(opts = {}) # rubocop:disable Naming/PredicateMethod
+    public_class_method def self.forget(opts = {})
+      return transaction(path: MEMORY_FILE) { forget(opts) } unless PWN::Memory.transaction_owned?(path: MEMORY_FILE)
+
       key = opts[:key]
       raise 'ERROR: key is required' if key.nil?
 
@@ -498,6 +536,8 @@ module PWN
     #   PWN::Memory.clear(force: true)
     # Requires force:true — protected prefs/SOPs must not vanish via bare clear.
     public_class_method def self.clear(opts = {})
+      return transaction(path: MEMORY_FILE) { clear(opts) } unless PWN::Memory.transaction_owned?(path: MEMORY_FILE)
+
       force = if opts.is_a?(Hash)
                 opts[:force] ? true : false
               else
@@ -514,6 +554,8 @@ module PWN
     #   context = PWN::Memory.to_context(limit: 20)
     #   (used internally by pwn-ai hook to inject into system prompt)
     public_class_method def self.to_context(opts = {})
+      return transaction(path: MEMORY_FILE) { to_context(opts) } unless PWN::Memory.transaction_owned?(path: MEMORY_FILE)
+
       limit = (opts[:limit] || 12).to_i
       limit = 12 if limit <= 0
       mem = load
@@ -556,14 +598,20 @@ module PWN
     end
 
     private_class_method def self.archive_expired!(opts = {})
+      return transaction(path: MEMORY_FILE) { archive_expired!(opts) } unless PWN::Memory.transaction_owned?(path: MEMORY_FILE)
+
       rows = opts[:rows]
       return if rows.nil? || rows.empty?
 
-      arch = File.file?(ARCHIVE_FILE) ? JSON.parse(File.read(ARCHIVE_FILE), symbolize_names: true) : {}
-      arch.merge!(rows)
-      FileUtils.mkdir_p(File.dirname(ARCHIVE_FILE))
-      File.write(ARCHIVE_FILE, JSON.pretty_generate(arch))
       mem = load
+      rows = rows.select { |key, value| mem[key] == value }
+      return if rows.empty?
+
+      arch = File.file?(ARCHIVE_FILE) ? JSON.parse(File.read(ARCHIVE_FILE), symbolize_names: true) : {}
+      raise IOError, 'Invalid memory archive' unless arch.is_a?(Hash)
+
+      arch.merge!(rows)
+      atomic_write(path: ARCHIVE_FILE, body: JSON.pretty_generate(arch))
       rows.each_key { |k| mem.delete(k) }
       save(mem: mem, force: mem.empty?)
     rescue StandardError
@@ -590,6 +638,8 @@ module PWN
     # Compact overlong values and drop expired ephemeral session_* keys.
     # Never removes protected prefs/SOPs/fix lessons. Safe with empty-save guard.
     public_class_method def self.lean!(opts = {})
+      return transaction(path: MEMORY_FILE) { lean!(opts) } unless PWN::Memory.transaction_owned?(path: MEMORY_FILE)
+
       dry = opts[:dry_run] ? true : false
       vmax = (opts[:value_max_chars] || VALUE_MAX_CHARS).to_i
       ttl_secs = (opts[:ephemeral_ttl_secs] || EPHEMERAL_TTL_SECS).to_i
@@ -650,6 +700,12 @@ module PWN
     # Display Usage for this Module
     public_class_method def self.help
       puts "USAGE:
+        # Serialize a complete read-modify-write operation.
+        #{self}.transaction(path: 'optional - data store path, defaults to memory') { operation }
+
+        # Check current process and thread ownership.
+        #{self}.transaction_owned?(path: 'optional - data store path, defaults to memory')
+
         # Run load and return its result
         #{self}.load
 

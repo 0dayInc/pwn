@@ -229,9 +229,9 @@ module PWN
           commit  = opts.key?(:commit) ? opts[:commit] : true
           cutoff  = Time.now.utc - (since_h * 3_600)
 
-          # PWN::Sessions.list is arity-0 (no kwargs). Cap/sort after the call.
+          # Offline evidence discovery must include sessions hidden from operator lists.
           sids = if PWN::Sessions.respond_to?(:list)
-                   Array(PWN::Sessions.list)
+                   Array(PWN::Sessions.list(include_hidden: true))
                      .sort_by { |s| s.is_a?(Hash) ? s[:mtime].to_s : '' }
                      .reverse
                      .first(limit * 2)
