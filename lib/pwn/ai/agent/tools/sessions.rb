@@ -52,23 +52,23 @@ PWN::AI::Agent::Registry.register(
   toolset: 'sessions',
   schema: {
     name: 'sessions_list',
-    description: 'List every pwn-ai session transcript in ~/.pwn/sessions ' \
-                 '(id, title, path, size, mtime, lines, dependencies, dependency_errors) newest-first. ' \
+    description: 'List the current active session and valid summarized or dependency-backed pwn-ai sessions in ~/.pwn/sessions ' \
+                 'as paginated concise rows (id, title, mtime, dependencies), oldest-first, with total and global diagnostics. ' \
                  'dependencies lists files referencing this session through structured links, not prose mentions. ' \
                  'Use to discover a session_id for learning_reflect / ' \
                  'learning_distill_skill / sessions_view.',
     parameters: {
       type: 'object',
       properties: {
-        limit: { type: 'integer', default: 25, description: 'Max sessions to return (newest first).' }
+        limit: { type: 'integer', default: 25, description: 'Max sessions to return (oldest first).' },
+        offset: { type: 'integer', description: 'Number of retained sessions to skip; omitted selects newest page. Current active session is also included.' }
       },
       required: []
     }
   },
   check: -> { defined?(PWN::Sessions) },
   handler: lambda { |args|
-    limit = (args[:limit] || 25).to_i
-    PWN::Sessions.list.sort_by { |s| s[:mtime].to_s }.reverse.first(limit)
+    PWN::Sessions.catalog(limit: args[:limit] || 25, offset: args[:offset], current_session_id: Thread.current[:pwn_session_id])
   }
 )
 
@@ -152,7 +152,7 @@ PWN::AI::Agent::Registry.register(
   },
   check: -> { defined?(PWN::Sessions) },
   handler: lambda { |_args|
-    listing = PWN::Sessions.list
+    listing = PWN::Sessions.list(include_hidden: true)
     PWN::Sessions.stats.merge(
       disk_bytes: listing.sum { |s| s[:size].to_i },
       dir: PWN::Sessions.sessions_dir

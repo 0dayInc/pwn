@@ -129,7 +129,9 @@ module PWN
               case cmd
               when 'list', nil
                 output.puts('Session dependencies: referenced by these files; text mentions are not links.')
-                PWN::Plugins::REPL.pwn_ai_print_result(value: PWN::Sessions.list, output: output)
+                PWN::Plugins::REPL.pwn_ai_print_result(value: PWN::Sessions.catalog(offset: args[1], limit: args[2] || 25, current_session_id: pry_instance.config.pwn_ai_session_id), output: output)
+              when 'cleanup'
+                PWN::Plugins::REPL.pwn_ai_run_sessions(args: args)
               when 'resume'
                 sid = args[1]
                 hist = PWN::Sessions.to_response_history(session_id: sid)
@@ -262,7 +264,7 @@ module PWN
           '/mcp' => %w[list backends use current connect disconnect ping tools call status help],
           '/model' => %w[list],
           '/swarm' => %w[mission agents status create use spawn retire dm debate broadcast tail steer pause resume cancel help],
-          '/sessions' => %w[list resume delete stats],
+          '/sessions' => %w[list resume delete stats cleanup],
 
           '/skills' => %w[list recall],
           '/learning' => %w[list requeue]
@@ -599,6 +601,8 @@ module PWN
             end
             true
           rescue StandardError => e
+            raise if opts[:raise_errors]
+
             warn "[pwn-ai] #{cmd}: #{e.class}: #{e.message}"
             true
           end
@@ -1038,7 +1042,13 @@ module PWN
             case sub
             when 'list'
               puts('Session dependencies: referenced by these files; text mentions are not links.')
-              pwn_ai_print_result(value: PWN::Sessions.list)
+              pwn_ai_print_result(value: PWN::Sessions.catalog(offset: args[1], limit: args[2] || 25, current_session_id: opts[:pry]&.config&.pwn_ai_session_id))
+            when 'cleanup'
+              raise ArgumentError, 'usage: /sessions cleanup [--dry-run]' unless args.drop(1).empty? || args.drop(1) == ['--dry-run']
+
+              require File.expand_path('../../../../etc/default_cron/session_cleanup', __dir__)
+              result = PWN::SessionCleanup.maintain(dry_run: args.include?('--dry-run'), current_session_id: opts[:pry]&.config&.pwn_ai_session_id)
+              pwn_ai_print_result(value: PWN::SessionCleanup.summary(result))
             when 'resume'
               sid = PWN::Sessions.resolve(identifier: opts[:identifier] || args.drop(1).join(' '))
               lease = PWN::Sessions.activate(session_id: sid)

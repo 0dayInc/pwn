@@ -7,13 +7,113 @@ require 'fileutils'
 describe PWN::Sessions do
   include_context 'pwn tmp sandbox'
 
+  it 'reconciles page size, filtered inventory and physical support entries' do
+    allow(Dir).to receive(:home).and_return(@tmp)
+    3.times { described_class.create }
+    File.write(File.join(described_class.sessions_dir, 'abandoned.tmp'), 'fixture')
+    page = described_class.catalog(limit: 1)
+    expect(page).to include(total: 0, physical_sessions: 3, filtered_sessions: 3, returned: 0, has_previous: false)
+    expect(page[:storage][:transcripts]).to eq(3)
+    expect(page[:storage].values.sum).to eq(Dir.children(described_class.sessions_dir).length)
+  end
+
+  it 'uses the compact layout while reading legacy metadata and sharing legacy lock inodes' do
+    allow(Dir).to receive(:home).and_return(@tmp)
+    sid = described_class.create[:id]
+    old_meta = File.join(described_class.sessions_dir, "#{sid}.meta.json")
+    old_lock = File.join(described_class.sessions_dir, ".#{sid}.cleanup.lock")
+    lease = described_class.activate(session_id: sid)
+    File.write(File.join(described_class.sessions_dir, '.layout-v2'), '2')
+    expect(described_class.metadata(session_id: sid)[:id]).to eq(sid)
+    expect(described_class.active?(session_id: sid)).to be(true)
+    expect(described_class.support_path(kind: :metadata, session_id: sid)).to eq(old_meta)
+    expect(described_class.support_path(kind: :lease, session_id: sid)).to eq(old_lock)
+    fresh = described_class.create[:id]
+    expect(File.file?(File.join(described_class.sessions_dir, 'support', 'metadata', "#{fresh}.meta.json"))).to be(true)
+    expect(described_class.dependency_index[:errors]).to be_empty
+  ensure
+    described_class.deactivate(lease: lease)
+  end
+
+  it 'treats complete policy trajectories as self-contained provenance but pins incomplete legacy rows' do
+    allow(Dir).to receive(:home).and_return(@tmp)
+    FileUtils.mkdir_p(File.join(@tmp, '.pwn'))
+    sid = described_class.create[:id]
+    trajectory = File.join(@tmp, '.pwn', 'policy_traj.jsonl')
+    row = { session_id: sid, request_family: 'ops', kind: 'task', engine: 'fixture', started_at: 'start', ended_at: 'end',
+            score: 1.0, verdict: 'success', return: 1.0, attribution: {}, steps: [{ state: 's', action: 'a', reward: 1.0, next_state: 's2', ok: true, duration: 0.1, terminal: true }] }
+    File.write(trajectory, "#{JSON.generate(row)}\n")
+    expect(described_class.dependency_index[:dependencies].fetch(sid, [])).not_to include(trajectory)
+    expect(JSON.parse(File.read(trajectory))['session_id']).to eq(sid)
+    legacy = row.except(:request_family, :attribution).merge(request: 'fixture request')
+    terminal = row.merge(score: nil, return: nil, steps: [{ state: 's', action: 'final', next_state: 's', reward: 0.0, terminal: true, credit_mode: 'terminal_attribution', credit_eligible: false }])
+    File.write(trajectory, [legacy, terminal].map { |record| JSON.generate(record) }.join("\n"))
+    expect(described_class.dependency_index[:dependencies].fetch(sid, [])).not_to include(trajectory)
+    File.write(trajectory, "#{JSON.generate(session_id: sid)}\n")
+    expect(described_class.dependency_index[:dependencies][sid]).to include(trajectory)
+  end
+
+  it 'shows the active provisional session without granting summary retention or hiding latest pages' do
+    allow(Dir).to receive(:home).and_return(@tmp)
+    ids = 4.times.map do |index|
+      sid = described_class.create[:id]
+      described_class.append(session_id: sid, role: 'user', content: "Fixture topic #{index}")
+      allow(PWN::AI::Router).to receive(:summarize).and_return(JSON.generate(title: "Topic #{index}", summary: "Conversation #{index}"))
+      described_class.refresh_title(session_id: sid)
+      File.utime(Time.at(index), Time.at(index), File.join(described_class.sessions_dir, "#{sid}.jsonl"))
+      sid
+    end
+    active = described_class.create[:id]
+    described_class.provisional_title(session_id: active, request: 'Investigate active topic')
+    page = described_class.catalog(current_session_id: active, limit: 2)
+    expect(page).to include(total: 5, offset: 3, has_more: false)
+    expect(page[:sessions].map { |row| row[:id] }).to eq([ids.last, active])
+    expect(page[:sessions].last).to include(active: true, title: 'Investigate active topic')
+    older = described_class.catalog(current_session_id: active, offset: 0, limit: 2)
+    expect(older[:sessions].map { |row| row[:id] }).to eq([*ids.first(2), active])
+    expect(older[:has_more]).to be(true)
+    expect(described_class.title_status(session_id: active)).to include(is_summarized: false)
+    expect(described_class.retention_status(session_id: active)[:visible]).to be(false)
+  end
+
+  it 'summarizes the correct session through the captured provider route outside another request scope' do
+    allow(Dir).to receive(:home).and_return(@tmp)
+    sid = described_class.create[:id]
+    other = described_class.create[:id]
+    described_class.append(session_id: sid, role: 'user', content: 'Repair login certificate')
+    described_class.append(session_id: other, role: 'user', content: 'Unrelated other session')
+    config = { active: :openai, openai: { model: 'captured-model', key: 'fixture-key' } }
+    PWN::Env[:ai] = { active: :ollama, ollama: { model: 'different-model', base_uri: 'http://fixture.invalid' } }
+    previous = Thread.current[:pwn_request_runtime]
+    foreign = double('foreign request')
+    Thread.current[:pwn_request_runtime] = foreign
+    expect(foreign).not_to receive(:provider_config)
+    expect(PWN::AI::Ollama).not_to receive(:chat)
+    allow(PWN::AI::Router).to receive(:summarize).and_call_original
+    expect(PWN::AI::OpenAI).to receive(:open_ai_rest_call) do |opts|
+      expect(opts[:http_body][:model]).to eq('captured-model')
+      prompt = opts[:http_body][:messages].last[:content]
+      expect(prompt).to include('Repair login certificate')
+      expect(prompt).not_to include('Unrelated other session')
+      JSON.generate(choices: [{ message: { role: 'assistant', content: JSON.generate(title: 'Login certificate recovery', summary: 'Repaired login certificates.') } }])
+    end
+    result = described_class.refresh_title(session_id: sid, ai_config: config)
+    expect(result).to include(title: 'Login certificate recovery', title_source: 'summary', summary_turns: 1)
+    expect(Thread.current[:pwn_request_runtime]).to equal(foreign)
+    expect(described_class.metadata(session_id: other)[:title_source]).not_to eq('summary')
+  ensure
+    Thread.current[:pwn_request_runtime] = previous
+  end
+
   it 'rejects provider echoed placeholder titles without advancing summary provenance' do
     session = described_class.create
     sid = session[:id]
     described_class.append(session_id: sid, role: 'user', content: 'Explain session locking')
     allow(PWN::AI::Router).to receive(:summarize).and_return(JSON.generate(title: "pwn-ai session #{sid}", summary: 'Session locking explained'))
     original = described_class.metadata(session_id: sid)
-    expect(described_class.refresh_title(session_id: sid)).to eq(original)
+    failures = []
+    expect(described_class.refresh_title(session_id: sid, on_error: failures.method(:push))).to eq(original)
+    expect(failures).to eq(['ArgumentError'])
     expect(described_class.metadata(session_id: sid)).to eq(original)
   end
 
@@ -23,10 +123,10 @@ describe PWN::Sessions do
     described_class.create(id: id)
     observer = described_class.create(id: '20260709_172057_49594079')
     25.times do
-      listing = JSON.generate(described_class.list)
+      listing = JSON.generate(described_class.list(include_hidden: true))
       File.open(observer[:path], 'a') { |file| file.puts(JSON.generate(role: 'tool', content: listing)) }
     end
-    result = described_class.list.find { |row| row[:id] == id }
+    result = described_class.list(include_hidden: true).find { |row| row[:id] == id }
     expect(result[:dependencies]).to eq([])
     expect(result[:dependency_errors]).to eq([])
   end
@@ -100,7 +200,7 @@ describe PWN::Sessions do
         'artifacts/manifest.jsonl' => { session: "#{sid}.extra", tags: [sid], source_path: "/tmp/#{sid}.jsonl" }
       }
       fixtures.each { |relative, value| dependency_fixture(relative, value) }
-      expect(described_class.dependency_index).to eq(dependencies: {}, errors: [])
+      expect(described_class.dependency_index).to eq(dependencies: {}, errors: [], session_errors: {}, invalid_records: [])
     end
 
     it 'recognizes only exact session-owned paths and exact structured evidence paths' do
@@ -129,7 +229,7 @@ describe PWN::Sessions do
       session = described_class.create(id: sid)
       File.write(session[:path], JSON.generate(role: 'tool', content: { session_id: other }, session_id: other))
       File.write(session[:path].sub('.jsonl', '.meta.json'), JSON.generate(id: sid, title: other, source: other, summary: JSON.generate(session_id: other)))
-      expect(described_class.dependency_index).to eq(dependencies: {}, errors: [])
+      expect(described_class.dependency_index).to eq(dependencies: {}, errors: [], session_errors: {}, invalid_records: [])
     end
 
     it 'reports unknown stores and malformed structural references without guessing' do
@@ -146,7 +246,7 @@ describe PWN::Sessions do
 
     it 'does not treat an extensionless session-looking evidence path as a transcript' do
       dependency_fixture('findings.jsonl', { evidence_paths: [File.join(described_class.sessions_dir, sid)] })
-      expect(described_class.dependency_index).to eq(dependencies: {}, errors: [])
+      expect(described_class.dependency_index).to eq(dependencies: {}, errors: [], session_errors: {}, invalid_records: [])
     end
 
     it 'fails closed for null map entries, invalid JSON, unreadable stores and unsafe embeddings' do
@@ -154,8 +254,8 @@ describe PWN::Sessions do
       learning = dependency_fixture('learning.jsonl', {})
       File.write(learning, '{')
       memory = dependency_fixture('memory.json', {})
-      allow(File).to receive(:read).and_call_original
-      allow(File).to receive(:read).with(memory).and_raise(Errno::EACCES)
+      allow(File).to receive(:binread).and_call_original
+      allow(File).to receive(:binread).with(memory).and_raise(Errno::EACCES)
       database = File.join(Dir.home, '.pwn', 'embeddings', "#{sid}.db")
       FileUtils.mkdir_p(database)
       result = described_class.dependency_index
@@ -165,13 +265,13 @@ describe PWN::Sessions do
     it 'distinguishes swarm artifact IDs and unrelated observation tags from session provenance' do
       dependency_fixture('artifacts/manifest.jsonl', { session: sid, kind: 'swarm-bus' })
       dependency_fixture('extrospection.json', { observations: [{ source: 'auto_extrospect', tags: ['drift', 'unrelated', sid] }] })
-      expect(described_class.dependency_index).to eq(dependencies: {}, errors: [])
+      expect(described_class.dependency_index).to eq(dependencies: {}, errors: [], session_errors: {}, invalid_records: [])
     end
 
     it 'does not accept session ID substrings, whitespace or trailing newlines as references' do
       ["prefix#{sid}", "#{sid}suffix", " #{sid}", "#{sid}\n", sid.upcase, 'unrelated-session'].each do |value|
         dependency_fixture('learning.jsonl', { session_id: value })
-        expect(described_class.dependency_index).to eq(dependencies: {}, errors: [])
+        expect(described_class.dependency_index).to eq(dependencies: {}, errors: [], session_errors: {}, invalid_records: [])
       end
     end
   end
@@ -219,8 +319,8 @@ describe PWN::Sessions do
     stored = JSON.generate(title: long, title_source: 'summary', summary: 'Keep this complete summary.', summary_turns: 2)
     File.write(path, stored)
     transcript = File.binread(session[:path])
-    expect(described_class.list.first[:title]).to eq('One two three four five six seven')
-    expect(described_class.resolve(identifier: described_class.list.first[:title])).to eq(session[:id])
+    expect(described_class.list(include_hidden: true).first[:title]).to eq('One two three four five six seven')
+    expect(described_class.resolve(identifier: described_class.list(include_hidden: true).first[:title])).to eq(session[:id])
     expect(described_class.metadata(session_id: session[:id])[:summary]).to eq('Keep this complete summary.')
     expect(File.binread(path)).to eq(stored)
     expect(File.binread(session[:path])).to eq(transcript)
@@ -253,7 +353,7 @@ describe PWN::Sessions do
   it 'persists an early grounded title and resolves exact titles without changing ids' do
     session = described_class.create(id: 'title_test')
     described_class.append(session_id: session[:id], role: 'user', content: 'Investigate café "login" failures')
-    row = described_class.list.find { |item| item[:id] == session[:id] }
+    row = described_class.list(include_hidden: true).find { |item| item[:id] == session[:id] }
     expect(row[:title]).to eq('Investigate café "login" failures')
     expect(described_class.resolve(identifier: row[:title])).to eq('title_test')
     expect(described_class.resolve(identifier: 'title_test')).to eq('title_test')
@@ -276,11 +376,11 @@ describe PWN::Sessions do
 
   it 'resumes a listed title after an asynchronous refresh and refuses ambiguous historical names' do
     sid = described_class.create(id: 'listed_before_refresh', title: 'Displayed café title')[:id]
-    displayed = described_class.list.first[:title]
+    displayed = described_class.list(include_hidden: true).first[:title]
     described_class.append(session_id: sid, content: 'Repair login')
     allow(PWN::AI::Router).to receive(:summarize).and_return(JSON.generate(title: 'Updated login repair', summary: 'Repaired login'))
     described_class.refresh_title(session_id: sid)
-    expect(described_class.list.first[:title]).to eq('Updated login repair')
+    expect(described_class.list(include_hidden: true).first[:title]).to eq('Updated login repair')
     expect(described_class.resolve(identifier: displayed)).to eq(sid)
     described_class.create(id: 'duplicate_old_title', title: displayed)
     expect { described_class.resolve(identifier: displayed) }.to raise_error(ArgumentError, /Ambiguous.*listed_before_refresh.*duplicate_old_title|Ambiguous.*duplicate_old_title.*listed_before_refresh/)
@@ -298,7 +398,7 @@ describe PWN::Sessions do
     expect(described_class.metadata(session_id: session[:id])).to include(id: 'legacy', title: 'Legacy title')
     File.write(session[:path], JSON.generate(role: 'user', content: 'old turn'))
     File.delete(path)
-    expect(described_class.list.first[:title]).to eq('pwn-ai session legacy')
+    expect(described_class.list(include_hidden: true).first[:title]).to eq('pwn-ai session legacy')
   end
 
   it 'preserves the previous title and retries after invalid or unavailable summaries' do

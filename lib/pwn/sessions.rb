@@ -73,24 +73,99 @@ module PWN
       SESSIONS_DIR
     end
 
+    # Resolve housekeeping without ever replacing an existing lease inode.
+    # Compact layout is enabled only by the offline, backed-up migration.
+    # Supported Method Parameters::
+    #   path = PWN::Sessions.support_path(kind: :metadata, session_id: id)
+    public_class_method def self.support_path(opts = {})
+      id = opts[:session_id].to_s
+      raise ArgumentError, 'Invalid session support identifier' if id.empty? || File.basename(id) != id || %w[. ..].include?(id) || id.include?("\0")
+
+      folder, name = case opts[:kind]
+                     when :metadata then ['metadata', "#{id}.meta.json"]
+                     when :lease then ['leases', ".#{id}.cleanup.lock"]
+                     when :owner then ['owners', ".activity-owner-#{id}.lock"]
+                     when :trace then ['traces', File.join(id, 'trace.jsonl')]
+                     else raise ArgumentError, 'Invalid session support kind'
+                     end
+      legacy = File.join(sessions_dir, name)
+      return legacy if File.exist?(legacy) || File.symlink?(legacy)
+
+      path = File.join(sessions_dir, 'support', folder, name)
+      return legacy unless File.exist?(path) || File.symlink?(path) || File.file?(File.join(sessions_dir, '.layout-v2'))
+
+      FileUtils.mkdir_p(File.dirname(path), mode: 0o700)
+      raise IOError, 'Unsafe session support directory' unless File.realpath(File.dirname(path)) == File.expand_path(File.dirname(path))
+
+      path
+    end
+
     # Supported Method Parameters::
     #   sessions = PWN::Sessions.list
-    public_class_method def self.list
+    public_class_method def self.list(opts = {})
       dir = sessions_dir
-      references = dependency_index
-      Dir.glob(File.join(dir, '*.jsonl')).reverse.map do |f|
-        naming = title_status(session_id: File.basename(f, '.jsonl'))
+      references = opts[:references] || dependency_index
+      Dir.glob(File.join(dir, '*.jsonl')).reverse.filter_map do |f|
+        naming = retention_status(session_id: File.basename(f, '.jsonl'), references: references)
+        next unless opts[:include_hidden] || naming[:visible] || File.basename(f, '.jsonl') == opts[:current_session_id].to_s
+
         {
           id: File.basename(f, '.jsonl'),
           title: metadata(session_id: File.basename(f, '.jsonl'))[:title],
           dependencies: references[:dependencies].fetch(File.basename(f, '.jsonl'), []),
-          dependency_errors: references[:errors],
           path: f,
           size: File.size(f),
           mtime: File.mtime(f).utc.iso8601,
           lines: File.readlines(f).count
         }.merge(naming)
       end
+    end
+
+    # Naming validity, dependency validity and physical safety are independent.
+    # Supported Method Parameters::
+    #   status = PWN::Sessions.retention_status(session_id: id, references: index)
+    public_class_method def self.retention_status(opts = {})
+      id = opts[:session_id].to_s
+      references = opts[:references] || dependency_index
+      naming = title_status(session_id: id)
+      errors = references.fetch(:session_errors, {}).fetch(id, [])
+      dependencies = references[:dependencies].fetch(id, [])
+      visible = errors.empty? && naming[:classification] != :unknown && (naming[:is_summarized] || !dependencies.empty?)
+      naming.merge(visible: visible, dependencies: dependencies, dependency_errors: errors)
+    end
+
+    # Operator inventory separates global diagnostics from concise resumable rows.
+    public_class_method def self.catalog(opts = {})
+      references = dependency_index
+      current_id = opts[:current_session_id].to_s
+      inventory = list(references: references, include_hidden: true)
+      rows = inventory.select { |row| row[:visible] || row[:id] == current_id }.sort_by { |row| [File.mtime(row[:path]).to_r, row[:id]] }
+      limit = (opts[:limit] || 25).to_i.clamp(1, 200)
+      offset = opts[:offset].nil? ? [rows.length - limit, 0].max : [opts[:offset].to_i, 0].max
+      selected = rows.slice(offset, limit) || []
+      has_more = offset + selected.length < rows.length
+      active = rows.find { |row| row[:id] == current_id }
+      selected = (selected + [active]).compact.uniq.sort_by { |row| [File.mtime(row[:path]).to_r, row[:id]] }
+      storage = Dir.children(sessions_dir).group_by do |name|
+        if File.directory?(File.join(sessions_dir, name))
+          :support_directories
+        elsif name.end_with?('.jsonl')
+          :transcripts
+        elsif name.end_with?('.meta.json')
+          :metadata
+        elsif name.end_with?('.lock')
+          :locks
+        elsif name.end_with?('.tmp')
+          :temporary_files
+        else
+          :other
+        end
+      end.transform_values(&:length)
+      { total: rows.length, physical_sessions: inventory.length, filtered_sessions: inventory.length - rows.length,
+        returned: selected.length, storage: storage, has_previous: offset.positive?,
+        offset: offset, limit: limit, has_more: has_more,
+        sessions: selected.map { |row| row.slice(:id, :title, :mtime, :dependencies).merge(active: row[:id] == current_id) },
+        unresolved_dependency_stores: references[:errors], diagnostics: references.fetch(:diagnostics, []) }
     end
 
     # Index retained loop evidence without reading vault/config/credential stores.
@@ -116,6 +191,10 @@ module PWN
       end
       dependencies = {}
       evidence_dependencies = {}
+      provenance = {}
+      session_errors = {}
+      invalid_records = []
+      diagnostics = []
       databases.each do |path|
         id = File.basename(path, '.db')
         next unless id.match?(SESSION_ID)
@@ -133,34 +212,77 @@ module PWN
           raise IOError, 'Unsafe dependency parent' if errors.any? { |parent| path.start_with?("#{parent}/") }
           raise IOError, 'Unsafe dependency store' unless File.file?(path) && File.realpath(path) == File.expand_path(path)
 
-          records = path.end_with?('.jsonl') ? File.foreach(path).map { |line| JSON.parse(line) } : [JSON.parse(File.read(path))]
-          raise IOError, 'Invalid dependency records' unless records.all?(Hash)
-          raise IOError, 'Invalid mistake entries' if path == File.join(root, 'mistakes.json') && !records.first.values.all?(Hash)
+          bytes = File.binread(path)
+          units = dependency_units(path: path, bytes: bytes)
+          units.each do |locator, record|
+            raise IOError, 'Invalid dependency record' unless record.is_a?(Hash)
+            raise IOError, 'Invalid mistake entry' if path == File.join(root, 'mistakes.json') && !record.values.all?(Hash)
 
-          if path == File.join(root, 'learning.jsonl')
-            records.each do |record|
-              next unless record.key?('evidence_ref')
-
-              begin
-                PWN::AI::Agent::Learning.evidence_transcript(row: record)
-                hash = record['evidence_ref']['sha256']
-                evidence_dependencies[File.join(root, 'learning', 'evidence', "#{hash}.json")] = [path]
-              rescue IOError
-                errors << path
-              end
+            if path == File.join(root, 'learning.jsonl') && record.key?('evidence_ref')
+              PWN::AI::Agent::Learning.evidence_transcript(row: record)
+              hash = record['evidence_ref']['sha256']
+              evidence_dependencies[File.join(root, 'learning', 'evidence', "#{hash}.json")] = [path]
+            end
+            dependency_ids(path: path, root: root, records: [record]).uniq.each do |id|
+              (dependencies[id] ||= []) << path
+            end
+            (provenance[record['session_id']] ||= []) << path if path.start_with?("#{SESSIONS_DIR}/requests/")
+          rescue JSON::ParserError, IOError => e
+            diagnostics << { path: path, locator: locator, code: e.message }
+            owners = dependency_error_owners(path: path, root: root, record: record)
+            if owners.empty?
+              errors << path
+            else
+              owners.each { |id| (session_errors[id] ||= []) << path }
+              invalid_records << { path: path, locator: locator, owners: owners, sha256: Digest::SHA256.hexdigest(bytes) }
             end
           end
-
-          dependency_ids(path: path, root: root, records: records).uniq.each do |id|
-            (dependencies[id] ||= []) << path
-          end
-        rescue JSON::ParserError, IOError, SystemCallError
+        rescue JSON::ParserError, IOError, SystemCallError => e
+          diagnostics << { path: path, code: e.is_a?(JSON::ParserError) ? 'Malformed JSON store' : e.message }
           errors << path
         end
       end
-      result = { dependencies: dependencies.transform_values { |paths| paths.uniq.sort }, errors: errors.uniq.sort }
+      result = { dependencies: dependencies.transform_values { |paths| paths.uniq.sort }, errors: errors.uniq.sort,
+                 session_errors: session_errors.transform_values { |paths| paths.uniq.sort }, invalid_records: invalid_records }
+      result[:diagnostics] = diagnostics unless diagnostics.empty?
       result[:evidence_dependencies] = evidence_dependencies unless evidence_dependencies.empty?
+      result[:provenance] = provenance unless provenance.empty?
       result
+    end
+
+    # Keep row boundaries: an invalid shared row must not poison its neighbours.
+    private_class_method def self.dependency_units(opts = {})
+      path = opts[:path]
+      bytes = opts[:bytes]
+      if path.end_with?('.jsonl')
+        return bytes.lines.each_with_index.map do |line, index|
+          [index, JSON.parse(line)]
+        rescue JSON::ParserError
+          [index, nil]
+        end
+      end
+      record = JSON.parse(bytes)
+      return record.map { |key, value| [key, { key => value }] } if %w[mistakes.json memory.json memory.archive.json].include?(File.basename(path)) && record.is_a?(Hash)
+
+      [[nil, record]]
+    end
+
+    # Extract only intact structural selectors, never prose or guessed IDs.
+    private_class_method def self.dependency_error_owners(opts = {})
+      record = opts[:record]
+      return [] unless record.is_a?(Hash)
+
+      relative = opts[:path].delete_prefix("#{opts[:root]}/")
+      return record.keys.filter_map { |key| key[/\Areflect_(\d{8}_\d{6}_[0-9a-f]{8})_[0-9a-f]{8}\z/, 1] } if %w[memory.json memory.archive.json].include?(relative)
+
+      schema = DEPENDENCY_SCHEMAS.find { |pattern, _| relative.match?(pattern) }
+      return [] unless schema
+
+      schema.last.flat_map do |selector|
+        dependency_select(value: record, selector: selector, intact_only: true)
+      rescue IOError
+        []
+      end.uniq.sort
     end
 
     private_class_method def self.dependency_ids(opts = {})
@@ -169,13 +291,16 @@ module PWN
       if path.start_with?("#{SESSIONS_DIR}/")
         relative = path.delete_prefix("#{SESSIONS_DIR}/")
         # There is no cross-session link in the transcript/sidecar schema.
-        return [] if relative.match?(%r{\A[^/]+\.(?:jsonl|meta\.json)\z})
+        return [] if relative.match?(%r{\A(?:support/metadata/)?[^/]+\.(?:jsonl|meta\.json)\z})
+        return dependency_value(value: relative.split('/')[2]) if relative.match?(%r{\Asupport/traces/[^/]+/trace\.jsonl\z})
         return dependency_value(value: relative.split('/').first) if relative.match?(%r{\A[^/]+/trace\.jsonl\z})
+        return request_checkpoint_dependencies(path: path, records: records) if relative.start_with?('requests/')
 
         raise IOError, 'Unknown session dependency store'
       end
 
       relative = path.delete_prefix("#{opts[:root]}/")
+      return mistake_dependency_ids(records: records) if relative == 'mistakes.json'
       return memory_dependency_ids(records: records) if %w[memory.json memory.archive.json].include?(relative)
       return event_dependency_ids(name: relative, records: records) if %w[curriculum/log.jsonl extrospection.json].include?(relative)
 
@@ -183,6 +308,7 @@ module PWN
       raise IOError, 'Unknown dependency store' unless schema
 
       ids = records.flat_map do |record|
+        next [] if relative == 'policy_traj.jsonl' && complete_policy_trajectory?(record: record)
         next [] if relative == 'learning.jsonl' && record.key?('evidence_ref') && PWN::AI::Agent::Learning.evidence_complete?(row: record)
 
         # Swarm.bus_append passes a swarm ID through ArtifactRegistry's session
@@ -194,6 +320,52 @@ module PWN
       # session; arbitrary filenames, swarm IDs and run IDs are not session IDs.
       ids.concat(dependency_value(value: relative.split('/')[1])) if relative.match?(%r{\Aartifacts/[^/]+/(?:index\.jsonl|engagement-memory\.json)\z})
       ids
+    end
+
+    # Policy replay, training and metrics consume persisted transitions, never
+    # Sessions.load. Keep IDs as provenance; incomplete legacy records still pin.
+    private_class_method def self.complete_policy_trajectory?(opts = {})
+      row = opts[:record]
+      keys = %w[session_id request request_family kind engine started_at ended_at score verdict return attribution steps]
+      return false unless (row.keys - keys).empty? && %w[session_id kind engine started_at ended_at].all? { |key| row[key].is_a?(String) }
+      return false unless row['request_family'].is_a?(String) || row['request'].is_a?(String)
+      return false unless row['session_id'].match?(SESSION_ID) && row['steps'].is_a?(Array)
+      return false unless row['score'].nil? ? row['return'].nil? || row['return'].is_a?(Numeric) : row['score'].is_a?(Numeric) && row['return'].is_a?(Numeric)
+
+      row['steps'].all? do |step|
+        next false unless step.is_a?(Hash) && %w[state action next_state].all? { |key| step[key].is_a?(String) } && step['reward'].is_a?(Numeric)
+        next true if step['action'] == 'final' && step['terminal'] == true && step['credit_mode'] == 'terminal_attribution' && step['credit_eligible'] == false
+
+        step['duration'].is_a?(Numeric) && %w[ok terminal].all? { |key| [true, false].include?(step[key]) }
+      end
+    end
+
+    # RequestRuntime.restore! consumes its own checkpoint, not Sessions.load.
+    # Its identity is provenance, not a claim that the transcript is evidence.
+    private_class_method def self.request_checkpoint_dependencies(opts = {})
+      opts[:records].each do |row|
+        raise IOError, 'Unsupported request checkpoint version' unless row['version'] == 1
+
+        keys = %w[version generation session_id request_id original_request request amendments cwd started_at observations outcome events effects evidence enabled_toolsets verification_contract]
+        raise IOError, 'Unknown request checkpoint fields' unless (row.keys - keys).empty?
+
+        sid = row['session_id']
+        request = row['request_id']
+        valid = sid.is_a?(String) && sid.match?(SESSION_ID) && request.is_a?(String) && !request.empty?
+        raise IOError, 'Invalid request checkpoint identity' unless valid
+
+        expected = File.join(SESSIONS_DIR, 'requests', Digest::SHA256.hexdigest(sid), "#{Digest::SHA256.hexdigest(request)}.json")
+        raise IOError, 'Request checkpoint path identity mismatch' unless opts[:path] == expected
+
+        valid = row['generation'].is_a?(Integer) && row['generation'].positive? &&
+                %w[original_request request cwd started_at].all? { |key| row[key].is_a?(String) } &&
+                %w[amendments events evidence].all? { |key| row[key].is_a?(Array) } &&
+                %w[observations effects].all? { |key| row[key].is_a?(Hash) } &&
+                %w[outcome verification_contract].all? { |key| row[key].nil? || row[key].is_a?(Hash) } &&
+                (row['enabled_toolsets'].nil? || row['enabled_toolsets'].is_a?(Array))
+        raise IOError, 'Invalid request checkpoint schema' unless valid
+      end
+      []
     end
 
     private_class_method def self.dependency_select(opts = {})
@@ -209,7 +381,13 @@ module PWN
         raise IOError, 'Invalid dependency container' unless value.is_a?(type)
 
         values = key == :values ? value.values : value
-        values.flat_map { |item| dependency_select(value: item, selector: rest) }
+        values.flat_map do |item|
+          dependency_select(value: item, selector: rest, intact_only: opts[:intact_only])
+        rescue IOError
+          raise unless opts[:intact_only]
+
+          []
+        end
       when :path
         raise IOError, 'Invalid dependency path' unless value.is_a?(String)
         return [] unless File.dirname(value) == SESSIONS_DIR && value.match?(/\.(?:meta\.json|jsonl)\z/)
@@ -218,7 +396,7 @@ module PWN
       else
         raise IOError, 'Invalid dependency object' unless value.is_a?(Hash)
 
-        dependency_select(value: value[key], selector: rest)
+        dependency_select(value: value[key], selector: rest, intact_only: opts[:intact_only])
       end
     end
 
@@ -230,13 +408,40 @@ module PWN
       value.match?(SESSION_ID) ? [value] : []
     end
 
+    # Mistakes.for_tool/top/prompt_hint/resolve consume the stored error, fix and
+    # counters. sessions/verified_sessions are occurrence/verification provenance;
+    # previous_user/previous_assistant read only the caller's CURRENT correction.
+    # Incomplete or unfamiliar historical rows remain protected, never repaired.
+    private_class_method def self.mistake_dependency_ids(opts = {})
+      keys = %w[signature tool error snippet count drift_count first_seen last_seen sessions resolved fix source
+                cause sample_args shape needs_code_change meta regressed structured_fix resolved_at parked
+                needs_human park_reason parked_at hint_outcomes verified_sessions last_verified hint_misses hint_confidence]
+      opts[:records].flat_map do |record|
+        record.flat_map do |signature, row|
+          raise IOError, 'Invalid mistake entry' unless row.is_a?(Hash)
+
+          ids = %w[sessions verified_sessions].flat_map { |field| dependency_select(value: row, selector: [field, :items]) }
+          complete = (row.keys - keys).empty? && row['signature'] == signature &&
+                     %w[tool error snippet first_seen last_seen source].all? { |key| row[key].is_a?(String) } &&
+                     row['count'].is_a?(Integer) && row['count'] >= 0 && [true, false].include?(row['resolved']) &&
+                     row['sessions'].is_a?(Array) && (row['fix'].nil? || row['fix'].is_a?(String))
+          complete ? [] : ids
+        end
+      end
+    end
+
     private_class_method def self.memory_dependency_ids(opts = {})
       opts[:records].flat_map do |record|
         raise IOError, 'Invalid memory entries' unless record.values.all?(Hash)
 
-        # Learning.reflect's durable key is reflect_<session>_<lesson digest>.
-        # Memory values, sources and arbitrary user-selected keys are not links.
-        record.keys.filter_map { |key| key[/\Areflect_(\d{8}_\d{6}_[0-9a-f]{8})_[0-9a-f]{8}\z/, 1] }
+        # Learning.reflect persists the lesson itself. Memory.recall/search read
+        # value, never resolve this provenance key back to a transcript.
+        keys = %w[value category timestamp source confidence importance ttl hits last_hit namespace]
+        record.flat_map do |key, row|
+          id = key[/\Areflect_(\d{8}_\d{6}_[0-9a-f]{8})_[0-9a-f]{8}\z/, 1]
+          complete = (row.keys - keys).empty? && %w[value category timestamp source].all? { |field| row[field].is_a?(String) }
+          id && !complete ? [id] : []
+        end
       end
     end
 
@@ -246,7 +451,7 @@ module PWN
           # Curriculum.practice persists run results only for this event.
           next [] unless record['event'] == 'practice'
 
-          dependency_select(value: record, selector: ['data', :items, 'runs', :items, 'session_id'])
+          practice_dependency_ids(record: record)
         else
           observations = record.fetch('observations', [])
           raise IOError, 'Invalid extrospection observations' unless observations.is_a?(Array) && observations.all?(Hash)
@@ -259,8 +464,35 @@ module PWN
             raise IOError, 'Invalid extrospection tags' unless tags.is_a?(Array)
             next [] unless tags.first == 'drift'
 
-            dependency_value(value: tags[1])
+            ids = dependency_value(value: tags[1])
+            # Extrospection.observations/drift consume saved data/snapshots;
+            # the tag is attribution only. Keep incomplete observations pinned.
+            keys = %w[id source category target data tags ttl timestamp]
+            complete = (observation.keys - keys).empty? && %w[id source category timestamp].all? { |key| observation[key].is_a?(String) } &&
+                       observation['data'].is_a?(String) && tags.all?(String)
+            complete ? [] : ids
           end
+        end
+      end
+    end
+
+    # Curriculum.log has no replay reader: practice consumes self_play's result
+    # immediately, including unknown/failed verdicts. offline_judge discovers
+    # actual transcripts plus verified Learning evidence, never log run IDs.
+    private_class_method def self.practice_dependency_ids(opts = {})
+      record = opts[:record]
+      ids = dependency_select(value: record, selector: ['data', :items, 'runs', :items, 'session_id'])
+      return ids unless record['ts'].is_a?(String) && (record.keys - %w[ts event data]).empty? && record['data'].is_a?(Array)
+
+      record['data'].flat_map do |result|
+        next dependency_select(value: result, selector: ['runs', :items, 'session_id']) unless result['runs'].is_a?(Array)
+
+        result['runs'].flat_map do |run|
+          refs = dependency_select(value: run, selector: ['session_id'])
+          complete = run['prompt'].is_a?(String) && run.key?('final') && run.key?('trace') &&
+                     (run['final'].nil? || run['final'].is_a?(String)) && (run['trace'].nil? || run['trace'].is_a?(String)) &&
+                     run.key?('score') && (run['score'].nil? || run['score'].is_a?(Numeric)) && run.key?('verdict')
+          complete ? [] : refs
         end
       end
     end
@@ -275,7 +507,7 @@ module PWN
       raise ArgumentError, 'Invalid session ID' if sid.empty? || File.basename(sid) != sid || sid.include?("\0") || sid == '.' || sid == '..'
 
       register_activity_owner
-      lock = File.open(File.join(sessions_dir, ".#{sid}.cleanup.lock"), File::RDWR | File::CREAT | File::NOFOLLOW, 0o600) # rubocop:disable Style/FileOpen -- caller owns the lease lifetime
+      lock = File.open(support_path(kind: :lease, session_id: sid), File::RDWR | File::CREAT | File::NOFOLLOW, 0o600) # rubocop:disable Style/FileOpen -- caller owns the lease lifetime
       lock.close_on_exec = true
       raise IOError, "Session #{sid} is being removed" unless lock.flock(File::LOCK_SH | File::LOCK_NB)
       raise IOError, "Session #{sid} not found" unless opts[:creating] || File.file?(File.join(sessions_dir, "#{sid}.jsonl"))
@@ -301,7 +533,7 @@ module PWN
       return unless File.file?('/proc/self/stat')
 
       start = File.read('/proc/self/stat').split(') ').last.split[19]
-      path = File.join(sessions_dir, ".activity-owner-#{Process.pid}-#{start}.lock")
+      path = support_path(kind: :owner, session_id: "#{Process.pid}-#{start}")
       @activity_owner_mutex ||= Mutex.new
       @activity_owner_mutex.synchronize do
         @activity_owners ||= {}
@@ -328,7 +560,7 @@ module PWN
       sid = opts[:session_id].to_s
       raise ArgumentError, 'Invalid session ID' if sid.empty? || File.basename(sid) != sid || sid == '.' || sid == '..'
 
-      File.open(File.join(sessions_dir, ".#{sid}.cleanup.lock"), File::RDWR | File::CREAT | File::NOFOLLOW, 0o600) do |lock|
+      File.open(support_path(kind: :lease, session_id: sid), File::RDWR | File::CREAT | File::NOFOLLOW, 0o600) do |lock|
         !lock.flock(File::LOCK_EX | File::LOCK_NB)
       end
     end
@@ -376,7 +608,7 @@ module PWN
     # this effective title. Explicit titles follow the same seven-word limit.
     public_class_method def self.metadata(opts = {})
       sid = opts[:session_id].to_s
-      path = File.join(sessions_dir, "#{sid}.meta.json")
+      path = support_path(kind: :metadata, session_id: sid)
       if File.file?(path)
         stored = JSON.parse(File.read(path), symbolize_names: true)
         return stored.merge(id: sid, title: bounded_title(title: stored[:title])) if stored.is_a?(Hash) && !bounded_title(title: stored[:title]).empty?
@@ -386,7 +618,7 @@ module PWN
       row = JSON.parse(first.to_s, symbolize_names: true)
       title = row[:content].to_s.delete_prefix('Session started: ') if row[:role] == 'system' && row[:content].to_s.start_with?('Session started: ')
       { id: sid, title: bounded_title(title: title.to_s.empty? ? "pwn-ai session #{sid}" : title) }
-    rescue Errno::ENOENT, JSON::ParserError
+    rescue Errno::ENOENT, JSON::ParserError, ArgumentError
       { id: sid, title: bounded_title(title: "pwn-ai session #{sid}") }
     end
 
@@ -401,7 +633,7 @@ module PWN
       path = File.join(sessions_dir, "#{sid}.jsonl")
       return status.merge(title_reason: 'invalid_transcript') unless cleanup_transcript_valid?(path: path)
 
-      meta_path = path.sub(/\.jsonl\z/, '.meta.json')
+      meta_path = support_path(kind: :metadata, session_id: sid)
       return status.merge(classification: :unnamed, title_reason: 'missing_summary_provenance') unless File.exist?(meta_path) || File.symlink?(meta_path)
       return status.merge(title_reason: 'unsafe_metadata') unless File.file?(meta_path) && !File.symlink?(meta_path)
 
@@ -464,7 +696,7 @@ module PWN
     # A background summary must not invalidate a name just copied from the menu.
     public_class_method def self.resolve(opts = {})
       identifier = opts[:identifier].to_s
-      rows = list
+      rows = list(include_hidden: true)
       return identifier if rows.any? { |row| row[:id] == identifier }
 
       titles = rows.to_h do |row|
@@ -504,6 +736,10 @@ module PWN
     # Call from a worker, never the terminal/input thread. Failed summaries retain
     # the provisional/previous title and leave the cursor available for retry.
     public_class_method def self.refresh_title(opts = {})
+      previous_config = Thread.current[:pwn_session_title_config]
+      previous_runtime = Thread.current[:pwn_request_runtime]
+      Thread.current[:pwn_session_title_config] = Marshal.load(Marshal.dump(opts[:ai_config] || PWN::Env[:ai]))
+      Thread.current[:pwn_request_runtime] = nil
       sid = opts[:session_id].to_s
       lease = activate(session_id: sid)
       original = metadata(session_id: sid)
@@ -517,8 +753,8 @@ module PWN
       text.chars.each_slice(1500) do |chunk|
         output = PWN::AI::Router.summarize(text: "Previous overall summary: #{result[:summary]}\nNew conversation turns:\n#{chunk.join}", llm: true, session: true)
         parsed = JSON.parse(output.to_s.sub(/\A```(?:json)?\s*/, '').sub(/\s*```\z/, ''), symbolize_names: true)
-        return original unless parsed.is_a?(Hash) && parsed[:title].is_a?(String) && parsed[:summary].is_a?(String)
-        return original if !summary_title_valid?(title: parsed[:title]) || parsed[:summary].strip.empty?
+        raise ArgumentError, 'Invalid summary response' unless parsed.is_a?(Hash) && parsed[:title].is_a?(String) && parsed[:summary].is_a?(String)
+        raise ArgumentError, 'Invalid summary title' if !summary_title_valid?(title: parsed[:title]) || parsed[:summary].strip.empty?
 
         result = result.merge(title: bounded_title(title: parsed[:title].gsub(/[[:space:][:cntrl:]]+/, ' ')), summary: parsed[:summary])
       end
@@ -531,9 +767,12 @@ module PWN
         write_metadata(session_id: sid, metadata: result)
         result
       end
-    rescue StandardError
+    rescue StandardError => e
+      opts[:on_error]&.call(e.class.name)
       original
     ensure
+      Thread.current[:pwn_session_title_config] = previous_config
+      Thread.current[:pwn_request_runtime] = previous_runtime
       deactivate(lease: lease)
     end
 
@@ -546,7 +785,7 @@ module PWN
     private_class_method def self.write_metadata(opts = {})
       sid = opts[:session_id].to_s
       lease = activate(session_id: sid)
-      path = File.join(sessions_dir, "#{sid}.meta.json")
+      path = support_path(kind: :metadata, session_id: sid)
       return unless File.file?(File.join(sessions_dir, "#{sid}.jsonl"))
 
       tmp = "#{path}.#{SecureRandom.hex(8)}.tmp"
@@ -621,7 +860,7 @@ module PWN
     #   )
     public_class_method def self.previous_id(opts = {})
       exclude = opts[:exclude_session_id].to_s
-      rows = list.sort_by { |s| [s[:mtime].to_s, s[:id].to_s] }.reverse
+      rows = list(include_hidden: true).sort_by { |s| [s[:mtime].to_s, s[:id].to_s] }.reverse
       hit = rows.find { |s| s[:id].to_s != exclude }
       hit && hit[:id].to_s
     rescue StandardError
@@ -654,7 +893,7 @@ module PWN
 
       hits = []
       target = opts[:target].to_s.downcase
-      list.sort_by { |s| s[:mtime].to_s }.reverse.first(max_files).each do |sess|
+      list(include_hidden: true).sort_by { |s| s[:mtime].to_s }.reverse.first(max_files).each do |sess|
         sid = sess[:id].to_s
         next if !include_current && !exclude.empty? && sid == exclude
 
@@ -796,7 +1035,7 @@ module PWN
 
       force = opts[:force] ? true : false
       path = File.join(sessions_dir, "#{sid}.jsonl")
-      lock_path = File.join(sessions_dir, ".#{sid}.cleanup.lock")
+      lock_path = support_path(kind: :lease, session_id: sid)
       lock = opts[:cleanup_lock] || File.open(lock_path, File::RDWR | File::CREAT | File::NOFOLLOW, 0o600)
       raise IOError, "Session #{sid} is active" unless File.identical?(lock, lock_path) && lock.flock(File::LOCK_EX | File::LOCK_NB)
 
@@ -806,7 +1045,7 @@ module PWN
       end
 
       FileUtils.rm_f(path)
-      FileUtils.rm_f(File.join(sessions_dir, "#{sid}.meta.json"))
+      FileUtils.rm_f(support_path(kind: :metadata, session_id: sid))
       true
     ensure
       lock&.close unless opts[:cleanup_lock]
@@ -815,7 +1054,7 @@ module PWN
     # Supported Method Parameters::
     #   stats = PWN::Sessions.stats
     public_class_method def self.stats
-      sessions = list
+      sessions = list(include_hidden: true)
       {
         total_sessions: sessions.size,
         total_lines: sessions.sum { |s| s[:lines] },
@@ -882,7 +1121,7 @@ module PWN
         next unless stub || aged
 
         deleted << e[:id]
-        FileUtils.rm_f([e[:path], File.join(dir, "#{e[:id]}.meta.json")]) unless dry
+        FileUtils.rm_f([e[:path], support_path(kind: :metadata, session_id: e[:id])]) unless dry
       end
 
       # Refresh remaining after deletes
@@ -894,7 +1133,7 @@ module PWN
         over = remaining.size - max_files
         unpinned.first(over).each do |e|
           deleted << e[:id]
-          FileUtils.rm_f([e[:path], File.join(dir, "#{e[:id]}.meta.json")]) unless dry
+          FileUtils.rm_f([e[:path], support_path(kind: :metadata, session_id: e[:id])]) unless dry
           remaining.delete(e)
         end
       end
@@ -934,10 +1173,10 @@ module PWN
     public_class_method def self.protected_session_ids(opts = {})
       now = opts[:now] || Time.now.utc
       hot_days = (opts[:hot_days] || HOT_DAYS).to_f
-      retain_days = (opts[:retain_days] || RETAIN_DAYS).to_f
       pins = {}
       references = dependency_index
       references[:dependencies].each_key { |id| pins[id] = true }
+      references[:session_errors].each_key { |id| pins[id] = true }
       Dir.glob(File.join(SESSIONS_DIR, '*.jsonl')).each { |path| pins[File.basename(path, '.jsonl')] = true } if references[:errors].any?
       pins[opts[:current_session_id].to_s] = true unless opts[:current_session_id].to_s.empty?
 
@@ -965,31 +1204,8 @@ module PWN
         end
       end
 
-      # Mistakes refs
-      mist_file = File.join(Dir.home, '.pwn', 'mistakes.json')
-      if File.exist?(mist_file)
-        begin
-          store = JSON.parse(File.read(mist_file), symbolize_names: true)
-          store.each_value do |m|
-            next unless m.is_a?(Hash)
-
-            openish = !m[:resolved] || m[:regressed]
-            recent_closed = false
-            if m[:resolved] && m[:last_seen]
-              begin
-                recent_closed = ((now - Time.parse(m[:last_seen].to_s)) / 86_400.0) <= retain_days
-              rescue StandardError
-                recent_closed = false
-              end
-            end
-            next unless openish || recent_closed
-
-            Array(m[:sessions]).each { |s| pins[s.to_s] = true if s.to_s != '' }
-          end
-        rescue StandardError
-          # ignore
-        end
-      end
+      # Mistake retention is already classified by the shared reader-based
+      # dependency index above; do not re-pin occurrence provenance here.
 
       pins.keys.reject(&:empty?)
     end
@@ -1108,7 +1324,7 @@ module PWN
         next if File.mtime(path) > cutoff
 
         id = File.basename(path, '.jsonl')
-        File.open(File.join(sessions_dir, ".#{id}.cleanup.lock"), File::RDWR | File::CREAT | File::NOFOLLOW, 0o600) do |lock|
+        File.open(support_path(kind: :lease, session_id: id), File::RDWR | File::CREAT | File::NOFOLLOW, 0o600) do |lock|
           next unless lock.flock(File::LOCK_EX | File::LOCK_NB)
           next unless File.file?(path) && File.mtime(path) <= cutoff
 
@@ -1139,7 +1355,16 @@ module PWN
         #{self}.sessions_dir
 
         # Run list and return its result
-        #{self}.list
+        #{self}.list(include_hidden: 'optional - include unretained sessions for diagnostics and explicit resume', current_session_id: 'optional - include this active session regardless of naming classification', references: 'optional - precomputed structural dependency index')
+
+        # Resolve housekeeping paths with legacy compatibility.
+        #{self}.support_path(kind: 'required - metadata, lease, owner or trace', session_id: 'required - support record identifier')
+
+        # Page retained sessions separately from global store diagnostics.
+        #{self}.catalog(offset: 'optional - nonnegative retained session offset, omitted selects newest page', limit: 'optional - page size from one to 200, defaults 25 plus active row if outside page', current_session_id: 'optional - active session id always included without granting retention')
+
+        # Classify retention without confusing global store uncertainty with session errors.
+        #{self}.retention_status(session_id: 'required - canonical session identifier', references: 'optional - precomputed dependency index')
 
         # Index exact dependency file paths and uncertain stores for cleanup and listing.
         #{self}.dependency_index
@@ -1180,7 +1405,7 @@ module PWN
         )
 
         # Update a rolling conversation summary and title off the input thread.
-        #{self}.refresh_title(session_id: 'required - stable session id to summarize')
+        #{self}.refresh_title(session_id: 'required - stable session id to summarize', ai_config: 'optional - captured active provider configuration; defaults current ai settings', on_error: 'optional - callback receiving only error class; persisted metadata and cursor stay unchanged on failure')
 
         # Run append and return its result
         #{self}.append(

@@ -45,9 +45,37 @@ Aliases shared by multiple sessions are ambiguous too; use a stable ID.
 `dependencies` means **referenced by**: files containing defined structural
 references to that session. Transcript prose, prompts, tool results and quoted
 JSON—including previous `/sessions list` output—are not dependencies. An empty
-array means no known structural references; `dependency_errors` separately
-reports uncertainty and blocks scheduled cleanup. Dependency-backed sessions
-stay visible and resumable. See Installation's session-cleanup schema table.
+array means no known structural references. `dependency_errors` contains only
+errors attributed to this session; `unresolved_dependency_stores` reports global
+uncertainty without assigning blame. Lists always include the current active
+session, even while its title is provisional or summary generation failed.
+Other rows require valid summary provenance or valid structural dependencies.
+This display exception does not confer summary provenance or bypass cleanup:
+activity leases still prevent physical deletion. Explicit resume remains available.
+`/sessions list [offset] [limit]` defaults to the newest page, ordered oldest-first
+within that page. An explicit offset starts at that oldest-first position.
+The current session is marked `active: true` and included once even outside the
+requested page (so at most limit + 1 rows). `total` counts unique visible sessions;
+`offset` and `has_more` describe the base page, not the extra active row.
+Global unresolved stores and specific diagnostics are reported once in the envelope.
+Title workers capture the active provider/model when the request starts, summarize
+only that session's persisted conversation, and retry on resume. Pending work is
+coalesced per session rather than dropping another session's update. Failed or
+invalid generation keeps the previous title and cursor, and reports a warning
+without exposing provider payloads. It never fabricates `title_source: summary`.
+`/sessions cleanup` applies the bundled cron maintenance operation; use
+`/sessions cleanup --dry-run` for a read-only preview. Migration preserves full
+redacted learning snapshots and their offline readers; it does not manufacture
+lossless migrations for other stores. Unknown global ownership blocks apply.
+Prepared/committed maintenance ledgers and recoverable backups live outside
+ordinary backup pruning. Old writers must be quiesced before live deployment;
+updating a helper alone does not update a running process.
+Request checkpoints use a version-1, hash-bound identity adapter: their session
+field is provenance because restore consumes the checkpoint itself. Unknown
+versions, fields and mismatched paths remain unresolved; checkpoint bytes are
+never rewritten by cleanup. Other unmigrated evidence edges remain retained.
+`Sessions.list(include_hidden: true)` is the diagnostic inventory. See
+Installation's session-cleanup schema table and remediation limitations.
 `title_source`, `is_summarized`, `classification` and `title_reason` expose the
 same strict provenance used by cleanup. Only persisted `summary` provenance with
 a nonblank summary/title and positive integer summary cursor counts as named.

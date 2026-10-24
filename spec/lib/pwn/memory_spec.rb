@@ -4,7 +4,64 @@ require 'spec_helper'
 require 'tmpdir'
 require 'fileutils'
 
-describe PWN::Memory do
+RSpec.describe PWN::Memory do
+  describe 'store transactions' do
+    include_context 'pwn tmp sandbox'
+
+    it 'serializes concurrent read modify write and allows nested methods' do
+      threads = 4.times.map do |worker|
+        Thread.new { 10.times { |index| described_class.remember(key: "worker_#{worker}_#{index}", value: index) } }
+      end
+      threads.each(&:value)
+      expect(described_class.load.keys.grep(/worker_/).size).to eq(40)
+      described_class.transaction do
+        described_class.forget(key: 'worker_0_0')
+        described_class.lean!
+      end
+      expect(described_class.load.keys.map(&:to_s)).not_to include('worker_0_0')
+    end
+
+    it 'serializes mistake writers in separate processes on the permanent inode' do
+      children = 3.times.map do |worker|
+        fork do
+          8.times do |index|
+            PWN::AI::Agent::Mistakes.record(tool: "fixture_#{worker}_#{index}", error: 'fixture failure')
+          end
+          exit! 0
+        end
+      end
+      children.each { |pid| expect(Process.wait2(pid).last.exitstatus).to eq(0) }
+      expect(PWN::AI::Agent::Mistakes.load.size).to eq(24)
+    end
+
+    it 'keeps external Learning memory rewrites inside a transaction' do
+      described_class.remember(key: :fixture, value: 'retained')
+      allow(described_class).to receive(:save).and_wrap_original do |original, options|
+        expect(described_class.transaction_owned?).to be(true)
+        original.call(options)
+      end
+      allow(PWN::MemoryIndex).to receive(:available?).and_return(false)
+      PWN::AI::Agent::Learning.consolidate
+      PWN::AI::Agent::Learning.purge_noise
+    end
+
+    it 'does not expire a refreshed key from an old snapshot' do
+      described_class.remember(key: :refresh, value: 'old')
+      stale = described_class.load
+      described_class.remember(key: :refresh, value: 'new')
+      described_class.send(:archive_expired!, rows: stale)
+      expect(described_class.load[:refresh][:value]).to eq('new')
+    end
+
+    it 'refuses corrupt mistake input instead of overwriting it' do
+      path = PWN::AI::Agent::Mistakes::MISTAKES_FILE
+      FileUtils.mkdir_p(File.dirname(path))
+      File.write(path, '{corrupt')
+      expect { PWN::AI::Agent::Mistakes.record(tool: 'fixture', error: 'failure') }.to raise_error(JSON::ParserError)
+      expect(File.read(path)).to eq('{corrupt')
+    end
+  end
+
   it 'should display information for authors' do
     authors_response = PWN::Memory
     expect(authors_response).to respond_to :authors

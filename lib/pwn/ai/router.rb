@@ -226,7 +226,9 @@ module PWN
       private_class_method def self.env_dig(opts = {})
         return {} unless defined?(PWN::Env) && PWN::Env.respond_to?(:dig)
 
-        val = PWN::Env.dig(*opts[:keys])
+        keys = opts[:keys]
+        config = Thread.current[:pwn_session_title_config]
+        val = config && keys.first == :ai ? config.dig(*keys.drop(1)) : PWN::Env.dig(*keys)
         if val.is_a?(Hash)
           val.transform_keys { |key| key.is_a?(String) ? key.to_sym : key }
         else

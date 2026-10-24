@@ -637,15 +637,14 @@ module PWN
                 finish_request_metrics
                 @running = false
                 @control = nil
-                queue_title_update(text) if text
+                queue_title_update(*text) if text
               when :session_title
                 @session_metadata = text if text && text[:id] == @pry.config.pwn_ai_session_id
               when :title_done
                 @title_worker.join
                 @title_worker = nil
-                pending = @title_pending
-                @title_pending = nil
-                queue_title_update(pending) if pending
+                pending = @title_pending&.shift
+                queue_title_update(*pending) if pending
               else
                 add(type, text)
               end
@@ -654,13 +653,16 @@ module PWN
             nil
           end
 
-          def queue_title_update(session_id)
+          def queue_title_update(session_id, ai_config = Marshal.load(Marshal.dump(PWN::Env[:ai])))
+            @title_pending ||= {}
             if @title_worker
-              @title_pending = session_id
+              @title_pending[session_id] = ai_config
               return
             end
             @title_worker = Thread.new do
-              @events << [:session_title, PWN::Sessions.refresh_title(session_id: session_id)]
+              @events << [:session_title, PWN::Sessions.refresh_title(session_id: session_id, ai_config: ai_config, on_error: lambda { |kind|
+                @events << [:warning, "Session title refresh unavailable for #{session_id} (#{kind}); previous title retained. Resume this session to retry."]
+              })]
             ensure
               @events << [:title_done, nil]
             end
@@ -689,8 +691,9 @@ module PWN
             PWN::Plugins::Log.mirror_tui!(msg: "#{type.to_s.upcase}\n#{clean}") if @pry.config.pwn_ai_debug && type != :notice
           end
 
-          def start_request(request, command: false)
+          def start_request(request, command: false, &operation)
             session_id = @pry.config.pwn_ai_session_id
+            title_config = Marshal.load(Marshal.dump(PWN::Env[:ai]))
             @locals = Thread.current.keys.select { |key| key.to_s.start_with?('pwn_') }.to_h { |key| [key, Thread.current[key]] }
             @thread_variables = Thread.current.thread_variables.select { |key| key.to_s.start_with?('pwn_') }.to_h { |key| [key, Thread.current.thread_variable_get(key)] }
             # A fresh forwarding pipe prevents unread input crossing requests.
@@ -725,16 +728,24 @@ module PWN
               end
               if command
                 control.checkpoint(messages: [], phase: :tool)
-                if request.match?(%r{\A/model(?:\s|$)})
+                if operation
+                  operation.call
+                elsif request.match?(%r{\A/model(?:\s|$)})
                   REPL.pwn_ai_run_model(args: request.split.drop(1), prompt: lambda { |selection|
                     control.checkpoint(messages: [])
                     @events << [:model_prompt, selection]
                     :deferred
                   })
                 else
-                  REPL.pwn_ai_dispatch_slash!(request: request, pry: @pry)
+                  REPL.pwn_ai_dispatch_slash!(request: request, pry: @pry, raise_errors: true)
                 end
-                control.checkpoint(messages: [])
+                # Maintenance is one safe transaction: never label its committed
+                # deletions cancelled merely because stop was requested mid-write.
+                if request.match?(%r{\A/sessions\s+cleanup(?:\s|$)})
+                  @events << [:notice, 'Session cleanup finished; completed work is not undone.']
+                else
+                  control.checkpoint(messages: [])
+                end
               else
                 workspace = File.realpath(Dir.pwd)
                 workspace_lock = File.open(File.join(Dir.tmpdir, "pwn-solve-#{Digest::SHA256.hexdigest(workspace)}.lock"), File::RDWR | File::CREAT | File::NOFOLLOW, 0o600) # rubocop:disable Style/FileOpen -- worker ensure owns the lease
@@ -757,7 +768,7 @@ module PWN
               @events << [:warning, "#{e.class}: #{e.message}"]
             ensure
               workspace_lock&.close
-              @events << [:done, command ? nil : session_id]
+              @events << [:done, command ? nil : [session_id, title_config]]
             end
             @worker.report_on_exception = false
             @control = ready.pop
@@ -810,7 +821,7 @@ module PWN
               clear_view
             elsif ['/sessions', '/sessions picker'].include?(line.strip)
               open_operator(:sessions)
-            elsif line.strip == '/sessions cleanup'
+            elsif line.strip == '/sessions cleanup --dry-run'
               open_operator(:cleanup)
             elsif line.strip == '/evidence'
               open_operator(:evidence)
@@ -837,7 +848,7 @@ module PWN
               open_vault_edit(line)
             elsif line.strip == '/system-role'
               open_system_role
-            elsif line.match?(%r{\A/(?:mcp(?:\s|$)|cron\s+run(?:\s|$)|model(?:\s|$))})
+            elsif line.match?(%r{\A/(?:mcp(?:\s|$)|cron\s+run(?:\s|$)|model(?:\s|$)|sessions\s+cleanup(?:\s|$))})
               start_request(line, command: true)
             elsif line.start_with?('/') || line.start_with?('ai.profile ', 'ai.memory ')
               if line.match?(%r{\A/sessions[[:space:]]+resume(?:[[:space:]]|$)})
@@ -845,6 +856,7 @@ module PWN
 
                 REPL.pwn_ai_dispatch_slash!(request: line, pry: @pry)
                 @session_metadata = PWN::Sessions.metadata(session_id: @pry.config.pwn_ai_session_id)
+                queue_title_update(@pry.config.pwn_ai_session_id)
               elsif !REPL.pwn_ai_dispatch_slash!(request: line, pry: @pry)
                 add(:warning, 'Unknown command. Use / or Tab for commands.')
               end
@@ -2027,7 +2039,7 @@ module PWN
             view[:rows] = PWN::Sessions.list.sort_by { |row| [row[:mtime].to_s, row[:id]] } if view[:kind] == :sessions
             if view[:kind] == :cleanup
               require File.expand_path('../../../../etc/default_cron/session_cleanup', __dir__)
-              view[:plan] = PWN::SessionCleanup.run(current_session_id: session_id)
+              view[:plan] = PWN::SessionCleanup.maintain(dry_run: true, current_session_id: session_id)
               view[:rows] = view[:plan][:records].map do |row|
                 category = row[:skip] || row[:apply_blocked_by] || (if row[:classification] == :named
                                                                       :summarized
@@ -2352,7 +2364,7 @@ module PWN
             ['START HERE · local guide; no work is launched here.',
              'Write a task in MISSION CONTROL. /readiness checks routes, tools and workspace locally.',
              'Ctrl+S opens the team workspace. v previews your exact mission draft before confirmation.',
-             '/evidence inspects actual checks and revisions. /sessions finds stable IDs; /sessions cleanup previews retention.',
+             '/evidence inspects actual checks and revisions. /sessions cleanup runs maintenance; add --dry-run to preview.',
              '/learning inbox reviews retained evidence. /steer queues guidance; Ctrl+C requests cancellation, not undo.',
              '1 Insert: Inspect this workspace and explain its entry points without changing files.',
              '2 Insert: Add a regression test for the reported bug, fix it, and execute the test.',
@@ -2390,13 +2402,17 @@ module PWN
           end
 
           def apply_operator_cleanup
+            return add(:warning, 'Maintenance waits until the active request or swarm finishes.') if busy?
+
             view = @operator_view
-            approved = view[:plan][:records].select { |row| view[:plan][:candidate_ids].include?(row[:id]) }.to_h { |row| [row[:id], row[:files]] }
-            result = PWN::SessionCleanup.run(dry_run: false, current_session_id: @pry.config.pwn_ai_session_id, approved_candidates: approved)
+            approved = view[:plan][:records].select { |row| view[:plan][:candidate_ids].include?(row[:id]) }.to_h { |row| [row[:id], { files: row[:files], dependency_records: row[:dependency_records] }] }
+            session_id = @pry.config.pwn_ai_session_id
             view.delete(:confirm)
-            view[:notice] = "Deleted: #{result[:deleted_ids].join(', ')}; backup: #{result[:archive_dir] || 'none'}; skipped: #{result[:skipped]}"
-            add(:command, REPL.pwn_ai_result_text(value: result))
-            refresh_operator
+            @operator_view = nil
+            start_request('/sessions cleanup (approved preview)', command: true) do
+              result = PWN::SessionCleanup.run(dry_run: false, current_session_id: session_id, approved_candidates: approved)
+              @events << [:command, REPL.pwn_ai_result_text(value: result)]
+            end
           end
 
           def operator_viewport(page)

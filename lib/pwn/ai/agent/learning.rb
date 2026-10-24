@@ -262,7 +262,9 @@ module PWN
 
         private_class_method def self.evidence_write(opts = {})
           path = opts[:path]
-          body = opts[:body]
+          # Verification is byte equality, not Ruby's encoding-sensitive text equality.
+          # Retag a copy only: do not transcode, normalize or scrub evidence/backups.
+          body = opts[:body].b
           dir = File.dirname(path)
           ancestor = dir
           ancestor = File.dirname(ancestor) until File.exist?(ancestor) || File.symlink?(ancestor)
@@ -332,7 +334,8 @@ module PWN
         # Reentrant across note_outcome -> pruning; flock serializes cooperating processes.
         private_class_method def self.learning_lock
           key = :pwn_learning_write_lock
-          return nil if Thread.current[key]
+          owner = Thread.current[key]
+          return nil if owner.is_a?(Hash) && owner[:pid] == Process.pid && owner[:thread] == Thread.current && !owner[:file].closed?
 
           root = File.dirname(LEARNING_FILE)
           FileUtils.mkdir_p(root, mode: 0o700)
@@ -340,9 +343,9 @@ module PWN
           raise IOError, 'Unsafe learning lock' if File.symlink?(path) || File.realpath(root) != File.expand_path(root)
 
           # Ownership transfers to the caller's ensure/learning_unlock.
-          file = File.open(path, File::RDWR | File::CREAT, 0o600) # rubocop:disable Style/FileOpen
+          file = File.open(path, File::RDWR | File::CREAT | File::NOFOLLOW, 0o600) # rubocop:disable Style/FileOpen
           file.flock(File::LOCK_EX)
-          Thread.current[key] = file
+          Thread.current[key] = { pid: Process.pid, thread: Thread.current, file: file }
           file
         end
 
@@ -1250,6 +1253,8 @@ module PWN
         # stays high-signal.
 
         public_class_method def self.consolidate(opts = {})
+          return PWN::Memory.transaction(path: PWN::Memory::MEMORY_FILE) { consolidate(opts) } unless PWN::Memory.transaction_owned?(path: PWN::Memory::MEMORY_FILE)
+
           cap = opts[:max_entries] || MAX_MEMORY_ENTRIES
           return { removed: 0 } unless defined?(PWN::Memory)
 
@@ -2221,6 +2226,8 @@ module PWN
         # after upgrading; subsequent writes never produce these.
 
         public_class_method def self.purge_noise
+          return PWN::Memory.transaction(path: PWN::Memory::MEMORY_FILE) { purge_noise } unless PWN::Memory.transaction_owned?(path: PWN::Memory::MEMORY_FILE)
+
           return { removed: 0 } unless defined?(PWN::Memory)
 
           mem = nil

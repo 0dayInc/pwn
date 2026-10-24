@@ -5,6 +5,34 @@ require 'tmpdir'
 require 'fileutils'
 
 describe PWN::AI::Agent::Learning do
+  describe 'worker lock ownership' do
+    include_context 'pwn tmp sandbox'
+
+    it 'does not inherit learning write ownership through copied request locals' do
+      lock = described_class.send(:learning_lock)
+      inherited = Thread.current[:pwn_learning_write_lock]
+      entered = Queue.new
+      acquired = Queue.new
+      worker = Thread.new do
+        Thread.current[:pwn_learning_write_lock] = inherited
+        entered << true
+        child_lock = described_class.send(:learning_lock)
+        acquired << child_lock
+      ensure
+        described_class.send(:learning_unlock, lock: child_lock) if child_lock
+      end
+      Timeout.timeout(2) { entered.pop }
+      expect(worker.join(0.05)).to be_nil
+      described_class.send(:learning_unlock, lock: lock)
+      lock = nil
+      expect(worker.join(2)).to eq(worker)
+      expect(acquired.pop).not_to be_nil
+    ensure
+      described_class.send(:learning_unlock, lock: lock) if lock
+      worker&.join(2)
+    end
+  end
+
   describe 'failure regression tasks' do
     include_context 'pwn tmp sandbox'
 
@@ -47,6 +75,41 @@ describe PWN::AI::Agent::Learning do
 
     after { FileUtils.rm_rf(@home) }
 
+    it 'migrates Unicode evidence byte-exactly and rolls back the original index' do
+      @trace.last[:content] = "café 日本語 🔒 e\u0301"
+      File.binwrite(@source, "#{@trace.map(&:to_json).join("\n")}\r\n")
+      original_source = File.binread(@source)
+      @original = "#{JSON.generate(session_id: @sid, task: 'résumé 日本語')}\r\n"
+      File.binwrite(@learning, @original)
+      expect(PWN::Sessions.dependency_index[:dependencies][@sid]).to include(@learning)
+      result = described_class.migrate_evidence(dry_run: false)
+      expect(result[:migrated_rows]).to eq(1)
+      row = JSON.parse(File.binread(@learning), symbolize_names: true)
+      expect(described_class.evidence_transcript(row: row)).to eq(@trace)
+      expect(described_class.evidence_complete?(row: row)).to be(true)
+      expect(File.binread(@source)).to eq(original_source)
+      migration = Digest::SHA256.hexdigest(@original)
+      backup = File.join(@root, 'learning', 'migrations', "#{migration}.backup.jsonl")
+      expect(File.binread(backup)).to eq(@original.b)
+      expect(described_class.rollback_evidence(migration: migration)[:restored]).to be(true)
+      expect(File.binread(@learning)).to eq(@original.b)
+    end
+
+    it 'verifies exact bytes without changing input encoding or accepting altered readback' do
+      target = File.join(@root, 'learning', 'probe.bin')
+      ['ASCII', 'café 日本語 🔒', "e\u0301", "\xFF\x00".b].each do |body|
+        encoding = body.encoding
+        original = body.dup
+        described_class.send(:evidence_write, path: target, body: body)
+        expect(File.binread(target)).to eq(original.b)
+        expect(body).to eq(original)
+        expect(body.encoding).to eq(encoding)
+      end
+      allow(described_class).to receive(:evidence_read).with(path: target).and_return('altered'.b)
+      expect { described_class.send(:evidence_write, path: target, body: 'café') }
+        .to raise_error(IOError, 'Evidence write verification failed')
+    end
+
     it 'keeps original references when artifact creation is interrupted and retries safely' do
       allow(described_class).to receive(:evidence_write).and_wrap_original do |method, opts|
         raise IOError, 'injected interruption' if opts[:path].include?('/evidence/')
@@ -82,7 +145,7 @@ describe PWN::AI::Agent::Learning do
       File.open(@source, 'a') { |file| file.puts(JSON.generate(role: 'user', content: 'new turn')) }
       expect(described_class.evidence_complete?(row: row)).to be(false)
       File.delete(artifact)
-      expect(PWN::Sessions.dependency_index[:dependencies][@sid]).to include(@learning)
+      expect(PWN::Sessions.dependency_index[:session_errors][@sid]).to include(@learning)
       expect(PWN::Sessions.protected_session_ids(hot_days: -1)).to include(@sid)
       expect(PWN::Sessions.load(session_id: @sid)).not_to be_empty
     end
@@ -249,7 +312,7 @@ describe PWN::AI::Agent::Learning do
       expect(described_class.migrate_evidence(dry_run: false)[:migrated_rows]).to eq(0)
       artifact = File.join(root, 'learning', 'evidence', "#{row[:evidence_ref][:sha256]}.json")
       File.write(artifact, '{}')
-      expect(PWN::Sessions.dependency_index[:dependencies]).to have_key(sid)
+      expect(PWN::Sessions.dependency_index[:session_errors]).to have_key(sid)
       expect { PWN::Sessions.load(session_id: sid) }.to raise_error(IOError)
     end
   end
