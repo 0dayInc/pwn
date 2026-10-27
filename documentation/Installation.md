@@ -1,5 +1,190 @@
 # Installation
 
+## Housekeeping deployment and diagnostics
+
+The packaged `etc/default_cron/session_cleanup.rb` is the shared implementation
+for `/maintenance run`, `/maintenance dry-run`, `/sessions cleanup`, and the
+managed `session_cleanup` cron job. `/maintenance status` reports physical file
+counts, bytes, configured retention, budgets, incomplete scans and safe error
+classes. These are storage counts, not the session menu's pagination count.
+Curses executes maintenance on its existing command worker, not its render/input
+thread. Ctrl+C requests a safe boundary; committed work is not rolled back.
+
+Upgrade the installed gem, run `pwn setup --migrate --fix`, then restart PWN
+clients **and the existing cron worker**. Source-checkout edits alone do not
+update installed endpoints. Schema 11 seeds a version-1 housekeeping policy and
+refreshes the managed helper. Existing job IDs, schedules, disabled states,
+custom Ruby payloads, custom unmarked helpers and policy edits are preserved.
+A custom helper is not automatically upgraded. Fresh setup is idempotent and
+registration never runs cleanup; the default job retains its next-slot guard.
+Startup performs fixed-path checks and coalesces a daily background request in
+`maintenance/background.json`. The existing cron worker consumes it through the
+existing enabled job, never through a second worker. Disabled jobs stay disabled.
+Do not apply maintenance while old untracked clients are running: unknown
+legacy ownership blocks mutation rather than guessing which sessions are active.
+
+Storage is organized into logical categories without relocating literal evidence
+anchors:
+
+| Category | Existing/new locations under `~/.pwn` | Retention contract |
+|---|---|---|
+| sessions | `sessions/` including support and requests | Eligible unsummarized, inactive, unreferenced transcripts only; physical deletion with backups |
+| learning | `learning.jsonl`, `learning/`, `memory*.json`, `mistakes.json`, policy/curriculum/extrospection stores, finetune and preference records | Evidence migration retains exact verified snapshots; unknown records remain protected |
+| artifacts | `artifacts/`, `exports/`, `findings.jsonl`, engagements, corpora and binary workspaces | Durable evidence, not disposable cache |
+| state | `swarm/`, `cron/`, `agents.yml`, `jobs/`, `missions/`, `runs/`, metrics | Preserve continuation associations and active work |
+| logs | `logs/` | Only explicitly registered disposable closed logs are eligible; unknown logs remain |
+| cache | `cache/` | Only producer-registered, checksum-verified, inactive disposable files |
+| tmp | `tmp/` | Same registration contract; never glob-delete arbitrary temp files |
+| maintenance | `maintenance/`, legacy `session_cleanup_archive/` | Policy, permanent locks, metadata ledgers and recoverable quarantine |
+
+`maintenance/policy.json` is non-secret JSON, version 1. `batch_size` defaults to
+100; `scan_limit` to 100000. Cooperative admission defaults to `work_items: 100000`,
+`work_seconds: 30` and `work_bytes: 67108864` for dependency and maintenance
+payload reads, plus reserved disposable backup writes. Existing policy
+files acquire these defaults in memory, without rewriting operator values.
+`maintenance/layout.json` upgrades recognized inventory v1 to v2 separately from
+policy; unknown inventory versions are refused. `retention_days` defaults to sessions 0, logs 30,
+cache 7, tmp 1, maintenance 90. Null disables that category's expiry. Session
+age is an additional floor, never an override of leases, provenance or evidence.
+Learning/artifacts/state remain non-expiring: their policy slots are descriptive,
+not authorization to erase evidence. `budget_bytes` enforces pressure eviction
+for verified inactive disposable files (logs 256 MiB, cache 512 MiB, tmp 256 MiB,
+maintenance 1 GiB), including before ordinary expiry. Null retention still
+disables deletion. Budgets never evict protected evidence. Over-budget protected storage needs
+operator review, not automatic deletion. Inventory scans are bounded and report
+incompleteness rather than claiming a complete total. `bytes` counts logical file
+bytes; `unique_bytes` counts each inode once per category. Directory discovery is
+streamed for inventory and dependency trees. Work/time admission is cooperative
+between phases and items, not a hard deadline: an admitted read, hash or atomic
+commit completes. Exhausted/partial dependency indexes block deletion and report
+`incomplete`/`interrupted`. Retrying recomputes dependencies; no timeout kills a writer.
+Disposable cleanup reserves the complete payload transaction before its first
+hash: one bounded read for preview, or five payload-size passes for verification,
+backup read/write, backup verification and final source verification on apply.
+Reads reject size changes and cannot follow unlimited concurrent growth. Quarantine,
+legacy-backup inventory/compaction, atomic-temp recovery and transaction-status
+reads also use byte admission. Policy/cursor metadata and durable ledger writes
+are control overhead, not a hard total-filesystem-I/O quota; directory name
+discovery is not a payload-byte allowance. An oversized item is retained, with
+the overall maintenance run marked `incomplete`/`interrupted`; raise the explicit
+work budget to process it. Once admitted, backup/commit finishes even if the
+deadline expires mid-write.
+
+Producer integration uses `PWN::SessionCleanup.register_disposable(path:,
+category:, expires_at:)` after closing a reproducible file. Producers must hold
+its permanent `<path>.lease` exclusively while writing, and readers hold it
+shared throughout use. The registry records exact SHA-256, inode and byte count.
+Changed, unknown, symlinked, active and invalid files are retained with reasons.
+Disposable scans persist a lexical round-robin cursor in
+`maintenance/disposable.cursor`; `scan_limit` bounds inspected manifests per run.
+Completed/missing manifests remain for audit, including normal temporary-producer
+unlinks, but cannot monopolize later scans. Active/changed entries are revisited
+on the next circuit. The cursor is scheduling state only: cleanup never removes
+or relocates registry entries, and rechecks registration bytes under the producer
+lease so a concurrent renewal cannot authorize deletion using an old expiry.
+Dry-run does not advance the cursor. A partial circuit reports `incomplete`.
+Registration is not permission to classify evidence as disposable. Legacy caches
+and logs are not implicitly registered. Transcript compaction/append instead use
+a permanent transcript `.write.lock`; compaction temporary files are unique,
+cleaned in ensure, fsynced and atomically replaced. Corrupt transcripts raise,
+not silently compact into partial transcripts.
+
+Ghidra decompile and BinaryParser triage now publish and read their canonical
+caches under permanent leases. Ordinary `Log.append` diagnostics now go to
+`logs/pwn.log`, rotating at 1,024,000 bytes into registered closed segments.
+Debug streams hold a lifetime lease and register after request closure; active
+streams cannot be evicted. Historical `/tmp/pwn.log` and learning logs are not
+implicitly deleted. Cache writes and transcript compaction clean their own
+temporary outputs on failure rather than leaving routine temp garbage.
+
+Routine disposable cleanup writes exact private backups and prepared/committed
+ledgers under `maintenance/quarantine/`. Only verified committed disposable
+backups expire after the maintenance retention period or under budget pressure.
+Interrupted `expiry_prepared` operations resume from verified remaining backups.
+Broad operations also have prepared/committed/interrupted metadata ledgers under
+`maintenance/runs/`, exposed by status. Prepared/corrupt ledgers
+and unique evidence are never expired. `prune_legacy_backups` recognizes actual
+committed session snapshots, dependency-removal backups, learning migration and
+continuation-retirement ledgers. After retention or under maintenance pressure it
+reclaims **redundant physical bytes** using checksum/readback-verified atomic
+hardlink replacement. Recovery filenames remain intact; the last copy is never
+removed. Unknown/uncommitted records are excluded. A cross-filesystem link failure
+retains the original. Prepared/committed compaction journals are resumable.
+
+`PWN::SessionCleanup.recovery_status(ledger: absolute_ledger_path)` identifies
+supported actions. `recover(ledger:, action:, dry_run: true)` is explicit:
+- `restore`: quarantine or legacy session copies, with no overwrite of different bytes;
+- `rollback`: Learning's validated rollback or an unchanged continuation retirement;
+- `rollback_dependencies`: exact targeted store rollback, after restoring source sessions;
+- `resume`: re-evaluate broad maintenance, resume backup compaction, or re-evaluate
+  offline layout migration (apply requires `writers_stopped: true`).
+Use `dry_run: false` only after reviewing the plan. Restoring a metadata ledger
+never undoes data changes. Broad operations have independently committed children,
+not a fictitious all-or-nothing rollback. Unknown schemas require manual review.
+`reorganize` remains explicit and offline; this upgrade does not move existing paths.
+
+### Housekeeping acceptance ledger (isolated fixtures)
+
+`spec/lib/pwn/session_cleanup_recovery_spec.rb` exercises the actual maintenance
+entry point, without live stores or providers:
+
+| Requirement | Regression evidence | Boundary |
+|---|---|---|
+| Byte admission precedes disposable payload I/O | Expired 1 MiB cache with `work_bytes: 1024` remains intact; no payload read/hash or backup, run incomplete/interrupted | Cooperative allowance, not a hard filesystem-I/O cap |
+| Repeated bounded scans progress | `scan_limit: 1`, two expired caches and a normally unlinked temporary producer; repeated runs delete both caches and retain all manifests | Registry pathname discovery still enumerates names; inspection is bounded |
+| Active/mutated data remains protected | Held shared lease and changed payload survive while later eligible data is processed; released lease is revisited | Requires cooperating permanent producer leases |
+| Re-registration is not lost | Renewing the same file between discovery and lease acquisition retains it; republished cache survives a later cursor circuit | Cursor never moves/deletes registry records |
+| Admitted commit finishes safely | Deadline expires after backup publication; exact backup and committed child deletion survive, enclosing run is interrupted | Not all-or-nothing rollback |
+| Related quarantine reads respect admission | Expired 1 MiB backup exceeds an 8 KiB work allowance and remains committed/unexpired | Legacy/atomic paths also admit reads; their existing integrity/recovery regressions remain enabled |
+
+The completed isolated-HOME `bundle exec rake` gate passed 4,568 examples with
+zero failures and inspected 1,161 files with no RuboCop offenses (exit 0).
+Cancellation regressions distinguish preservation before deletion admission from
+completion of an already-admitted commit; redaction covers the canonical log and
+debug/progress/mirror/stderr/fallback sinks. These are fixture-based verification,
+not live deployment acceptance: no live-store maintenance, installed-helper
+deployment or provider run is implied.
+
+### Temporary producer ownership audit
+
+The audit covers `Dir.tmpdir`, `Tempfile`, `mktmpdir` and atomic replacement
+call sites, not a filesystem filename sweep:
+- Festival speech input now uses `SessionCleanup.temporary` in `~/.pwn/tmp`, with
+  a lifetime lease and exact registration. Concurrent calls have unique names;
+  normal completion unlinks the input and a crashed consumer leaves registered bytes.
+- Ghidra/BinaryParser canonical cache publication and managed temporary inputs
+  journal atomic ownership (inode/device, expected hash, exact target) under
+  `maintenance/atomic`. `recover_atomic_temps` rejects active writers, changed or
+  partial bytes, missing journals and unknown paths. Routine maintenance applies
+  retention; explicit recovery can inspect an abandoned journal immediately.
+- Sandbox/Detonate, GPS, RFID, OSINT bridge and GhidraHeadless work directories,
+  GDB stdin, and policy-evaluation/Solve verification trees are scoped block or
+  owner-cleaned resources. Old unregistered crash remnants are retained, not
+  inferred disposable from a prefix. GhidraHeadless's legacy/custom cache is not
+  silently enrolled as a canonical cache.
+- Nmap/Nuclei scan output, proxy HAR, browser screenshots, APK output, Workspace
+  downloads, history spill and Burp diagnostics may be unique evidence. Their
+  existing literal paths remain; no age-based global `/tmp` cleanup is authorized.
+- OAuth/vault/selection, learning/session/map and SDR image atomic outputs may be
+  only-copy state or evidence. Their own ensure/rollback protocols remain; unknown
+  remnants are not automatically discarded. Solve lock inodes are permanent.
+This is an intentional ownership/evidence boundary, not a claim that every plugin
+scratch file is automatically reclaimable.
+
+Swarm registry retirement alone deliberately keeps its saved conversation.
+The command route exposes `/swarm retire NAME --continuation` explicitly.
+`PWN::AI::Agent::Swarm.retire(name:, swarm_id:, local: true, continuation: true)`
+explicitly retires the inactive association with a backup and prepared/committed
+ledger. It does not itself delete the transcript. A later persona request creates
+a new session; active associations cannot be retired. Persona map writers and
+cleanup share a permanent continuation lock.
+
+Safe checks: `/maintenance status` and `/maintenance dry-run` do not call a
+provider. Do not use `run` as a diagnostic on production data without reviewing
+the preview. Permission and disk failures retain recoverable bytes and report
+error classes; no blanket root-directory chmod is attempted.
+
+
 PWN ships as a **single Ruby gem** whose runtime is 100 % `autoload`ed -
 a plugin whose native extension or OS binary is missing costs nothing until
 you actually touch that constant. That means the install is **two steps**:
@@ -82,7 +267,7 @@ External toolchain                              used by
   skills/        drift  1 legacy flat file(s)   PWN::Config     → run --migrate --fix
   ...
 
-cron worker                 ok   systemd --user pid=...
+cron worker                 ok   internal worker pid=...
 
 31 / 36 capabilities usable · 5 degraded
 
@@ -196,9 +381,11 @@ predates the running gem (`PWN::Migrate.needed?`).
 Schema `v1` also seeds `PWN::Cron.install_defaults` - the nightly
 `curriculum_practice` and weekly `curriculum_train` self-improvement jobs
 (see [Reinforcement Learning](Reinforcement-Learning.md)). `pwn setup`
-also starts the background cron worker and persists it via the OS scheduler
-(systemd --user / launchd / schtasks / crontab) so those YAML jobs run
-without a per-job crontab line. Live Policy files (`policy.json`,
+also starts or reuses the single portable background cron worker. Setup,
+migration and startup seeding never install, enable, repair or remove OS
+scheduler units. Defaults live only in `~/.pwn/cron/jobs.yml`; the worker
+must be running for automatic execution (start it again after reboot with
+`pwn setup --cron`). Manual commands remain available without a worker. Live Policy files (`policy.json`,
 `policy_traj.jsonl`) are created on first agent turn when `ai.agent.policy`
 is on.
 
@@ -208,8 +395,40 @@ in the scheduler's local timezone. First launch also seeds it through
 is installed to `~/.pwn/cron/session_cleanup.rb`; managed copies refresh on
 subsequent launches/migrations, while unmarked custom helpers are preserved.
 An existing job named `session_cleanup` keeps its ID, schedule, enabled state,
-payload and native scheduler drop-ins. New jobs defer cleanup until their first
-scheduled time, rather than deleting during initial catch-up.
+payload. Legacy native scheduler files are left untouched for an explicit
+operator-approved removal; they are never refreshed or re-enabled by setup.
+New jobs defer cleanup until their first scheduled time, rather than deleting
+during initial catch-up.
+
+Fresh installs now seed only this job, with `SessionCleanup.coordinate`: shared
+evidence-first maintenance, memory consolidation, then separate learning,
+mistakes and policy retention phases. Existing split maintenance schedules are
+preserved until explicitly consolidated after a safe matched-code deployment.
+Curriculum schedules require explicit creation; startup and repeat migrations
+never recreate deleted curriculum jobs. See [Cron](Cron.md) for opt-in templates
+and schedule-only deletion. Already-running old binaries must be upgraded before
+their startup/config-refresh hooks can be relied on to honor the new defaults.
+
+**Housekeeping never uses systemd or any other native scheduler.**
+`session_cleanup`, `learning_consolidate_nightly`, and `pwn_stores_lean_nightly`
+run only through PWN's built-in cron worker or manual commands. Native job
+installers explicitly skip them with `housekeeping_internal_only`; this also
+covers renamed payloads that invoke `SessionCleanup` or `session_cleanup.rb`.
+Generic scheduler APIs remain available for unrelated custom jobs. Native
+worker launchers mark their execution context and exclude housekeeping;
+legacy PWN systemd cgroups are also excluded. An inherited terminal
+`INVOCATION_ID` alone is not a scheduler context.
+
+Existing installations require an explicit operator decision before stopping
+legacy services or processes. Inventory `pwn-cron-*.timer` and `.service`, map
+job IDs to `jobs.yml`, preserve custom schedules, then (only with approval)
+disable and stop the housekeeping timers/services and the legacy shared
+worker service, archive their unit files/drop-ins, remove those exact files,
+and run the user manager's daemon-reload. Do not remove unrelated custom job
+units or change lingering globally. Coordinate old clients before deploying
+the new code, retain `jobs.yml` unchanged, then start/reuse one internal
+worker and verify its PID and guarded tick. Do not run cleanup to validate
+this transition or re-enable legacy housekeeping units.
 
 Cleanup calls a session named only when its persisted metadata has
 `title_source: summary`, a nonblank title and summary, and a positive integer
@@ -321,6 +540,19 @@ Loop requests and title writers hold independent leases, and crashes release
 descriptors automatically. Stale lock contents or reused PIDs confer no ownership.
 Never unlink lock files: that would split the synchronization inode.
 
+Routine maintenance supports multiple simultaneously running upgraded clients;
+there is no blanket shutdown requirement. Evidence migration takes exclusive
+nonblocking leases per source transcript through index publication, skips active
+sources (`evidence_migration.deferred_active_sessions`), and revisits them on a
+later run after their writers finish. Unrelated eligible sessions can still be
+removed. A busy Learning writer returns
+`evidence_migration.deferred: learning_writer_active` with `apply_blocked: true`
+rather than waiting or interrupting the writer; retry on a later cron tick or
+manual invocation. The permanent maintenance lock admits one applying owner;
+a second receives `Session maintenance already running` immediately. Title
+workers and durable job dependencies retain their existing protections.
+This is routine maintenance, not the explicitly offline layout migration.
+
 Old installed processes cannot be upgraded by refreshing the cron helper alone.
 `legacy_owners` reports launchers without the held PID/start-identity capability
 marker; `unknown_legacy_ownership` means their in-memory session IDs are unknown,
@@ -346,6 +578,15 @@ bundle install
 rake install                         # or: rvmsudo rake install (multi-user RVM)
 pwn setup --profile full --yes       # same provisioner, same data tables
 ```
+
+The `upgrade_pwn.sh` → `build_gem.sh` validation gate still runs through
+`rvmsudo` on multi-user RVM installations. Its merged stdout/stderr is streamed
+and retained in the invoking user's `~/.pwn/logs/build-gate.log` (mode 0600,
+last 1 MiB, replaced on the next gate). The path is printed before execution
+and on failure; installation does not continue after a failed gate. `rake spec`
+also prints each failure immediately and reports the RSpec child's exit status
+or signal, so a later terminated example cannot hide earlier failure details.
+A signal report is diagnostic evidence, not a claim about who sent the signal.
 
 The legacy `./install.sh` / `packer/provisioners/pwn.sh` bash paths still
 work, but they now simply delegate to `pwn setup` - the `case $os` package

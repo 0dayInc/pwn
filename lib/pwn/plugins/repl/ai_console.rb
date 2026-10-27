@@ -277,6 +277,10 @@ module PWN
         class Control < PWN::AI::Agent::Loop::Steering
           class Stopped < Exception; end # rubocop:disable Lint/InheritException
 
+          def stopping?
+            @stopping == true
+          end
+
           def stop
             @stopping = true
             request_model_cancel
@@ -741,7 +745,7 @@ module PWN
                 end
                 # Maintenance is one safe transaction: never label its committed
                 # deletions cancelled merely because stop was requested mid-write.
-                if request.match?(%r{\A/sessions\s+cleanup(?:\s|$)})
+                if request.match?(%r{\A/(?:sessions\s+cleanup|maintenance)(?:\s|$)})
                   @events << [:notice, 'Session cleanup finished; completed work is not undone.']
                 else
                   control.checkpoint(messages: [])
@@ -848,7 +852,7 @@ module PWN
               open_vault_edit(line)
             elsif line.strip == '/system-role'
               open_system_role
-            elsif line.match?(%r{\A/(?:mcp(?:\s|$)|cron\s+run(?:\s|$)|model(?:\s|$)|sessions\s+cleanup(?:\s|$))})
+            elsif line.match?(%r{\A/(?:maintenance(?:\s|$)|mcp(?:\s|$)|cron\s+run(?:\s|$)|model(?:\s|$)|sessions\s+cleanup(?:\s|$))})
               start_request(line, command: true)
             elsif line.start_with?('/') || line.start_with?('ai.profile ', 'ai.memory ')
               if line.match?(%r{\A/sessions[[:space:]]+resume(?:[[:space:]]|$)})

@@ -3572,16 +3572,15 @@ module PWN
             [true, log]
           when :festival
             # Use plugin if text file available
-            tmp = File.join(Dir.tmpdir, "pwn_tts_#{Process.pid}.txt")
-            File.write(tmp, text)
+            require_relative '../../../../etc/default_cron/session_cleanup' unless defined?(PWN::SessionCleanup)
             begin
-              require 'pwn/plugins/voice' unless defined?(PWN::Plugins::Voice)
-              PWN::Plugins::Voice.text_to_speech(text_path: tmp)
-              [true, 'festival via PWN::Plugins::Voice']
+              PWN::SessionCleanup.temporary(bytes: text) do |tmp|
+                require 'pwn/plugins/voice' unless defined?(PWN::Plugins::Voice)
+                PWN::Plugins::Voice.text_to_speech(text_path: tmp)
+                [true, 'festival via PWN::Plugins::Voice']
+              end
             rescue StandardError => e
               [false, "#{e.class}: #{e.message}"]
-            ensure
-              FileUtils.rm_f(tmp)
             end
           else
             [false, "unsupported TTS engine: #{engine}"]

@@ -1459,6 +1459,7 @@
 {"messages":[{"role":"user","content":"PWN::AI::Router.active_session_endpoint Usage"},{"role":"assistant","content":"`PWN::AI::Router.active_session_endpoint`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Router.authors Usage"},{"role":"assistant","content":"`PWN::AI::Router.authors`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Router.config_entry Usage"},{"role":"assistant","content":"`PWN::AI::Router.config_entry`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Router.content_text Usage"},{"role":"assistant","content":"`PWN::AI::Router.content_text`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Router.default_entry Usage"},{"role":"assistant","content":"`PWN::AI::Router.default_entry`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Router.env_dig Usage"},{"role":"assistant","content":"`PWN::AI::Router.env_dig`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Router.env_hash Usage"},{"role":"assistant","content":"`PWN::AI::Router.env_hash`: "}]}
@@ -1470,6 +1471,7 @@
 {"messages":[{"role":"user","content":"PWN::AI::Router.required_bins Usage"},{"role":"assistant","content":"`PWN::AI::Router.required_bins`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Router.reset_usage Usage"},{"role":"assistant","content":"`PWN::AI::Router.reset_usage`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Router.resolve Usage"},{"role":"assistant","content":"`PWN::AI::Router.resolve`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Router.response_text Usage"},{"role":"assistant","content":"`PWN::AI::Router.response_text`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Router.session_endpoint? Usage"},{"role":"assistant","content":"`PWN::AI::Router.session_endpoint?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Router.session_value? Usage"},{"role":"assistant","content":"`PWN::AI::Router.session_value?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Router.summarize Usage"},{"role":"assistant","content":"`PWN::AI::Router.summarize`: "}]}
@@ -2067,6 +2069,7 @@
 {"messages":[{"role":"user","content":"PWN::Cron.enable_linger Usage"},{"role":"assistant","content":"`PWN::Cron.enable_linger`: "}]}
 {"messages":[{"role":"user","content":"PWN::Cron.ensure_worker Usage"},{"role":"assistant","content":"`PWN::Cron.ensure_worker`: "}]}
 {"messages":[{"role":"user","content":"PWN::Cron.help Usage"},{"role":"assistant","content":"`PWN::Cron.help`: "}]}
+{"messages":[{"role":"user","content":"PWN::Cron.housekeeping_job? Usage"},{"role":"assistant","content":"`PWN::Cron.housekeeping_job?`: "}]}
 {"messages":[{"role":"user","content":"PWN::Cron.install_crontab_entry Usage"},{"role":"assistant","content":"`PWN::Cron.install_crontab_entry`: "}]}
 {"messages":[{"role":"user","content":"PWN::Cron.install_crontab_job Usage"},{"role":"assistant","content":"`PWN::Cron.install_crontab_job`: "}]}
 {"messages":[{"role":"user","content":"PWN::Cron.install_crontab_worker Usage"},{"role":"assistant","content":"`PWN::Cron.install_crontab_worker`: "}]}
@@ -2089,6 +2092,7 @@
 {"messages":[{"role":"user","content":"PWN::Cron.launchd_plist Usage"},{"role":"assistant","content":"`PWN::Cron.launchd_plist`: "}]}
 {"messages":[{"role":"user","content":"PWN::Cron.list Usage"},{"role":"assistant","content":"`PWN::Cron.list`: Supported Method Parameters\n\njobs = PWN::Cron.list\n"}]}
 {"messages":[{"role":"user","content":"PWN::Cron.load_jobs Usage"},{"role":"assistant","content":"`PWN::Cron.load_jobs`: "}]}
+{"messages":[{"role":"user","content":"PWN::Cron.native_execution? Usage"},{"role":"assistant","content":"`PWN::Cron.native_execution?`: "}]}
 {"messages":[{"role":"user","content":"PWN::Cron.native_unit_dir Usage"},{"role":"assistant","content":"`PWN::Cron.native_unit_dir`: "}]}
 {"messages":[{"role":"user","content":"PWN::Cron.os_type Usage"},{"role":"assistant","content":"`PWN::Cron.os_type`: "}]}
 {"messages":[{"role":"user","content":"PWN::Cron.parse_time Usage"},{"role":"assistant","content":"`PWN::Cron.parse_time`: "}]}
@@ -2096,8 +2100,9 @@
 {"messages":[{"role":"user","content":"PWN::Cron.pid_file Usage"},{"role":"assistant","content":"`PWN::Cron.pid_file`: "}]}
 {"messages":[{"role":"user","content":"PWN::Cron.process_alive? Usage"},{"role":"assistant","content":"`PWN::Cron.process_alive?`: "}]}
 {"messages":[{"role":"user","content":"PWN::Cron.read_pid Usage"},{"role":"assistant","content":"`PWN::Cron.read_pid`: "}]}
+{"messages":[{"role":"user","content":"PWN::Cron.registry_owned? Usage"},{"role":"assistant","content":"`PWN::Cron.registry_owned?`: "}]}
 {"messages":[{"role":"user","content":"PWN::Cron.relative_seconds Usage"},{"role":"assistant","content":"`PWN::Cron.relative_seconds`: "}]}
-{"messages":[{"role":"user","content":"PWN::Cron.remove Usage"},{"role":"assistant","content":"`PWN::Cron.remove`: Supported Method Parameters\n\nPWN::Cron.remove(id:)\n"}]}
+{"messages":[{"role":"user","content":"PWN::Cron.remove Usage"},{"role":"assistant","content":"`PWN::Cron.remove`: Supported Method Parameters\n\nPWN::Cron.remove(id:, sync_native: false)\n"}]}
 {"messages":[{"role":"user","content":"PWN::Cron.remove_native_job Usage"},{"role":"assistant","content":"`PWN::Cron.remove_native_job`: "}]}
 {"messages":[{"role":"user","content":"PWN::Cron.rm_unit_file Usage"},{"role":"assistant","content":"`PWN::Cron.rm_unit_file`: "}]}
 {"messages":[{"role":"user","content":"PWN::Cron.ruby_eval_argv Usage"},{"role":"assistant","content":"`PWN::Cron.ruby_eval_argv`: "}]}
@@ -2141,6 +2146,7 @@
 {"messages":[{"role":"user","content":"PWN::Cron.which_bin Usage"},{"role":"assistant","content":"`PWN::Cron.which_bin`: "}]}
 {"messages":[{"role":"user","content":"PWN::Cron.windows? Usage"},{"role":"assistant","content":"`PWN::Cron.windows?`: "}]}
 {"messages":[{"role":"user","content":"PWN::Cron.windows_taskkill Usage"},{"role":"assistant","content":"`PWN::Cron.windows_taskkill`: "}]}
+{"messages":[{"role":"user","content":"PWN::Cron.with_registry_lock Usage"},{"role":"assistant","content":"`PWN::Cron.with_registry_lock`: "}]}
 {"messages":[{"role":"user","content":"PWN::Cron.worker_log Usage"},{"role":"assistant","content":"`PWN::Cron.worker_log`: "}]}
 {"messages":[{"role":"user","content":"PWN::Cron.worker_loop Usage"},{"role":"assistant","content":"`PWN::Cron.worker_loop`: "}]}
 {"messages":[{"role":"user","content":"PWN::Cron.worker_ruby_cmd Usage"},{"role":"assistant","content":"`PWN::Cron.worker_ruby_cmd`: "}]}
@@ -2315,16 +2321,23 @@
 {"messages":[{"role":"user","content":"PWN::Migrate.authors Usage"},{"role":"assistant","content":"`PWN::Migrate.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
 {"messages":[{"role":"user","content":"PWN::Migrate.backfill_vault Usage"},{"role":"assistant","content":"`PWN::Migrate.backfill_vault`: Supported Method Parameters\n\nr = PWN::Migrate.backfill_vault(\n\nkey: 'optional', iv: 'optional', dry_run: false, io: $stdout\n\n)\n\nDecrypt → deep-merge template UNDER user (never overwrites) →re-encrypt with the SAME key/iv.  This is the fix for the #1 upgrade break: ‘NoMethodError: undefined method ’[]‘ for nil` when a release added `env[:new_engine]` and the user’s vault predates it.\n"}]}
 {"messages":[{"role":"user","content":"PWN::Migrate.backup! Usage"},{"role":"assistant","content":"`PWN::Migrate.backup!`: "}]}
+{"messages":[{"role":"user","content":"PWN::Migrate.backup_input_names Usage"},{"role":"assistant","content":"`PWN::Migrate.backup_input_names`: "}]}
+{"messages":[{"role":"user","content":"PWN::Migrate.backup_inventory Usage"},{"role":"assistant","content":"`PWN::Migrate.backup_inventory`: "}]}
+{"messages":[{"role":"user","content":"PWN::Migrate.backup_reference_pins Usage"},{"role":"assistant","content":"`PWN::Migrate.backup_reference_pins`: "}]}
+{"messages":[{"role":"user","content":"PWN::Migrate.backup_retention_policy Usage"},{"role":"assistant","content":"`PWN::Migrate.backup_retention_policy`: "}]}
 {"messages":[{"role":"user","content":"PWN::Migrate.check Usage"},{"role":"assistant","content":"`PWN::Migrate.check`: Supported Method Parameters\n\nPWN::Migrate.check(\n\nio: 'optional - IO to write the report to (default $stdout)'\n\n)\n\nHuman-readable ~/.pwn state doctor.  Read-only.  Called from PWN::Setup.check so ‘pwn setup` shows this alongside the native-gem / toolchain report.\n"}]}
 {"messages":[{"role":"user","content":"PWN::Migrate.decryptor Usage"},{"role":"assistant","content":"`PWN::Migrate.decryptor`: "}]}
 {"messages":[{"role":"user","content":"PWN::Migrate.deep_defaults Usage"},{"role":"assistant","content":"`PWN::Migrate.deep_defaults`: "}]}
 {"messages":[{"role":"user","content":"PWN::Migrate.env_template Usage"},{"role":"assistant","content":"`PWN::Migrate.env_template`: Supported Method Parameters\n\ntmpl = PWN::Migrate.env_template\n\nThe canonical current-release pwn.yaml shape, WITHOUT the I/O side-effects of PWN::Config.default_env.  Prefers PWN::Config.env_template when that refactor is present.\n"}]}
+{"messages":[{"role":"user","content":"PWN::Migrate.expire_backup_generations Usage"},{"role":"assistant","content":"`PWN::Migrate.expire_backup_generations`: "}]}
 {"messages":[{"role":"user","content":"PWN::Migrate.help Usage"},{"role":"assistant","content":"`PWN::Migrate.help`: "}]}
 {"messages":[{"role":"user","content":"PWN::Migrate.human_size Usage"},{"role":"assistant","content":"`PWN::Migrate.human_size`: "}]}
 {"messages":[{"role":"user","content":"PWN::Migrate.installed_schema Usage"},{"role":"assistant","content":"`PWN::Migrate.installed_schema`: Supported Method Parameters\n\nschema = PWN::Migrate.installed_schema\n\n→ Integer schema number stamped in ~/.pwn/.schema (0 when absent).\n"}]}
 {"messages":[{"role":"user","content":"PWN::Migrate.jsonl_verify Usage"},{"role":"assistant","content":"`PWN::Migrate.jsonl_verify`: "}]}
 {"messages":[{"role":"user","content":"PWN::Migrate.missing_paths Usage"},{"role":"assistant","content":"`PWN::Migrate.missing_paths`: "}]}
 {"messages":[{"role":"user","content":"PWN::Migrate.needed? Usage"},{"role":"assistant","content":"`PWN::Migrate.needed?`: Supported Method Parameters\n\nbool = PWN::Migrate.needed?\n\nCheap predicate for PWN::Config.refresh_env — schema stamp only, no per-file probes, so it adds ~0 to launch time.\n"}]}
+{"messages":[{"role":"user","content":"PWN::Migrate.prune_backups Usage"},{"role":"assistant","content":"`PWN::Migrate.prune_backups`: Supported Method Parameters\n\nPWN::Migrate.prune_backups(dry_run: true, keep: 3, limit: 10, admission: nil) Default duplicate-only pruning is nondestructive to unique history. Explicit expire_history policy bounds recovery generations instead.\n"}]}
+{"messages":[{"role":"user","content":"PWN::Migrate.publish_backup_retention Usage"},{"role":"assistant","content":"`PWN::Migrate.publish_backup_retention`: "}]}
 {"messages":[{"role":"user","content":"PWN::Migrate.quarantine! Usage"},{"role":"assistant","content":"`PWN::Migrate.quarantine!`: "}]}
 {"messages":[{"role":"user","content":"PWN::Migrate.run Usage"},{"role":"assistant","content":"`PWN::Migrate.run`: Supported Method Parameters\n\nreport = PWN::Migrate.run(\n\nfix:     'optional - also autofix incompatible files (default: schema-migrations only)',\nbackup:  'optional - take timestamped backup of ~/.pwn first (default true)',\ndry_run: 'optional - report what WOULD happen, write nothing (default false)',\nkey:     'optional - vault key   (default: read ~/.pwn/pwn.yaml.decryptor)',\niv:      'optional - vault iv    (default: read ~/.pwn/pwn.yaml.decryptor)',\nio:      'optional - IO to write to (default $stdout)'\n\n)\n\nbackup  2. schema migrations installed→current  3. per-file\n\n\nautofix (when fix:true)  4. pwn.yaml key backfill (when fix:true and decryptor available)  5. stamp .schema.\n"}]}
 {"messages":[{"role":"user","content":"PWN::Migrate.safe_read Usage"},{"role":"assistant","content":"`PWN::Migrate.safe_read`: "}]}
@@ -3560,6 +3573,7 @@
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Control.checkpoint Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Control.checkpoint`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Control.phase Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Control.phase`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Control.stop Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Control.stop`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Control.stopping? Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Control.stopping?`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Editor.new Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Editor.new`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Editor.edit Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Editor.edit`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Editor.finish_search Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Editor.finish_search`: "}]}

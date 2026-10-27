@@ -26,7 +26,7 @@ external services and environment overrides can place evidence elsewhere.
 | `extrospection/voice/*` | `Extrospection` | wav / txt | `rm -rf` | TTS/STT artifacts from `extro_voice` |
 | `sessions/*.jsonl` | `PWN::Sessions` | JSON-per-line | `sessions_delete` | full transcript per pwn-ai run (with per-step `step_reward` from `Reward.prm`) |
 | `open_goal.json` | `PWN::AI::Agent::OpenGoal` | JSON | delete the file | unfinished host-work request so `continue` / `resume` picks it up |
-| `cron/jobs.yml` | `PWN::Cron` | YAML | `cron_remove` | scheduled jobs. Fresh install seeds hygiene (`learning_consolidate_nightly` + `pwn_stores_lean_nightly` **on**) and curriculum practice/judge/train **off** |
+| `cron/jobs.yml` | `PWN::Cron` | YAML | `cron_remove` | Scheduled jobs; fresh install seeds only the `session_cleanup` housekeeping coordinator. Curriculum schedules require explicit creation and are not recreated after deletion |
 | `cron/log/*.log` | `PWN::Cron` | text | rm | last_run output |
 | `agents.yml` | `PWN::AI::Agent::Swarm` | YAML | edit / `agent_spawn` | persona registry |
 | `swarm/<id>/bus.jsonl` | `Swarm` | JSON-per-line | rm -rf | append-only multi-agent chat |

@@ -88,11 +88,13 @@ module PWN
                      when :trace then ['traces', File.join(id, 'trace.jsonl')]
                      else raise ArgumentError, 'Invalid session support kind'
                      end
-      legacy = File.join(sessions_dir, name)
+      directory = opts[:read_only] ? SESSIONS_DIR : sessions_dir
+      legacy = File.join(directory, name)
       return legacy if File.exist?(legacy) || File.symlink?(legacy)
 
-      path = File.join(sessions_dir, 'support', folder, name)
-      return legacy unless File.exist?(path) || File.symlink?(path) || File.file?(File.join(sessions_dir, '.layout-v2'))
+      path = File.join(directory, 'support', folder, name)
+      return legacy unless File.exist?(path) || File.symlink?(path) || File.file?(File.join(directory, '.layout-v2'))
+      return path if opts[:read_only]
 
       FileUtils.mkdir_p(File.dirname(path), mode: 0o700)
       raise IOError, 'Unsafe session support directory' unless File.realpath(File.dirname(path)) == File.expand_path(File.dirname(path))
@@ -183,11 +185,31 @@ module PWN
       files.concat(Dir.glob(File.join(root, 'artifacts', '{manifest.jsonl,*/index.jsonl,*/engagement-memory.json}')))
       databases = Dir.glob(File.join(root, 'embeddings', '*.db'))
       errors.concat(%w[artifacts embeddings].map { |name| File.join(root, name) }.select { |dir| File.symlink?(dir) || (File.exist?(dir) && !File.directory?(dir)) })
+      admission = Thread.current[:pwn_maintenance_admission]
       directories.each do |dir|
         next unless File.directory?(dir) && !File.symlink?(dir)
 
-        files.concat(Dir.glob(File.join(dir, '**', '*.{json,jsonl}')).reject { |path| File.basename(path) == 'loot.json' })
-        errors.concat(Dir.glob(File.join(dir, '**', '*')).select { |path| File.symlink?(path) })
+        pending = [[dir, Dir.each_child(dir)]]
+        until pending.empty?
+          begin
+            path = File.join(pending.last[0], pending.last[1].next)
+          rescue StopIteration
+            pending.pop
+            next
+          end
+          if admission && !admission.call
+            errors << 'incomplete_dependency_index'
+            break
+          end
+          if File.symlink?(path)
+            errors << path
+          elsif File.directory?(path)
+            pending << [path, Dir.each_child(path)]
+          elsif %w[.json .jsonl].include?(File.extname(path)) && File.basename(path) != 'loot.json'
+            files << path
+          end
+        end
+        break if errors.include?('incomplete_dependency_index')
       end
       dependencies = {}
       evidence_dependencies = {}
@@ -206,12 +228,20 @@ module PWN
         errors << path
       end
       files.uniq.sort.each do |path|
+        if admission && !admission.call
+          errors << 'incomplete_dependency_index'
+          break
+        end
         next unless File.exist?(path) || File.symlink?(path)
 
         begin
           raise IOError, 'Unsafe dependency parent' if errors.any? { |parent| path.start_with?("#{parent}/") }
           raise IOError, 'Unsafe dependency store' unless File.file?(path) && File.realpath(path) == File.expand_path(path)
 
+          if admission && !admission.call(File.size(path))
+            errors << 'incomplete_dependency_index'
+            break
+          end
           bytes = File.binread(path)
           units = dependency_units(path: path, bytes: bytes)
           units.each do |locator, record|
@@ -560,9 +590,12 @@ module PWN
       sid = opts[:session_id].to_s
       raise ArgumentError, 'Invalid session ID' if sid.empty? || File.basename(sid) != sid || sid == '.' || sid == '..'
 
-      File.open(support_path(kind: :lease, session_id: sid), File::RDWR | File::CREAT | File::NOFOLLOW, 0o600) do |lock|
+      path = support_path(kind: :lease, session_id: sid, read_only: true)
+      File.open(path, File::RDONLY | File::NOFOLLOW) do |lock|
         !lock.flock(File::LOCK_EX | File::LOCK_NB)
       end
+    rescue Errno::ENOENT
+      false
     end
 
     # Supported Method Parameters::
@@ -752,7 +785,9 @@ module PWN
       # Character chunks keep Unicode intact, including four-byte characters.
       text.chars.each_slice(1500) do |chunk|
         output = PWN::AI::Router.summarize(text: "Previous overall summary: #{result[:summary]}\nNew conversation turns:\n#{chunk.join}", llm: true, session: true)
-        parsed = JSON.parse(output.to_s.sub(/\A```(?:json)?\s*/, '').sub(/\s*```\z/, ''), symbolize_names: true)
+        raise IOError, 'Session title provider returned no text' if output.to_s.strip.empty?
+
+        parsed = JSON.parse(output.to_s.strip.sub(/\A```(?:json)?\s*/, '').sub(/\s*```\z/, ''), symbolize_names: true)
         raise ArgumentError, 'Invalid summary response' unless parsed.is_a?(Hash) && parsed[:title].is_a?(String) && parsed[:summary].is_a?(String)
         raise ArgumentError, 'Invalid summary title' if !summary_title_valid?(title: parsed[:title]) || parsed[:summary].strip.empty?
 
@@ -835,7 +870,14 @@ module PWN
         content: content,
         timestamp: Time.now.utc.iso8601
       }
-      File.open(path, 'a') { |f| f.puts(JSON.dump(entry)) }
+      File.open("#{path}.write.lock", File::RDWR | File::CREAT | File::NOFOLLOW, 0o600) do |writer|
+        writer.flock(File::LOCK_EX)
+        File.open(path, File::WRONLY | File::APPEND | File::NOFOLLOW) do |file|
+          file.puts(JSON.dump(entry))
+          file.flush
+          file.fsync
+        end
+      end
       provisional_title(session_id: sid, request: content) if role == 'user'
       entry
     ensure
@@ -1236,12 +1278,10 @@ module PWN
       return false unless File.exist?(path)
 
       lease = activate(session_id: File.basename(path, '.jsonl'))
+      writer = File.open("#{path}.write.lock", File::RDWR | File::CREAT | File::NOFOLLOW, 0o600) # rubocop:disable Style/FileOpen -- held through atomic replace; ensure closes it
+      writer.flock(File::LOCK_EX)
       lines = File.readlines(path)
-      rows = lines.map do |l|
-        JSON.parse(l, symbolize_names: true)
-      rescue StandardError
-        nil
-      end.compact
+      rows = lines.map { |line| JSON.parse(line, symbolize_names: true) }
       return false if rows.empty?
 
       # Preserve last assistant fully-ish; compact tools and older assistants
@@ -1266,17 +1306,19 @@ module PWN
       end
       return changed if dry || !changed
 
-      tmp = "#{path}.#{Process.pid}.tmp"
-      File.open(tmp, File::WRONLY | File::CREAT | File::TRUNC, 0o600) do |f|
+      tmp = "#{path}.#{SecureRandom.hex(12)}.tmp"
+      File.open(tmp, File::WRONLY | File::CREAT | File::EXCL | File::NOFOLLOW, 0o600) do |f|
         f.flock(File::LOCK_EX)
         rows.each { |e| f.puts(JSON.generate(e)) }
         f.flush
         f.fsync
       end
       File.rename(tmp, path)
+      File.open(File.dirname(path), File::RDONLY, &:fsync)
       true
     ensure
       FileUtils.rm_f(tmp) if defined?(tmp) && tmp && File.exist?(tmp)
+      writer&.close
       deactivate(lease: lease)
     end
 
@@ -1358,7 +1400,7 @@ module PWN
         #{self}.list(include_hidden: 'optional - include unretained sessions for diagnostics and explicit resume', current_session_id: 'optional - include this active session regardless of naming classification', references: 'optional - precomputed structural dependency index')
 
         # Resolve housekeeping paths with legacy compatibility.
-        #{self}.support_path(kind: 'required - metadata, lease, owner or trace', session_id: 'required - support record identifier')
+        #{self}.support_path(kind: 'required - metadata, lease, owner or trace', session_id: 'required - support record identifier', read_only: 'optional - resolve without creating session or support directories')
 
         # Page retained sessions separately from global store diagnostics.
         #{self}.catalog(offset: 'optional - nonnegative retained session offset, omitted selects newest page', limit: 'optional - page size from one to 200, defaults 25 plus active row if outside page', current_session_id: 'optional - active session id always included without granting retention')

@@ -40,22 +40,25 @@ RSpec.describe 'Persistence redaction' do
   it 'sanitizes regular, learning, debug, mirror, stderr and fallback writes' do
     Dir.mktmpdir do |dir|
       secret = 'ASIAABCDEFGHIJKLMNOP'
-      path = File.join(dir, 'log')
-      allow(File).to receive(:open).and_call_original
-      allow(File).to(receive(:open).with('/tmp/pwn.log', 'a').and_wrap_original { |m, _, mode| m.call(path, mode) })
+      allow(Dir).to receive(:home).and_return(dir)
+      path = File.join(dir, '.pwn', 'logs', 'pwn.log')
       PWN::Plugins::Log.append(level: :info, msg: secret, which_self: secret)
       PWN::Plugins::Log.append(level: :info, msg: { api_key: 'nested-fixture-only' })
       expect(File.read(path)).not_to include(secret, 'nested-fixture-only')
       expect(File.read(path)).to include('[REDACTED:aws:')
-      PWN::Plugins::Log.start_debug(path: path)
-      PWN::Plugins::Log.progress(msg: secret)
-      PWN::Plugins::Log.mirror_tui!(msg: secret)
-      PWN::Plugins::Log.capture_stderr!(text: "#{secret}\n")
+      debug_path = File.join(dir, '.pwn', 'logs', 'debug.log')
+      PWN::Plugins::Log.start_debug(path: debug_path)
+      PWN::Plugins::Log.progress(msg: "progress-sink #{secret}")
+      PWN::Plugins::Log.mirror_tui!(msg: "mirror-sink #{secret}")
+      PWN::Plugins::Log.capture_stderr!(text: "stderr-sink #{secret}\n")
       allow(PWN::Plugins::Log).to receive(:progress).and_return(false)
-      PWN::Plugins::Log.note_interrupt!(where: secret)
+      PWN::Plugins::Log.note_interrupt!(where: "fallback-sink #{secret}")
       PWN::Plugins::Log.stop_debug
-      expect(File.read(path)).not_to include(secret)
-      expect(File.read(path)).to include('[REDACTED:aws:')
+      body = File.read(debug_path)
+      expect(body).not_to include(secret)
+      %w[progress-sink mirror-sink stderr-sink fallback-sink].each do |sink|
+        expect(body).to include("#{sink} [REDACTED:aws:")
+      end
     ensure
       PWN::Plugins::Log.stop_debug
     end

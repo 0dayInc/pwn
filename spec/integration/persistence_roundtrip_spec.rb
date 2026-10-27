@@ -58,13 +58,7 @@ RSpec.describe 'PWN persistence stores — write → reload → delete round-tri
       expect(PWN::Cron.list.keys).not_to include(job[:id])
 
       seeded = PWN::Cron.install_defaults
-      expect(seeded.map { |j| j[:name] }).to include(
-        'curriculum_practice_nightly',
-        'curriculum_train_weekly',
-        'curriculum_offline_judge',
-        'learning_consolidate_nightly',
-        'pwn_stores_lean_nightly'
-      )
+      expect(seeded.map { |j| j[:name] }).to eq(['session_cleanup'])
       expect(PWN::Cron.install_defaults).to eq([]) # idempotent
     end
   end

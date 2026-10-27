@@ -22,6 +22,337 @@ RSpec.describe PWN::SessionCleanup do
     File.write(meta_path, JSON.generate({ id: id, title: title, source: 'pwn-ai' }.merge(value)))
   end
 
+  describe 'housekeeping inventory' do
+    it 'keeps filesystem metadata and bytes unchanged during status and maintenance dry-run' do
+      File.unlink(PWN::Sessions.support_path(kind: :lease, session_id: id))
+      snapshot = lambda do
+        Dir.glob(File.join(@tmp, '**', '*'), File::FNM_DOTMATCH).sort.to_h do |entry|
+          stat = File.lstat(entry)
+          [entry, [stat.ino, stat.mode, stat.size, stat.mtime, stat.ctime, stat.file? ? Digest::SHA256.file(entry).hexdigest : nil]]
+        end
+      end
+      before = snapshot.call
+      described_class.status
+      result = described_class.maintain(dry_run: true)
+      expect(result[:dry_run]).to be(true)
+      expect(snapshot.call).to eq(before)
+    end
+
+    it 'includes legacy migration backups as protected bounded inventory' do
+      directory = File.join(Dir.home, '.pwn', 'backup', '20261025_120000')
+      FileUtils.mkdir_p(directory)
+      File.write(File.join(directory, 'custom.json'), 'only-copy')
+      before = File.stat(directory)
+      row = described_class.status[:categories].fetch('backups')
+      expect(row).to include(files: 1, bytes: 9, unique_bytes: 9, incomplete: false,
+                             policy_mode: 'protected_evidence_no_automatic_deletion')
+      expect(row[:retention_days]).to be_nil
+      expect(File.stat(directory).mtime).to eq(before.mtime)
+      expect(described_class.prune_legacy_backups[:compacted]).to be_empty
+    end
+
+    it 'evicts real producer cache under budget pressure but not an active reader or unknown bytes' do
+      described_class.install
+      config = described_class.policy
+      config['budget_bytes']['cache'] = 0
+      File.write(File.join(Dir.home, '.pwn', 'maintenance', 'policy.json'), JSON.generate(config))
+      binary = File.join(@tmp, 'binary')
+      File.binwrite(binary, "binary\xFF".b)
+      allow(PWN::Plugins::Ghidra).to receive(:analyze).and_return(stdout: '分析', exit: 0)
+      expect(PWN::Plugins::Ghidra.decompile(bin: binary)[:stdout]).to eq('分析')
+      expect(PWN::Plugins::Ghidra.decompile(bin: binary)[:cached]).to be(true)
+      cache = File.join(Dir.home, '.pwn', 'cache', 'decompile', "#{Digest::SHA256.file(binary).hexdigest}.json")
+      unknown = File.join(File.dirname(cache), 'unknown')
+      File.write(unknown, 'keep')
+      File.open("#{cache}.lease", 'r') do |lease|
+        lease.flock(File::LOCK_SH)
+        expect(described_class.clean_disposables(dry_run: false)[:deleted]).to be_empty
+      end
+      expect(described_class.clean_disposables(dry_run: false)[:deleted]).to eq([cache])
+      expect(File.read(unknown)).to eq('keep')
+    end
+
+    it 'keeps the old cache intact when atomic replacement runs out of space' do
+      cache = File.join(Dir.home, '.pwn', 'cache', 'failure')
+      described_class.cache(path: cache, bytes: 'before')
+      allow(File).to receive(:rename).and_call_original
+      allow(File).to receive(:rename).with(anything, cache).and_raise(Errno::ENOSPC)
+      expect { described_class.cache(path: cache, bytes: 'after') }.to raise_error(Errno::ENOSPC)
+      expect(described_class.cache(path: cache)).to eq('before')
+      expect(Dir.glob("#{cache}.*").reject { |name| name.end_with?('.lease') }).to be_empty
+    end
+
+    it 'rotates real ordinary logs and protects debug writers through request closure' do
+      described_class.install
+      log = File.join(Dir.home, '.pwn', 'logs', 'pwn.log')
+      PWN::Plugins::Log.append(level: :info, msg: 'first', which_self: self)
+      expect(File.read(log)).to include('first')
+      File.open(log, 'a') { |file| file.write('x' * 1_024_000) }
+      PWN::Plugins::Log.append(level: :info, msg: 'second', which_self: self)
+      expect(File.read(log)).to include('second')
+      expect(File.size(log)).to be < 1_024_000
+      expect(Dir.glob("#{log}.*").reject { |name| name.end_with?('.lease') }.length).to eq(1)
+      debug = File.join(Dir.home, '.pwn', 'logs', 'request.log')
+      PWN::Plugins::Log.send(:open_debug_file!, path: debug)
+      expect { described_class.register_disposable(path: debug, category: 'logs') }.to raise_error(IOError, /active/)
+      PWN::Plugins::Log.send(:close_debug_file!)
+      manifest = File.join(Dir.home, '.pwn', 'maintenance', 'disposable', "#{Digest::SHA256.hexdigest(debug)}.json")
+      expect(File.file?(manifest)).to be(true)
+    ensure
+      PWN::Plugins::Log.send(:close_debug_file!)
+    end
+
+    it 'coalesces startup work without scanning and executes it once through the existing cron tick' do
+      cron = File.join(Dir.home, '.pwn', 'cron')
+      allow(PWN::Cron).to receive(:cron_dir).and_return(cron)
+      FileUtils.mkdir_p(cron)
+      expect(described_class).not_to receive(:status)
+      expect(described_class).not_to receive(:maintain)
+      PWN::Cron.install_defaults
+      request = File.join(Dir.home, '.pwn', 'maintenance', 'background.json')
+      bytes = File.binread(request)
+      PWN::Cron.install_defaults
+      expect(File.binread(request)).to eq(bytes)
+      allow(PWN::Cron).to receive(:due_jobs).and_return({})
+      job = PWN::Cron.list.values.find { |entry| entry[:name] == 'session_cleanup' }
+      expect(PWN::Cron).to receive(:run).with(id: job[:id]).once.and_return(status: 'success', duration: 0)
+      expect(PWN::Cron.tick.length).to eq(1)
+      expect(PWN::Cron.tick).to be_empty
+      expect(JSON.parse(File.read(request))['state']).to eq('completed')
+    end
+
+    it 'reports an interrupted broad transaction without losing the prepared ledger' do
+      described_class.install
+      allow(described_class).to receive(:maintenance_transaction).and_raise(Interrupt)
+      expect { described_class.maintain(dry_run: false) }.to raise_error(Interrupt)
+      ledger = Dir.glob(File.join(Dir.home, '.pwn', 'maintenance', 'runs', '*.json')).fetch(0)
+      expect(JSON.parse(File.read(ledger))).to include('state' => 'interrupted', 'error' => 'Interrupt')
+    end
+
+    it 'serializes cache publication across real processes and threads' do
+      cache = File.join(Dir.home, '.pwn', 'cache', 'concurrent')
+      described_class.cache(path: cache, bytes: 'initial')
+      workers = 2.times.map do |worker|
+        fork do
+          threads = 3.times.map do |thread|
+            Thread.new { 8.times { |index| described_class.cache(path: cache, bytes: JSON.generate(worker: worker, thread: thread, index: index, text: '日本語')) } }
+          end
+          threads.each(&:value)
+          exit! 0
+        rescue StandardError
+          exit! 1
+        end
+      end
+      workers.each { |pid| expect(Process.wait2(pid).last.success?).to be(true) }
+      body = described_class.cache(path: cache)
+      expect(JSON.parse(body)['text']).to eq('日本語')
+      manifest = File.join(Dir.home, '.pwn', 'maintenance', 'disposable', "#{Digest::SHA256.hexdigest(cache)}.json")
+      expect(JSON.parse(File.read(manifest))['sha256']).to eq(Digest::SHA256.hexdigest(body))
+    end
+
+    it 'bounds evidence migration without dropping unmigrated rows or breaking readers' do
+      other = '20200101_010204_abcdef12'
+      PWN::Sessions.create(id: other)
+      [id, other].each { |sid| PWN::Sessions.append(session_id: sid, role: 'user', content: '証拠') }
+      file = PWN::AI::Agent::Learning::LEARNING_FILE
+      File.write(file, [id, other].map { |sid| JSON.generate(session_id: sid, outcome: 'fixture') }.join("\n"))
+      result = PWN::AI::Agent::Learning.migrate_evidence(dry_run: false, max_sessions: 1)
+      expect(result[:migrated_rows]).to eq(1)
+      rows = File.readlines(file).map { |line| JSON.parse(line) }
+      expect(rows.length).to eq(2)
+      expect(rows.count { |row| row['evidence_ref'] }).to eq(1)
+      expect(PWN::Sessions.load(session_id: other).last[:content]).to eq('証拠')
+      expect(PWN::AI::Agent::Learning.migrate_evidence(dry_run: false, max_sessions: 1)[:migrated_rows]).to eq(1)
+    end
+
+    it 'honors session retention floors and cooperative cancellation before deletion' do
+      allow(described_class).to receive(:legacy_owners).and_return([])
+      described_class.install
+      config = File.join(Dir.home, '.pwn', 'maintenance', 'policy.json')
+      value = described_class.policy
+      value['retention_days']['sessions'] = 1
+      File.write(config, JSON.generate(value))
+      expect(described_class.run(dry_run: false)[:deleted_ids]).to be_empty
+      value['retention_days']['sessions'] = 0
+      File.write(config, JSON.generate(value))
+      control = double(stopping?: true)
+      Thread.current[:pwn_steering_input] = control
+      expect(described_class.run(dry_run: false)[:deleted_ids]).to be_empty
+      expect(File.file?(path)).to be(true)
+    ensure
+      Thread.current[:pwn_steering_input] = nil
+    end
+
+    it 'expires only committed verified disposable backups and retains prepared recovery evidence' do
+      file = File.join(Dir.home, '.pwn', 'tmp', 'expired-backup')
+      FileUtils.mkdir_p(File.dirname(file))
+      File.write(file, 'disposable')
+      described_class.register_disposable(path: file, category: 'tmp', expires_at: 0)
+      result = described_class.clean_disposables(dry_run: false)
+      backup = result[:records].first['backup']
+      old = Time.now - (100 * 86_400)
+      File.utime(old, old, result[:ledger])
+      expect(described_class.prune_quarantine(dry_run: true)[:eligible]).to eq([backup])
+      expect(File.file?(backup)).to be(true)
+      expect(described_class.prune_quarantine(dry_run: false)[:deleted]).to eq([backup])
+      expect(File.exist?(backup)).to be(false)
+      expect(JSON.parse(File.read(result[:ledger]))['state']).to eq('expired')
+    end
+
+    it 'requires explicit continuation retirement and preserves an active association' do
+      swarm = PWN::AI::Agent::Swarm
+      root = File.join(Dir.home, '.pwn', 'swarm')
+      stub_const('PWN::AI::Agent::Swarm::SWARM_ROOT', root)
+      sid = swarm.create[:swarm_id]
+      swarm.spawn(name: 'fixture', role: 'fixture', swarm_id: sid)
+      map = File.join(root, sid, 'personas.json')
+      File.write(map, JSON.generate('fixture' => id))
+      lease = PWN::Sessions.activate(session_id: id)
+      expect { swarm.retire(name: 'fixture', swarm_id: sid, local: true, continuation: true) }.to raise_error(IOError, /active/)
+      expect(JSON.parse(File.read(map))['fixture']).to eq(id)
+      PWN::Sessions.deactivate(lease: lease)
+      lease = nil
+      result = swarm.retire(name: 'fixture', swarm_id: sid, local: true, continuation: true)
+      expect(result[:continuation]).to include(session_id: id, state: 'committed')
+      expect(JSON.parse(File.read(map))).not_to have_key('fixture')
+      expect(File.exist?(path)).to be(true)
+      expect(swarm.send(:persona_session, swarm_id: sid, name: 'fixture')).not_to eq(id)
+    ensure
+      PWN::Sessions.deactivate(lease: lease) if lease
+    end
+
+    it 'bounds applying session batches without hiding remaining candidates' do
+      allow(described_class).to receive(:legacy_owners).and_return([])
+      PWN::Sessions.create(id: '20200101_010203_abcdef13')
+      described_class.install
+      config = File.join(Dir.home, '.pwn', 'maintenance', 'policy.json')
+      File.write(config, JSON.generate(described_class.policy.merge('batch_size' => 1)))
+      result = described_class.run(dry_run: false)
+      expect(result[:deleted_ids].length).to eq(1)
+      expect(result[:candidate_ids].length).to eq(2)
+      expect(result[:skipped][:batch_limit]).to eq(1)
+      expect(Dir.glob(File.join(PWN::Sessions.sessions_dir, '*.jsonl')).length).to eq(1)
+    end
+
+    it 'preserves failed writes and exposes interrupted prepared records instead of declaring completion' do
+      file = File.join(Dir.home, '.pwn', 'tmp', 'failure')
+      FileUtils.mkdir_p(File.dirname(file))
+      File.binwrite(file, "binary\xFF".b)
+      described_class.register_disposable(path: file, category: 'tmp', expires_at: 0)
+      allow(File).to receive(:unlink).and_call_original
+      allow(File).to receive(:unlink).with(file).and_raise(Errno::EACCES)
+      result = described_class.clean_disposables(dry_run: false)
+      expect(result[:state]).to eq('interrupted')
+      expect(File.binread(file)).to eq("binary\xFF".b)
+      ledger = JSON.parse(File.binread(result[:ledger]))
+      expect(ledger['records'].first['state']).to eq('prepared')
+      expect(File.binread(ledger['records'].first['backup'])).to eq(File.binread(file))
+    ensure
+      allow(File).to receive(:unlink).and_call_original
+    end
+
+    it 'recovers exact disposable backups without overwriting changed destinations' do
+      file = File.join(Dir.home, '.pwn', 'tmp', 'binary')
+      FileUtils.mkdir_p(File.dirname(file))
+      bytes = "café\xFF\x00".b
+      File.binwrite(file, bytes)
+      described_class.register_disposable(path: file, category: 'tmp', expires_at: 0)
+      result = described_class.clean_disposables(dry_run: false)
+      expect(described_class.recover(ledger: result[:ledger])[:restored]).to be_empty
+      expect(File.exist?(file)).to be(false)
+      expect(described_class.recover(ledger: result[:ledger], dry_run: false)[:restored]).to eq([file])
+      expect(File.binread(file)).to eq(bytes)
+      File.binwrite(file, 'later user edit')
+      expect { described_class.recover(ledger: result[:ledger], dry_run: false) }.to raise_error(IOError, /existing/)
+      expect(File.binread(file)).to eq('later user edit')
+    end
+
+    it 'serializes transcript compaction and append on a permanent writer inode' do
+      lock_path = "#{path}.write.lock"
+      writer = nil
+      File.open(lock_path, 'a') do |lock|
+        lock.flock(File::LOCK_EX)
+        entered = Queue.new
+        writer = Thread.new do
+          entered << true
+          PWN::Sessions.append(session_id: id, role: 'assistant', content: 'retained append')
+        end
+        entered.pop
+        expect(writer.join(0.05)).to be_nil
+      end
+      writer.join(2)
+      expect(writer).not_to be_alive
+      expect(PWN::Sessions.load(session_id: id).last[:content]).to eq('retained append')
+      inode = File.stat(lock_path).ino
+      PWN::Sessions.send(:compact_transcript!, path: path, assistant_content_max: 2)
+      expect(File.stat(lock_path).ino).to eq(inode)
+      expect(Dir.glob("#{path}.*.tmp")).to be_empty
+    ensure
+      writer&.join(2)
+    end
+
+    it 'dispatches maintenance status locally and shares routine cleanup with the cron entry point' do
+      expect(PWN::Plugins::REPL).to receive(:pwn_ai_print_result).with(value: hash_including(operation: 'status'))
+      expect(PWN::Plugins::REPL.pwn_ai_dispatch_slash!(request: '/maintenance status', raise_errors: true)).to be_truthy
+      allow(described_class).to receive(:legacy_owners).and_return([])
+      expect(described_class).to receive(:clean_disposables).with(dry_run: true).and_call_original
+      expect(described_class.maintain(dry_run: true)[:storage]).to include(operation: 'routine')
+    end
+
+    it 'cleans only verified expired disposable bytes and preserves active, changed and unknown files' do
+      root = File.join(Dir.home, '.pwn', 'cache')
+      FileUtils.mkdir_p(root)
+      paths = %w[expired active changed unknown].to_h { |name| [name, File.join(root, name)] }
+      paths.each_value { |file| File.binwrite(file, "café\x00".b) }
+      %w[expired active changed].each { |name| described_class.register_disposable(path: paths[name], category: 'cache', expires_at: Time.now.to_i - 1) }
+      File.binwrite(paths['changed'], 'new data')
+      File.open("#{paths['active']}.lease", 'a') do |lease|
+        lease.flock(File::LOCK_SH)
+        preview = described_class.clean_disposables(dry_run: true)
+        expect(preview[:eligible]).to eq([paths['expired']])
+        expect(File.exist?(paths['expired'])).to be(true)
+        result = described_class.clean_disposables(dry_run: false)
+        expect(result[:deleted]).to eq([paths['expired']])
+        expect(File.exist?(paths['expired'])).to be(false)
+        expect(JSON.parse(File.binread(result[:ledger]))['state']).to eq('committed')
+      end
+      %w[active changed unknown].each { |name| expect(File.file?(paths[name])).to be(true) }
+    end
+
+    it 'reports all storage categories read-only and preserves unknown files' do
+      root = File.join(Dir.home, '.pwn')
+      FileUtils.mkdir_p(File.join(root, 'tmp'))
+      unknown = File.join(root, 'tmp', 'unknown.bin')
+      File.binwrite(unknown, "\xFF\x00".b)
+      before = Dir.glob(File.join(root, '**', '*'), File::FNM_DOTMATCH).sort
+      status = described_class.status
+      expect(status[:categories].keys).to match_array(%w[sessions learning artifacts state logs cache tmp maintenance backups])
+      expect(status[:categories]['tmp']).to include(files: 1, bytes: 2)
+      expect(Dir.glob(File.join(root, '**', '*'), File::FNM_DOTMATCH).sort).to eq(before)
+      expect(File.binread(unknown)).to eq("\xFF\x00".b)
+    end
+  end
+end
+
+RSpec.describe PWN::SessionCleanup do
+  include_context 'pwn tmp sandbox'
+
+  let(:id) { '20200101_010203_abcdef12' }
+  let(:title) { "pwn-ai session #{id}" }
+  let(:path) { File.join(PWN::Sessions.sessions_dir, "#{id}.jsonl") }
+  let(:meta_path) { path.sub('.jsonl', '.meta.json') }
+
+  before do
+    allow(Dir).to receive(:home).and_return(File.join(@tmp, 'home'))
+    FileUtils.mkdir_p(File.join(Dir.home, '.pwn'))
+    stub_const('PWN::AI::Agent::Learning::LEARNING_FILE', File.join(Dir.home, '.pwn', 'learning.jsonl'))
+    PWN::Sessions.create(id: id)
+  end
+
+  def metadata(value)
+    File.write(meta_path, JSON.generate({ id: id, title: title, source: 'pwn-ai' }.merge(value)))
+  end
+
   describe 'reader-based historical retention' do
     it 'keeps incomplete provenance records and reusable swarm associations, including retired registry names' do
       allow(described_class).to receive(:legacy_owners).and_return([])
@@ -289,14 +620,16 @@ RSpec.describe PWN::SessionCleanup do
     cron_id = PWN::Sessions.create[:id]
     payload = PWN::Cron::DEFAULT_JOBS.find { |job| job[:name] == 'session_cleanup' }[:ruby]
     allow(PWN::Cron).to receive(:cron_dir).and_return(File.expand_path('../../../etc/default_cron', __dir__))
-    expect(eval(payload)[:deleted_ids]).to eq([cron_id]) # rubocop:disable Security/Eval -- execute the exact bundled local job
+    coordinated = eval(payload) # rubocop:disable Security/Eval -- execute the exact bundled local job
+    expect(coordinated.dig(:phases, :maintenance, :deleted_ids)).to eq([cron_id])
+    expect(File).not_to exist(File.join(PWN::Sessions.sessions_dir, "#{cron_id}.jsonl"))
     legacy_id = PWN::Sessions.create[:id]
     expect(described_class.run(dry_run: false)[:deleted_ids]).to eq([legacy_id])
   end
 
   it 'does not migrate evidence or delete while legacy ownership is unresolved' do
     allow(described_class).to receive(:legacy_owners).and_return([{ pid: 123, reason: 'legacy_session_ownership_unknown' }])
-    expect(PWN::AI::Agent::Learning).to receive(:migrate_evidence).with(dry_run: true).and_call_original
+    expect(PWN::AI::Agent::Learning).to receive(:migrate_evidence).with(hash_including(dry_run: true, max_sessions: 100)).and_call_original
     expect(described_class.maintain[:apply_blocked]).to be(true)
     expect(File).to exist(path)
   end

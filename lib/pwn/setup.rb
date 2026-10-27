@@ -1047,22 +1047,20 @@ module PWN
       end
 
       if dry_run
-        st = PWN::Cron.scheduler_status(apply: false)
+        st = { worker: PWN::Cron.worker_status, backend: :worker }
         io.puts "#{'cron worker'.ljust(26)} #{st.dig(:worker, :running) ? OK : MISS}   (dry-run, backend=#{st[:backend]}, enabled=#{enabled})"
         return { ok: true, dry_run: true, worker: st[:worker], backend: st[:backend], enabled: enabled }
       end
 
       unless enabled
-        native = begin
-          PWN::Cron.uninstall_scheduler(apply: opts.fetch(:apply, PWN::Cron.apply_native?))
-        rescue StandardError => e
-          io.puts "#{'cron scheduler'.ljust(26)} #{MISS}   #{e.class}: #{e.message}"
-          { ok: false, error: "#{e.class}: #{e.message}" }
-        end
+        PWN::Cron.persist_scheduler_config(enabled: false)
+        worker = PWN::Cron.stop_worker
+        native = { backend: :worker, worker: worker }
         io.puts "#{'cron scheduler'.ljust(26)} #{OK}   disabled (#{native[:backend] || 'none'})"
         return { ok: true, enabled: false, native: native, seeded: [] }
       end
 
+      PWN::Cron.persist_scheduler_config(enabled: true) if opts.key?(:enabled)
       seeded = begin
         PWN::Cron.install_defaults
       rescue StandardError => e
@@ -1078,6 +1076,7 @@ module PWN
           seeded: seeded,
           worker: live.merge(already_running: true),
           skipped_spawn: true,
+          backend: :worker,
           enabled: true
         }
       end
@@ -1097,16 +1096,9 @@ module PWN
       mark = st[:running] ? OK : MISS
       io.puts "#{'cron worker'.ljust(26)} #{mark}   #{label} pid=#{st[:pid] || worker[:pid] || 'none'}"
 
-      native = begin
-        PWN::Cron.install_scheduler(
-          enabled: true,
-          apply: opts.fetch(:apply, PWN::Cron.apply_native?)
-        )
-      rescue StandardError => e
-        io.puts "#{'cron scheduler'.ljust(26)} #{MISS}   #{e.class}: #{e.message}"
-        { ok: false, error: "#{e.class}: #{e.message}" }
-      end
-      backend = native.is_a?(Hash) ? native[:backend] : nil
+      # Setup never installs, starts, removes or repairs native schedulers.
+      native = { ok: true, backend: :worker, persisted: false }
+      backend = :worker
       io.puts "#{'cron scheduler'.ljust(26)} #{native[:ok] == false ? MISS : OK}   backend=#{backend || 'none'}"
 
       {

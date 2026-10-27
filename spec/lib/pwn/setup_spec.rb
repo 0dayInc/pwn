@@ -68,7 +68,7 @@ describe PWN::Setup do
     expect(res[:dry_run]).to be true
     expect(res[:ok]).to be true
   end
-  it 'ensure_cron enabled:false uninstalls the OS scheduler without spawning' do
+  it 'ensure_cron enabled:false disables only the internal worker without native changes' do
     tmp = Dir.mktmpdir('pwn-setup-nocron-')
     stub_const('PWN::Cron::CRON_DIR', tmp)
     stub_const('PWN::Cron::JOBS_FILE', File.join(tmp, 'jobs.yml'))
@@ -76,6 +76,8 @@ describe PWN::Setup do
     stub_const('PWN::Cron::WORKER_LOG', File.join(tmp, 'worker.log'))
     ENV['PWN_CRON_DIR'] = tmp
     io = StringIO.new
+    expect(PWN::Cron).not_to receive(:install_scheduler)
+    expect(PWN::Cron).not_to receive(:uninstall_scheduler)
     res = PWN::Setup.ensure_cron(enabled: false, apply: false, io: io)
     expect(res[:enabled]).to be false
     expect(res[:ok]).to be true

@@ -101,16 +101,17 @@ module PWN
         sha = Digest::SHA256.file(path).hexdigest
         sid = (opts[:session_id] || 'triage').to_s
         cache_dir = File.join(Dir.home, '.pwn', 'cache', 'triage')
-        FileUtils.mkdir_p(cache_dir)
         cache = File.join(cache_dir, "#{sha}.json")
-        if File.file?(cache)
-          cached = JSON.parse(File.read(cache), symbolize_names: true)
+        require File.expand_path('../../../etc/default_cron/session_cleanup', __dir__)
+        cached_bytes = PWN::SessionCleanup.cache(path: cache)
+        if cached_bytes
+          cached = JSON.parse(cached_bytes, symbolize_names: true)
           spilled = persist_triage(body: cached, session_id: sid)
           return cached.merge(cached: true, handle: spilled[:handle], artifact: spilled)
         end
 
         body = inspect_binary(opts.merge(path: path, sha256: sha))
-        File.write(cache, JSON.pretty_generate(body))
+        PWN::SessionCleanup.cache(path: cache, bytes: JSON.pretty_generate(body))
         facts_dir = File.join(Dir.home, '.pwn', 'engagements', 'default', 'binaries', sha)
         FileUtils.mkdir_p(facts_dir)
         File.write(File.join(facts_dir, 'facts.json'), JSON.pretty_generate(body))

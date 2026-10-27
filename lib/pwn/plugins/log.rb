@@ -60,8 +60,9 @@ module PWN
           log_file_path = "/tmp/pwn-ai-#{session}.json" if level == :learning
           log_file = File.open(log_file_path, 'w')
         else
-          log_file_path = '/tmp/pwn.log'
-          log_file = File.open(log_file_path, 'a')
+          require 'stringio'
+          log_file_path = File.join(Dir.home, '.pwn', 'logs', 'pwn.log')
+          log_file = StringIO.new
         end
 
         # Leave 10 "old" log files where
@@ -124,6 +125,10 @@ module PWN
         end
 
         logger.add(logger.level, PWN::Redaction.redact(value: log_event), PWN::Redaction.redact(value: which_self))
+        unless level == :learning
+          require File.expand_path('../../../etc/default_cron/session_cleanup', __dir__)
+          PWN::SessionCleanup.append_log(path: log_file_path, bytes: log_file.string)
+        end
         logger.close
       rescue Interrupt
         note_interrupt!(where: 'CTRL+C', which_self: self) if debug_enabled?
@@ -424,9 +429,18 @@ module PWN
           unless @debug_file.nil? || @debug_file.closed?
             @debug_file.puts(PWN::Redaction.token(kind: 'stream', value: @stderr_redaction_buffer)) unless @stderr_redaction_buffer.to_s.empty?
             @debug_file.close
+            @debug_lease&.close
+            @debug_lease = nil
+            if @debug_path.to_s.start_with?("#{File.join(Dir.home, '.pwn', 'logs')}/")
+              require File.expand_path('../../../etc/default_cron/session_cleanup', __dir__)
+              PWN::SessionCleanup.register_disposable(path: @debug_path, category: 'logs')
+            end
           end
         rescue StandardError
           nil
+        ensure
+          @debug_lease&.close
+          @debug_lease = nil
         end
         @debug_file = nil
         @stderr_redaction_buffer = ''
@@ -439,6 +453,8 @@ module PWN
 
         close_debug_file!
         FileUtils.mkdir_p(File.dirname(path))
+        @debug_lease = File.open("#{path}.lease", File::RDWR | File::CREAT | File::NOFOLLOW, 0o600)
+        @debug_lease.flock(File::LOCK_EX)
         io = File.open(path, 'a', 0o600)
         io.chmod(0o600)
         io.sync = true

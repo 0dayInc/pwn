@@ -5,12 +5,30 @@
 exec('bundle', 'exec', 'rake', *ARGV) unless ENV['BUNDLE_BIN_PATH'] || ENV['RUBYOPT'].to_s.include?('bundler/setup')
 
 require 'bundler/setup'
+require 'English'
 require 'bundler/gem_tasks'
 require 'rspec/core/rake_task'
 require 'rdoc/task'
 require 'rubocop/rake_task'
 
-RSpec::Core::RakeTask.new(:spec)
+# RSpec's stock task maps a signalled child to exit 1 without naming the
+# signal. Preserve that evidence when an interrupted run has no summary.
+class DiagnosticSpecTask < RSpec::Core::RakeTask
+  def run_task(verbose)
+    super
+  rescue SystemExit
+    status = $CHILD_STATUS
+    if status
+      result = status.signaled? ? "signal=#{Signal.signame(status.termsig)}" : "exit=#{status.exitstatus}"
+      warn "RSpec child failed: #{result}"
+    end
+    raise
+  end
+end
+
+DiagnosticSpecTask.new(:spec) do |task|
+  task.rspec_opts = "#{task.rspec_opts} --require ./spec/support/gate_failure_formatter.rb --format progress --format GateFailureFormatter"
+end
 task :silence_rspec_filter_banner do
   ENV['PWN_RAKE_SPEC'] = '1'
 end

@@ -59,7 +59,7 @@ module PWN
 
         extractive(text: text)
       rescue StandardError
-        return '' if session
+        raise if session
 
         extractive(text: text)
       end
@@ -163,12 +163,55 @@ module PWN
         return nil unless mod.respond_to?(:chat)
 
         resp = mod.chat(request: opts[:request], model: endpoint[:model], spinner: false, quiet: true, timeout: 8)
-        text = resp.is_a?(Hash) ? (resp[:content] || resp['content'] || resp.dig(:choices, -1, :content)).to_s : resp.to_s
+        text = response_text(response: resp)
         text.strip.empty? ? nil : text
       rescue StandardError
+        raise if opts[:session]
+
         nil
       ensure
         Thread.current[:pwn_session_title] = previous_title_worker
+      end
+
+      # Only decode documented assistant-content locations, never container inspect
+      # strings, reasoning blocks, tool arguments or echoed user messages.
+      private_class_method def self.response_text(opts = {})
+        response = opts[:response]
+        return response if response.is_a?(String)
+        return '' unless response.is_a?(Hash)
+
+        row = response.transform_keys(&:to_s)
+        return JSON.generate(row) if row['title'].is_a?(String) && row['summary'].is_a?(String)
+        return content_text(content: row['content']) if row.key?('content')
+
+        choice = Array(row['choices']).last
+        if choice.is_a?(Hash)
+          choice = choice.transform_keys(&:to_s)
+          message = choice['message'] || choice
+          if message.is_a?(Hash)
+            message = message.transform_keys(&:to_s)
+            return '' if message['role'] && message['role'] != 'assistant'
+
+            return content_text(content: message['content'])
+          end
+        end
+        message = row['message']
+        return content_text(content: message[:content] || message['content']) if message.is_a?(Hash)
+
+        ''
+      end
+
+      private_class_method def self.content_text(opts = {})
+        content = opts[:content]
+        return content if content.is_a?(String)
+        return '' unless content.is_a?(Array)
+
+        content.filter_map do |block|
+          next unless block.is_a?(Hash)
+
+          block = block.transform_keys(&:to_s)
+          block['text'] if %w[text output_text].include?(block['type']) && block['text'].is_a?(String)
+        end.join
       end
 
       private_class_method def self.active_session_endpoint

@@ -20,7 +20,7 @@ hardware).
 | `pwn --ai PROMPT` | `bin/pwn` | Headless one-shot agent (CI-friendly) |
 | `pwn setup` | `lib/pwn/setup.rb` · `bin/pwn_setup` | Post-install doctor + capability provisioner + `--migrate` state doctor (also `pwn --setup[=PROFILE]`) |
 | `bin/` (including `pwn-ai` and `pwn-capd`) | 56 files | Thin OptionParser wrappers plus the `pwn` REPL / one-shot agent |
-| `PWN::Cron` | `lib/pwn/cron.rb` | Scheduled jobs + background worker (`pwn setup`). Fresh install seeds hygiene on (`learning_consolidate_nightly`, `pwn_stores_lean_nightly`) and curriculum practice/judge/train off |
+| `PWN::Cron` | `lib/pwn/cron.rb` | Scheduled jobs + background worker (`pwn setup`). Fresh install seeds one `session_cleanup` housekeeping coordinator; curriculum schedules require explicit creation. Existing schedules are preserved |
 
 ## L2 - AI agent core (`lib/pwn/ai/agent/`)
 

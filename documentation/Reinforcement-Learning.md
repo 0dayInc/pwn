@@ -359,14 +359,13 @@ This is the live control list. Track the outcomes, not source comments.
 ```ruby
 # Seeded idempotently by PWN::Cron.install_defaults (pwn setup --migrate):
 PWN::Cron.install_defaults
-# -> curriculum_practice_nightly   0 3  * * *  Curriculum.practice(limit: 3)
-# -> curriculum_offline_judge     30 3  * * *  Curriculum.offline_judge(since_hours: 24, limit: 40)
-# -> curriculum_train_weekly       0 4  * * 0  Curriculum.train_and_gate(dry_run: true)  # false only with trainer+GPU
-# -> learning_consolidate_nightly  0 5  * * *  Learning.consolidate
+# -> session_cleanup  45 3 * * *  SessionCleanup.coordinate(dry_run: false)
 ```
 
-`install_defaults` treats the legacy name `offline_judge_nightly` as an alias of
-`curriculum_offline_judge` and will not double-seed the same slot.
+Curriculum practice, judge and training are explicit opt-ins, not seeded jobs.
+Select a template from `PWN::Cron::CURRICULUM_JOBS` and explicitly create it only
+when wanted (see [Cron](Cron.md)). Deletion survives repeated default installation
+and migration. Existing jobs and legacy aliases remain unchanged.
 `pwn setup` also starts the background cron worker so these YAML jobs fire
 without a per-job crontab line.
 

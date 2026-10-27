@@ -44,7 +44,7 @@ if [[ $old_ruby_version == $new_ruby_version ]]; then
   export rvmsudo_secure_path=1
   rvmsudo /bin/bash --login -c "cd ${pwn_root} && ./reinstall_gemset.sh"
   cd /tmp && cd "$pwn_root"
-  rvmsudo /bin/bash --login -c "cd ${pwn_root} && bundle exec rake"
+  ruby "${pwn_root}/scripts/build_gate.rb" rvmsudo /bin/bash --login -c "cd ${pwn_root} && bundle exec rake"
   rvmsudo /bin/bash --login -c "cd ${pwn_root} && bundle exec rake install"
   rvmsudo /bin/bash --login -c "cd ${pwn_root} && bundle exec rake rerdoc"
   echo "Invoking bundle-audit Gemfile Scanner..."

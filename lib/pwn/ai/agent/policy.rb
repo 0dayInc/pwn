@@ -4,6 +4,7 @@ require 'json'
 require 'fileutils'
 require 'time'
 require 'digest'
+require_relative '../../memory'
 
 module PWN
   module AI
@@ -696,6 +697,8 @@ module PWN
 
         public_class_method def self.lean!(opts = {})
           dry = opts[:dry_run] ? true : false
+          return PWN::Memory.transaction(path: TRAJECTORY_FILE) { lean!(opts) } unless dry || PWN::Memory.transaction_owned?(path: TRAJECTORY_FILE)
+
           return { skipped: true } unless File.exist?(TRAJECTORY_FILE)
 
           rows = File.readlines(TRAJECTORY_FILE)
@@ -1385,6 +1388,8 @@ module PWN
         end
 
         private_class_method def self.persist_episode!(opts = {})
+          return PWN::Memory.transaction(path: TRAJECTORY_FILE) { persist_episode!(opts) } unless PWN::Memory.transaction_owned?(path: TRAJECTORY_FILE)
+
           ep = opts[:episode]
           return unless ep.is_a?(Hash)
 

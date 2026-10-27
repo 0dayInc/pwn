@@ -37,13 +37,14 @@ module PWN
 
         sha = Digest::SHA256.file(path).hexdigest if File.file?(path)
         cache = File.join(Dir.home, '.pwn', 'cache', 'decompile', "#{sha}.json") if sha
-        return JSON.parse(File.read(cache), symbolize_names: true).merge(cached: true) if cache && File.file?(cache)
+        require File.expand_path('../../../etc/default_cron/session_cleanup', __dir__)
+        cached = PWN::SessionCleanup.cache(path: cache) if cache
+        return JSON.parse(cached, symbolize_names: true).merge(cached: true) if cached
 
         row = analyze(opts)
         fn = opts[:function].to_s
         row[:function] = fn unless fn.empty?
-        FileUtils.mkdir_p(File.dirname(cache)) if cache
-        File.write(cache, JSON.generate(row)) if cache
+        PWN::SessionCleanup.cache(path: cache, bytes: JSON.generate(row)) if cache
         row
       end
 
