@@ -202,7 +202,11 @@ end
 describe PWN::Cron do
   describe 'OS-agnostic scheduler' do
     before do
-      @tmp = Dir.mktmpdir('pwn-cron-os-spec-')
+      # install_defaults owns siblings of cron_dir (maintenance/cache/tmp).
+      # Give it a complete private root, never the shared Dir.tmpdir parent.
+      @root = Dir.mktmpdir('pwn-cron-os-spec-')
+      @tmp = File.join(@root, 'cron')
+      FileUtils.mkdir_p(@tmp)
       stub_const('PWN::Cron::CRON_DIR', @tmp)
       stub_const('PWN::Cron::JOBS_FILE', File.join(@tmp, 'jobs.yml'))
       stub_const('PWN::Cron::PID_FILE', File.join(@tmp, 'worker.pid'))
@@ -212,13 +216,14 @@ describe PWN::Cron do
 
     after do
       ENV.delete('PWN_CRON_DIR')
-      FileUtils.remove_entry(@tmp) if @tmp && Dir.exist?(@tmp)
+      FileUtils.remove_entry(@root) if @root && Dir.exist?(@root)
     end
 
     it 'keeps default housekeeping off every native installer' do
       allow(described_class).to receive(:scheduler_backend).and_return(:systemd_user)
       expect(described_class).not_to receive(:systemd_user)
       described_class.install_defaults
+      expect(File.file?(File.join(@root, 'maintenance', 'policy.json'))).to be(true)
       job = described_class.list.values.find { |row| row[:name] == 'session_cleanup' }
       %i[install_native_job install_systemd_user_job install_crontab_job install_launchd_job install_schtasks_job].each do |method|
         expect(described_class.public_send(method, job: job, apply: true)).to include(skipped: true, reason: :housekeeping_internal_only)

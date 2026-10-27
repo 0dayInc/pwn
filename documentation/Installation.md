@@ -579,6 +579,15 @@ rake install                         # or: rvmsudo rake install (multi-user RVM)
 pwn setup --profile full --yes       # same provisioner, same data tables
 ```
 
+The `upgrade_pwn.sh` → `build_gem.sh` validation gate still runs through
+`rvmsudo` on multi-user RVM installations. Its merged stdout/stderr is streamed
+and retained in the invoking user's `~/.pwn/logs/build-gate.log` (mode 0600,
+last 1 MiB, replaced on the next gate). The path is printed before execution
+and on failure; installation does not continue after a failed gate. `rake spec`
+also prints each failure immediately and reports the RSpec child's exit status
+or signal, so a later terminated example cannot hide earlier failure details.
+A signal report is diagnostic evidence, not a claim about who sent the signal.
+
 The legacy `./install.sh` / `packer/provisioners/pwn.sh` bash paths still
 work, but they now simply delegate to `pwn setup` - the `case $os` package
 lists have been consolidated into `PWN::Setup::NATIVE_GEMS` / `::TOOLCHAIN`.
