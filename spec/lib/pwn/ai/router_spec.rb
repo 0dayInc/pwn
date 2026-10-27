@@ -37,7 +37,7 @@ describe PWN::AI::Router do
     expect(PWN::Plugins::AuthenticationHelper).not_to receive(:mask_password)
     expect(PWN::AI::OpenAI).not_to receive(:obtain_oauth_bearer_token)
     allow(PWN::AI::OpenAI).to receive(:chat).and_raise(IOError, 'offline provider')
-    expect(described_class.summarize(text: 'Conversation', llm: true, session: true)).to eq('')
+    expect { described_class.summarize(text: 'Conversation', llm: true, session: true) }.to raise_error(IOError, 'offline provider')
     expect(Thread.current[:pwn_session_title]).to be_nil
     PWN::Env[:ai][:openai].delete(:key)
     expect(PWN::AI::OpenAI).not_to receive(:chat)
@@ -52,8 +52,36 @@ describe PWN::AI::Router do
       expect(mod).not_to receive(:obtain_oauth_bearer_token)
       expect(PWN::Plugins::AuthenticationHelper).not_to receive(:mask_password)
       expect(PWN::Plugins::TransparentBrowser).not_to receive(:open)
-      expect(described_class.summarize(text: 'Conversation', llm: true, session: true)).to eq('')
+      if engine == 'anthropic'
+        # This adapter parses a nil transport result; preserve that failure
+        # rather than disguising it as a downstream title JSON parse error.
+        expect { described_class.summarize(text: 'Conversation', llm: true, session: true) }.to raise_error(TypeError)
+      else
+        expect(described_class.summarize(text: 'Conversation', llm: true, session: true)).to eq('')
+      end
       expect(Thread.current[:pwn_session_title]).to be_nil
+    end
+  end
+
+  it 'extracts supported symbol and string keyed wrapper content without reasoning or tool data' do
+    stub_const('PWN::Env', { ai: { active: :openai, openai: { model: 'fixture', key: 'fixture-key' } } })
+    body = JSON.generate(title: 'Certificate repair', summary: 'Repaired login certificates.')
+    payloads = [
+      { choices: [{ message: { role: 'assistant', content: body } }] },
+      { 'choices' => [{ 'role' => 'assistant', 'content' => body }] },
+      { 'content' => [{ 'type' => 'thinking', 'thinking' => 'not output' }, { 'type' => 'text', 'text' => body }] },
+      { choices: [{ content: [{ type: 'output_text', text: body }] }] },
+      { message: { role: 'assistant', content: body } },
+      { title: 'Certificate repair', summary: 'Repaired login certificates.' }
+    ]
+    payloads.each do |payload|
+      allow(PWN::AI::OpenAI).to receive(:chat).and_return(payload)
+      expect(described_class.summarize(text: 'Fixture', llm: true, session: true)).to eq(body)
+    end
+    [{ content: [{ type: 'tool_use', input: { title: 'Wrong', summary: 'Wrong' } }] },
+     { choices: [{ role: 'user', content: body }] }, { content: { title: 'Wrong' } }].each do |payload|
+      allow(PWN::AI::OpenAI).to receive(:chat).and_return(payload)
+      expect(described_class.summarize(text: 'Fixture', llm: true, session: true)).to eq('')
     end
   end
 

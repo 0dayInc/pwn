@@ -48,6 +48,8 @@ module PWN
     #     enabled: true
     #   )
     public_class_method def self.create(opts = {})
+      return with_registry_lock { create(opts) } unless registry_owned?
+
       jobs = load_jobs
       id = SecureRandom.hex(6)
       name = opts[:name] || "job-#{id}"
@@ -69,7 +71,7 @@ module PWN
 
       # Optionally install a crontab entry (user must have permission)
       install_crontab_entry(job: job) if opts[:install_crontab]
-      sync_one_job(job: job) if cron_enabled? && !opts[:install_crontab]
+      sync_one_job(job: job) if cron_enabled? && !opts[:install_crontab] && opts.fetch(:sync_native, true)
 
       job
     end
@@ -83,6 +85,7 @@ module PWN
       jobs = load_jobs
       job = jobs[id] || jobs.values.find { |j| j[:name] == id || j[:id] == id }
       raise "Job #{id} not found" unless job
+      return { skipped: true, reason: :housekeeping_internal_only, status: 'skipped' } if native_execution? && housekeeping_job?(job: job)
 
       start = Time.now
       result = nil
@@ -133,20 +136,28 @@ module PWN
 
       job[:last_run] = Time.now.utc.iso8601
       job[:last_status] = status
-      jobs[job[:id]] = job
-      save_jobs(jobs: jobs)
+      with_registry_lock do
+        current = load_jobs
+        if current.key?(job[:id])
+          current[job[:id]][:last_run] = job[:last_run]
+          current[job[:id]][:last_status] = status
+          save_jobs(jobs: current)
+        end
+      end
 
       { job: job, result: result, duration: Time.now - start, status: status }
     end
 
     # Supported Method Parameters::
-    #   PWN::Cron.remove(id:)
-    public_class_method def self.remove(opts = {}) # rubocop:disable Naming/PredicateMethod
+    #   PWN::Cron.remove(id:, sync_native: false)
+    public_class_method def self.remove(opts = {})
+      return with_registry_lock { remove(opts) } unless registry_owned?
+
       id = opts[:id].to_s
       jobs = load_jobs
       gone = jobs.delete(id)
       save_jobs(jobs: jobs)
-      remove_native_job(job: gone) if gone
+      remove_native_job(job: gone) if gone && opts.fetch(:sync_native, true)
       true
     end
 
@@ -181,16 +192,48 @@ module PWN
       # and break jobs[id] / jobs.delete(id) / toggle lookups).
       raw.each_with_object({}) { |(k, v), h| h[k.to_s] = v }
     rescue StandardError => e
-      warn("[PWN::Cron] load_jobs failed: #{e.class}: #{e.message}")
-      {}
+      raise IOError, "Cron registry unreadable (#{e.class}); refusing an empty replacement"
+    end
+
+    # A permanent inode coordinates registry writers, never job execution.
+    private_class_method def self.with_registry_lock
+      return yield if registry_owned?
+
+      owner = Thread.current[:pwn_cron_registry_owner]
+      File.open(File.join(cron_dir, '.jobs.write.lock'), File::RDWR | File::CREAT | File::NOFOLLOW, 0o600) do |file|
+        file.flock(File::LOCK_EX)
+        begin
+          Thread.current[:pwn_cron_registry_owner] = [Process.pid, Thread.current, jobs_file]
+          yield
+        ensure
+          Thread.current[:pwn_cron_registry_owner] = owner
+        end
+      end
+    end
+
+    private_class_method def self.registry_owned?
+      Thread.current[:pwn_cron_registry_owner] == [Process.pid, Thread.current, jobs_file]
     end
 
     private_class_method def self.save_jobs(opts = {})
       jobs = opts[:jobs] ||= {}
-      File.write(jobs_file, YAML.dump(jobs))
+      temporary = "#{jobs_file}.#{SecureRandom.hex(8)}.tmp"
+      begin
+        File.open(temporary, File::WRONLY | File::CREAT | File::EXCL, 0o600) do |file|
+          file.write(YAML.dump(jobs))
+          file.flush
+          file.fsync
+        end
+        File.rename(temporary, jobs_file)
+        File.open(cron_dir, File::RDONLY, &:fsync)
+      ensure
+        FileUtils.rm_f(temporary)
+      end
     end
 
     private_class_method def self.toggle(opts = {})
+      return with_registry_lock { toggle(opts) } unless registry_owned?
+
       id = opts[:id].to_s
       enabled = opts[:enabled]
       jobs = load_jobs
@@ -202,9 +245,29 @@ module PWN
       jobs[id]
     end
 
+    private_class_method def self.native_execution?
+      return true if ENV['PWN_CRON_NATIVE'] == '1'
+
+      # An interactive terminal may inherit INVOCATION_ID; only PWN scheduler
+      # cgroups identify legacy units that predate the explicit marker.
+      File.read('/proc/self/cgroup').match?(%r{/pwn-cron-(?:worker|j[^/]+)\.service(?:/|$)})
+    rescue Errno::ENOENT, Errno::EACCES
+      false
+    end
+
+    # Housekeeping is owned exclusively by the portable worker/manual commands.
+    private_class_method def self.housekeeping_job?(opts = {})
+      job = opts[:job]
+      return false unless job.is_a?(Hash)
+
+      %w[session_cleanup learning_consolidate_nightly pwn_stores_lean_nightly].include?(job[:name].to_s) ||
+        [job[:ruby], job[:script]].any? { |payload| payload.to_s.match?(/SessionCleanup|session_cleanup\.rb/) }
+    end
+
     private_class_method def self.sync_one_job(opts = {})
       job = opts[:job]
       return unless job.is_a?(Hash)
+      return if housekeeping_job?(job: job)
 
       if job[:enabled] && cron_enabled?
         install_native_job(job: job)
@@ -218,15 +281,11 @@ module PWN
 
     # Supported Method Parameters::
     #   PWN::Cron.install_defaults
-    # Idempotently seed the RL feedback-loop cron jobs so a fresh install
-    # closes the loop by default (S1 practice + P3 offline_judge + W2 train dry-run + M1 consolidate).
-    # Re-running is a no-op if jobs with these names already exist.
-    # These are seeded to jobs.yml only — pass install_crontab: true to
-    # PWN::Cron.create yourself if you also want a system crontab entry.
-    # Hygiene jobs are enabled. Curriculum self-play / judge / LoRA are
-    # seeded disabled: practice runs Loop.run (real tools) overnight;
-    # offline_judge spends API tokens; train needs a GPU trainer.
-    DEFAULT_JOBS = [
+    # Fresh installs seed one internal housekeeping coordinator. Existing
+    # schedules are preserved, not automatically merged or re-enabled.
+    # Curriculum templates below require explicit create; installation and
+    # migration never seed them, including after operator deletion.
+    CURRICULUM_JOBS = [
       {
         name: 'curriculum_practice_nightly',
         schedule: '0 3 * * *',
@@ -245,29 +304,24 @@ module PWN
         ruby: 'PWN::AI::Agent::Curriculum.offline_judge(since_hours: 24) if defined?(PWN::AI::Agent::Curriculum)',
         aliases: %w[offline_judge_nightly],
         enabled: false
-      },
-      {
-        name: 'learning_consolidate_nightly',
-        schedule: '0 5 * * *',
-        ruby: 'PWN::AI::Agent::Learning.consolidate if defined?(PWN::AI::Agent::Learning)',
-        enabled: true
-      },
+      }
+    ].freeze
+
+    DEFAULT_JOBS = [
       {
         name: 'session_cleanup',
         schedule: '45 3 * * *',
-        ruby: "require File.join(PWN::Cron.cron_dir, 'session_cleanup.rb'); PWN::SessionCleanup.maintain(dry_run: false)",
-        enabled: true
-      },
-      {
-        name: 'pwn_stores_lean_nightly',
-        schedule: '15 5 * * *',
-        ruby: 'PWN::AI::Agent::Learning.gc_stores! if defined?(PWN::AI::Agent::Learning)',
+        ruby: "require File.join(PWN::Cron.cron_dir, 'session_cleanup.rb'); PWN::SessionCleanup.coordinate(dry_run: false)",
         enabled: true
       }
     ].freeze
 
     public_class_method def self.install_defaults
+      return with_registry_lock { install_defaults } unless registry_owned?
+
       install_default_payloads
+      require File.expand_path('../../etc/default_cron/session_cleanup', __dir__)
+      PWN::SessionCleanup.install(root: File.dirname(cron_dir))
       jobs = load_jobs
       names = jobs.values.map { |j| j[:name].to_s }
       seeded = []
@@ -282,21 +336,13 @@ module PWN
           schedule: spec[:schedule],
           ruby: default_payload(spec: spec),
           delivery: 'log',
+          sync_native: false,
           enabled: spec.fetch(:enabled, true)
         )
         names << spec[:name].to_s
       end
 
-      # P13 - disable the legacy alias when both occupy the 30 3 * * * slot.
-      if names.include?('curriculum_offline_judge') && names.include?('offline_judge_nightly')
-        begin
-          dup = jobs.values.find { |j| j[:name].to_s == 'offline_judge_nightly' }
-          disable(id: dup[:id]) if dup && dup[:enabled]
-        rescue StandardError
-          nil
-        end
-      end
-
+      PWN::SessionCleanup.request_background(root: File.dirname(cron_dir))
       seeded
     rescue StandardError => e
       warn("[PWN::Cron] install_defaults failed: #{e.class}: #{e.message}")
@@ -327,7 +373,9 @@ module PWN
 
       slot = Time.at(((Time.now.to_i / 60) + 1) * 60)
       slot += 60 until slot.hour == 3 && slot.min == 45
-      "if Time.now.to_i < #{slot.to_i}; { deferred: true, deleted: 0 }; else; #{spec[:ruby]}; end"
+      payload = spec[:ruby]
+      payload = payload.sub('SessionCleanup.coordinate(', 'SessionCleanup.maintain(') if load_jobs.values.any? { |job| %w[learning_consolidate_nightly pwn_stores_lean_nightly].include?(job[:name]) }
+      "if Time.now.to_i < #{slot.to_i}; { deferred: true, deleted: 0 }; else; #{payload}; end"
     end
 
     # ------------------------------------------------------------------
@@ -410,6 +458,7 @@ module PWN
       load_jobs.each_with_object({}) do |(id, job), acc|
         next unless job.is_a?(Hash)
         next unless job[:enabled]
+        next if native_execution? && housekeeping_job?(job: job)
         next unless due?(schedule: job[:schedule], last_run: job[:last_run], now: now)
 
         acc[id] = job
@@ -533,7 +582,16 @@ module PWN
 
     # Single tick used by the loop AND by tests (no sleep).
     public_class_method def self.tick(opts = {})
-      run_due(now: opts[:now] || Time.now)
+      results = run_due(now: opts[:now] || Time.now)
+      return results if native_execution?
+
+      require File.expand_path('../../etc/default_cron/session_cleanup', __dir__)
+      background = PWN::SessionCleanup.background_request(root: File.dirname(cron_dir)) do
+        job = load_jobs.values.find { |entry| entry[:name] == 'session_cleanup' && entry[:enabled] }
+        results.find { |entry| entry[:id] == job[:id] } || run(id: job[:id]).merge(id: job[:id]) if job
+      end
+      results << background if background && results.none? { |entry| entry[:id] == background[:id] }
+      results
     end
 
     # Blocking poll loop. `once: true` runs a single tick then returns
@@ -1064,6 +1122,7 @@ module PWN
 
     public_class_method def self.install_native_job(opts = {})
       job = opts[:job]
+      return { skipped: true, reason: :housekeeping_internal_only } if housekeeping_job?(job: job)
       return nil unless job.is_a?(Hash) && job[:id]
 
       backend = (opts[:backend] || scheduler_backend).to_sym
@@ -1080,6 +1139,8 @@ module PWN
 
     public_class_method def self.remove_native_job(opts = {})
       job = opts[:job] || { id: opts[:id], name: opts[:name] }
+      return { skipped: true, reason: :housekeeping_internal_only } if housekeeping_job?(job: job)
+
       backend = (opts[:backend] || scheduler_backend).to_sym
       apply = apply_native?(opts)
       case backend
@@ -1110,7 +1171,7 @@ module PWN
     public_class_method def self.install_crontab_worker(opts = {})
       apply = apply_native?(opts)
       marker = 'PWN::Cron.ensure_worker'
-      line = "@reboot #{ruby_eval_shell(snippet: 'require "pwn"; PWN::Cron.ensure_worker(restart: false)', log: worker_log)}"
+      line = "@reboot #{ruby_eval_shell(snippet: 'ENV["PWN_CRON_NATIVE"] = "1"; require "pwn"; PWN::Cron.ensure_worker(restart: false)', log: worker_log)}"
       preview = "# pwn-cron worker\n#{line}\n"
       write_native_preview(name: 'worker.crontab', body: preview)
       return { backend: :crontab, apply: false, line: line } unless apply && crontab_available?
@@ -1124,6 +1185,8 @@ module PWN
 
     public_class_method def self.install_crontab_job(opts = {})
       job = opts[:job]
+      return { skipped: true, reason: :housekeeping_internal_only } if housekeeping_job?(job: job)
+
       apply = apply_native?(opts)
       snippet = "require \"pwn\"; PWN::Cron.run(id: #{job[:id].to_s.inspect})"
       line = "#{job[:schedule]} #{ruby_eval_shell(snippet: snippet, log: File.join(cron_dir, 'cron.log'))}"
@@ -1165,7 +1228,7 @@ module PWN
     public_class_method def self.install_systemd_user_worker(opts = {})
       apply = apply_native?(opts)
       exec_start = ruby_eval_shell(
-        snippet: 'require "pwn"; PWN::Cron.start_worker(restart: false, foreground: true)'
+        snippet: 'ENV["PWN_CRON_NATIVE"] = "1"; require "pwn"; PWN::Cron.start_worker(restart: false, foreground: true)'
       )
       body = <<~UNIT
         [Unit]
@@ -1194,6 +1257,8 @@ module PWN
 
     public_class_method def self.install_systemd_user_job(opts = {})
       job = opts[:job]
+      return { skipped: true, reason: :housekeeping_internal_only } if housekeeping_job?(job: job)
+
       apply = apply_native?(opts)
       cal = cron_to_calendar(schedule: job[:schedule])
       oncal = systemd_on_calendar(calendar: cal)
@@ -1272,7 +1337,7 @@ module PWN
       label = LAUNCHD_WORKER_LABEL
       plist = launchd_plist(
         label: label,
-        argv: ruby_eval_argv(snippet: 'require "pwn"; PWN::Cron.start_worker(restart: false, foreground: true)'),
+        argv: ruby_eval_argv(snippet: 'ENV["PWN_CRON_NATIVE"] = "1"; require "pwn"; PWN::Cron.start_worker(restart: false, foreground: true)'),
         keepalive: true,
         run_at_load: true
       )
@@ -1283,6 +1348,8 @@ module PWN
 
     public_class_method def self.install_launchd_job(opts = {})
       job = opts[:job]
+      return { skipped: true, reason: :housekeeping_internal_only } if housekeeping_job?(job: job)
+
       apply = apply_native?(opts)
       ints = launchd_calendar_interval(schedule: job[:schedule])
       return { backend: :launchd, id: job[:id], skipped: true, reason: :no_calendar } unless ints
@@ -1325,7 +1392,7 @@ module PWN
 
     public_class_method def self.install_schtasks_worker(opts = {})
       apply = apply_native?(opts)
-      tr = ruby_eval_shell(snippet: 'require "pwn"; PWN::Cron.ensure_worker(restart: false)')
+      tr = ruby_eval_shell(snippet: 'ENV["PWN_CRON_NATIVE"] = "1"; require "pwn"; PWN::Cron.ensure_worker(restart: false)')
       argv = ['schtasks', '/Create', '/F', '/TN', SCHTASKS_WORKER_NAME, '/SC', 'ONLOGON', '/RL', 'LIMITED', '/TR', tr]
       write_native_preview(name: 'worker.schtasks.txt', body: argv.inspect)
       run_argv(argv: argv) if apply && schtasks_available?
@@ -1334,6 +1401,8 @@ module PWN
 
     public_class_method def self.install_schtasks_job(opts = {})
       job = opts[:job]
+      return { skipped: true, reason: :housekeeping_internal_only } if housekeeping_job?(job: job)
+
       apply = apply_native?(opts)
       spec = schtasks_spec(schedule: job[:schedule])
       return { backend: :schtasks, id: job[:id], skipped: true, reason: :no_calendar } unless spec
@@ -1568,6 +1637,7 @@ module PWN
           script: 'optional - path to external script',
           delivery: 'optional - log|stdout (default log)',
           enabled: 'optional - enabled value consumed by #create',
+          sync_native: 'optional - synchronize generic native jobs (default true); defaults are internal only',
           install_crontab: 'optional - install crontab value consumed by #create'
         )
 
@@ -1578,7 +1648,8 @@ module PWN
 
         # Run remove and return its result
         #{self}.remove(
-          id: 'optional - id value consumed by #remove'
+          id: 'optional - id value consumed by #remove',
+          sync_native: 'optional - false deletes only the schedule, preserving native schedulers and evidence'
         )
 
         # Run enable and return its result

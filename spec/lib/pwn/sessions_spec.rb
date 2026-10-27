@@ -7,6 +7,19 @@ require 'fileutils'
 describe PWN::Sessions do
   include_context 'pwn tmp sandbox'
 
+  it 'probes absent and compact-layout leases without filesystem writes' do
+    sid = '20261025_120000_12345678'
+    root = File.join(@tmp, 'absent-sessions')
+    stub_const('PWN::Sessions::SESSIONS_DIR', root)
+    expect(described_class.active?(session_id: sid)).to be(false)
+    expect(File.exist?(root)).to be(false)
+    FileUtils.mkdir_p(root)
+    File.write(File.join(root, '.layout-v2'), '2')
+    before = Dir.glob("#{root}/**/*", File::FNM_DOTMATCH).sort
+    expect(described_class.active?(session_id: sid)).to be(false)
+    expect(Dir.glob("#{root}/**/*", File::FNM_DOTMATCH).sort).to eq(before)
+  end
+
   it 'reconciles page size, filtered inventory and physical support entries' do
     allow(Dir).to receive(:home).and_return(@tmp)
     3.times { described_class.create }
@@ -103,6 +116,105 @@ describe PWN::Sessions do
     expect(described_class.metadata(session_id: other)[:title_source]).not_to eq('summary')
   ensure
     Thread.current[:pwn_request_runtime] = previous
+  end
+end
+
+describe PWN::Sessions, 'title refresh and persistence' do
+  include_context 'pwn tmp sandbox'
+
+  it 'summarizes Anthropic text blocks through the real adapter without stringifying Ruby containers' do
+    allow(Dir).to receive(:home).and_return(@tmp)
+    sid = described_class.create[:id]
+    described_class.append(session_id: sid, role: 'user', content: 'Repair login certificate')
+    config = { active: :anthropic, anthropic: { model: 'fixture-model', key: 'fixture-key' } }
+    allow(PWN::AI::Router).to receive(:summarize).and_call_original
+    allow(PWN::AI::Anthropic).to receive(:anthropic_rest_call).and_return(JSON.generate(
+                                                                            content: [{ type: 'thinking', thinking: 'private fixture reasoning' },
+                                                                                      { type: 'text', text: JSON.generate(title: 'Certificate recovery', summary: 'Repaired login certificates.') }]
+                                                                          ))
+    failures = []
+    result = described_class.refresh_title(session_id: sid, ai_config: config, on_error: failures.method(:push))
+    expect(failures).to be_empty
+    expect(result).to include(title: 'Certificate recovery', title_source: 'summary', summary_turns: 1)
+  end
+
+  it 'reports the original provider failure class and preserves exact metadata bytes' do
+    allow(Dir).to receive(:home).and_return(@tmp)
+    sid = described_class.create[:id]
+    described_class.append(session_id: sid, role: 'user', content: 'Fixture request')
+    config = { active: :openai, openai: { model: 'fixture', key: 'fixture-key' } }
+    path = described_class.support_path(kind: :metadata, session_id: sid)
+    before = File.binread(path)
+    allow(PWN::AI::Router).to receive(:summarize).and_call_original
+    allow(PWN::AI::OpenAI).to receive(:chat).and_raise(Errno::EACCES, 'private fixture path')
+    failures = []
+    described_class.refresh_title(session_id: sid, ai_config: config, on_error: failures.method(:push))
+    expect(failures).to eq(['Errno::EACCES'])
+    expect(File.binread(path)).to eq(before)
+  end
+
+  it 'accepts whitespace around a complete fenced JSON title response' do
+    sid = described_class.create[:id]
+    described_class.append(session_id: sid, role: 'user', content: 'Fixture request')
+    allow(PWN::AI::Router).to receive(:summarize).and_return(" \n```json\n#{JSON.generate(title: 'Certificate recovery', summary: 'Repaired certificates.')}\n```\n ")
+    failures = []
+    result = described_class.refresh_title(session_id: sid, on_error: failures.method(:push))
+    expect(failures).to be_empty
+    expect(result[:title_source]).to eq('summary')
+  end
+
+  it 'keeps the loaded session store independent of a later mismatched inaccessible home' do
+    sid = described_class.create[:id]
+    described_class.append(session_id: sid, role: 'user', content: 'Fixture request')
+    home = File.join(@tmp, 'inaccessible-home')
+    Dir.mkdir(home, 0o000)
+    allow(Dir).to receive(:home).and_return(home)
+    # Model a changed HOME after store constants loaded, without touching any
+    # real account home or relying on the runner being unprivileged.
+    allow(File).to receive(:open).and_call_original
+    allow(File).to receive(:open).with(home, any_args).and_raise(Errno::EACCES, home)
+    config = { active: :openai, openai: { model: 'fixture', key: 'fixture-key' } }
+    allow(PWN::AI::Router).to receive(:summarize).and_call_original
+    allow(PWN::AI::OpenAI).to receive(:chat).and_return(choices: [{ content: JSON.generate(title: 'Fixture recovery', summary: 'Fixture repaired.') }])
+    failures = []
+    result = described_class.refresh_title(session_id: sid, ai_config: config, on_error: failures.method(:push))
+    expect(failures).to be_empty
+    expect(result[:title_source]).to eq('summary')
+    expect(File).not_to have_received(:open).with(home, any_args)
+  ensure
+    File.chmod(0o700, home) if home && File.directory?(home)
+  end
+
+  it 'retains provenance and removes its exact temporary artifact on denied metadata replacement' do
+    sid = described_class.create[:id]
+    described_class.append(session_id: sid, role: 'user', content: 'Fixture request')
+    path = described_class.support_path(kind: :metadata, session_id: sid)
+    before = File.binread(path)
+    allow(PWN::AI::Router).to receive(:summarize).and_return(JSON.generate(title: 'Fixture repair', summary: 'Repaired fixture.'))
+    temporary = nil
+    allow(File).to receive(:rename).and_call_original
+    allow(File).to receive(:rename).with(anything, path) do |source, _target|
+      temporary = source
+      expect(File.file?(source)).to be(true)
+      raise Errno::EACCES, path
+    end
+    failures = []
+    described_class.refresh_title(session_id: sid, on_error: failures.method(:push))
+    expect(failures).to eq(['Errno::EACCES'])
+    expect(File.binread(path)).to eq(before)
+    expect(temporary).not_to be_nil
+    expect(File.exist?(temporary)).to be(false)
+  end
+
+  it 'does not mislabel an unavailable provider response as malformed JSON' do
+    sid = described_class.create[:id]
+    described_class.append(session_id: sid, role: 'user', content: 'Fixture request')
+    original = described_class.metadata(session_id: sid)
+    allow(PWN::AI::Router).to receive(:summarize).and_return('')
+    failures = []
+    expect(described_class.refresh_title(session_id: sid, on_error: failures.method(:push))).to eq(original)
+    expect(failures).to eq(['IOError'])
+    expect(described_class.metadata(session_id: sid)).to eq(original)
   end
 
   it 'rejects provider echoed placeholder titles without advancing summary provenance' do

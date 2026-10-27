@@ -250,7 +250,7 @@ module PWN
           end
         end
         PWN_AI_SLASH_COMMANDS = %w[
-          /back /cron /debug /delegate /help /learning /memory /mcp /model /sessions /skills /steer /swarm /system-role /trace /vault
+          /back /cron /debug /delegate /help /learning /maintenance /memory /mcp /model /sessions /skills /steer /swarm /system-role /trace /vault
         ].freeze
 
         PWN_AI_SLASH_SUBCOMMANDS = {
@@ -265,6 +265,7 @@ module PWN
           '/model' => %w[list],
           '/swarm' => %w[mission agents status create use spawn retire dm debate broadcast tail steer pause resume cancel help],
           '/sessions' => %w[list resume delete stats cleanup],
+          '/maintenance' => %w[status run dry-run],
 
           '/skills' => %w[list recall],
           '/learning' => %w[list requeue]
@@ -580,6 +581,16 @@ module PWN
               end
             when '/cron'
               pwn_ai_run_cron(args: args)
+            when '/maintenance'
+              require File.expand_path('../../../../etc/default_cron/session_cleanup', __dir__)
+              raise ArgumentError, 'usage: /maintenance [status|run|dry-run]' unless args.empty? || (args.length == 1 && %w[status run dry-run].include?(args.first))
+
+              result = if args.empty? || args.first == 'status'
+                         PWN::SessionCleanup.status
+                       else
+                         PWN::SessionCleanup.maintain(dry_run: args.first == 'dry-run', current_session_id: pi&.config&.pwn_ai_session_id)
+                       end
+              pwn_ai_print_result(value: result)
             when '/sessions'
               identifier = request.sub(%r{\A/sessions[[:space:]]+resume(?:[[:space:]]+|$)}, '') if args.first == 'resume'
               pwn_ai_run_sessions(args: args, identifier: identifier, pry: pi)

@@ -15,6 +15,13 @@ describe PWN::Plugins::Log do
   end
 
   describe 'pwn-ai debug session' do
+    include_context 'pwn tmp sandbox'
+
+    before do
+      allow(Dir).to receive(:home).and_return(File.join(@tmp, 'home'))
+      FileUtils.mkdir_p(File.join(Dir.home, '.pwn'))
+    end
+
     after do
       PWN::Plugins::Log.stop_debug if PWN::Plugins::Log.respond_to?(:stop_debug)
     end

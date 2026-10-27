@@ -2,17 +2,26 @@
 
 `PWN::Cron` (`lib/pwn/cron.rb`) stores job definitions in
 `~/.pwn/cron/jobs.yml`. `pwn setup` starts (or reuses) a background cron
-worker and installs an OS-native keep-alive so YAML jobs fire on schedule
-without a per-job crontab line:
+worker. Setup, migration and startup only seed internal job definitions;
+they never install, start, repair or remove native scheduler units. After a
+reboot, start/reuse the portable worker with `pwn setup --cron`; automatic
+jobs require that worker, while manual commands do not. `--no-cron` disables
+the internal worker without changing host services.
 
-- Linux: `systemd --user` (Restart=always), else `crontab @reboot`
-- macOS: `launchd`
-- Windows: `schtasks`
-- otherwise: `crontab @reboot` when `crontab(1)` exists
+**Housekeeping must never use systemd or another native scheduler.**
+The three enabled housekeeping defaults below use only this existing worker
+or manual commands. `install_native_job` and each platform-specific job
+installer explicitly skip housekeeping (`housekeeping_internal_only`),
+including recognizable cleanup payloads under another name. Native worker
+contexts exclude housekeeping from ticks and direct job execution.
 
-You can still pass `install_crontab: true` on `cron_create` to add a
-per-job system line. `PWN::Cron.install_worker_crontab` is idempotent and
-does not remove existing per-job lines.
+Generic scheduler APIs remain for unrelated custom jobs: `install_crontab:
+true` can still add their per-job system lines. They are not called by setup,
+migration or default seeding. Existing housekeeping units/drop-ins are left
+untouched and require explicit operator approval for removal; they are never
+re-enabled automatically. See [Installation](Installation.md) for the legacy
+service migration boundary. Do not create another worker or run cleanup just
+to validate scheduling.
 
 ![Cron scheduling](diagrams/cron-scheduling.svg)
 
@@ -34,33 +43,53 @@ does not remove existing per-job lines.
 | `cron_enable` / `cron_disable` | Toggle without deleting |
 | `cron_remove` | Delete from `jobs.yml` (does **not** scrub crontab - `crontab -e` yourself) |
 
-## Seeded self-improvement jobs (`PWN::Cron.install_defaults`)
+## Default housekeeping and explicit curriculum opt-in
 
-`pwn setup --migrate` and first-launch default installation seed six jobs into a fresh
-`~/.pwn/cron/jobs.yml` via `PWN::Cron.install_defaults`:
+`PWN::Cron.install_defaults` seeds **one** enabled job on a fresh install:
+`session_cleanup`, daily at `45 3 * * *`, guarded until its first scheduled slot.
+It calls `SessionCleanup.coordinate` through the existing internal worker:
 
-| Name | Schedule | Enabled | Ruby |
-|---|---|---|---|
-| `curriculum_practice_nightly` | `0 3 * * *` | **no** | `Curriculum.practice(limit: 3)` - opt-in; runs `Loop.run` with real tools |
-| `curriculum_offline_judge` | `30 3 * * *` | **no** | `Curriculum.offline_judge(...)` - opt-in; spends API tokens |
-| `curriculum_train_weekly` | `0 4 * * 0` | **no** | `Curriculum.train_and_gate(dry_run: true)` - opt-in; needs trainer+GPU to actually train |
-| `session_cleanup` | `45 3 * * *` | **yes** | Guarded unsummarized-session cleanup with backups, dependency checks and activity leases; see [Installation](Installation.md) |
-| `learning_consolidate_nightly` | `0 5 * * *` | **yes** | `Learning.consolidate` - memory GC |
-| `pwn_stores_lean_nightly` | `15 5 * * *` | **yes** | `Learning.gc_stores!` - lean memory, learning.jsonl, mistakes, policy, sessions |
+1. Shared maintenance: preflight, evidence migration, protected-session cleanup,
+   and disposable storage maintenance.
+2. Memory consolidation (`Learning.consolidate`, including Memory lean).
+3. Learning outcome retention (`Learning.prune_outcomes!`).
+4. Mistakes retention (`Mistakes.lean!`).
+5. Policy trajectory retention (`Policy.lean!`).
 
-- **practice / judge / train** ship **disabled**. Practice self-plays via `Loop.run` (shell, browsers). Judge hits the live model. Train is a no-op without a LoRA trainer. Enable with `cron_enable` when you want that loop.
-- **consolidate + lean + session cleanup** stay on: they operate on local `~/.pwn` state; cleanup can delete eligible transcripts after verified backups and guards, so the injected MEMORY / LEARNING / session tail stays high-signal.
+The coordinator holds the permanent maintenance lock across these phases and
+records their separate results. Blocked/incomplete maintenance skips retention;
+dry-run does not consolidate memory or mutate stores. Store writer locks and
+existing gold/recent/protected-entry policies remain in force. It does not call
+`gc_stores!`, which would repeat memory consolidation and session cleanup.
 
-- **practice** - top unresolved `Mistakes` under `Reward.judge`; auto-`resolve` with ≥2 holdouts
-- **offline_judge** - backfill outcome/process labels + plan calibration from PLAN `p(success)=` so `:failure_only` local introspect does not starve the corpus; also runs `Reward.warm_sentinel` so the reward-sentinel window can fill on local hosts
-- **dedupe** - legacy alias `offline_judge_nightly` counts as the same job; `install_defaults` will not double-seed `30 3 * * *` and disables the alias when both exist
-- **train** - export SFT + balanced DPO, LoRA-train `pwn-vN+1`, replay Mistakes.top, promote only on win. `dry_run: false` only with a trainer+GPU
-- **consolidate** - memory GC (semantic merge + importance eviction) so the injected MEMORY block stays high-signal
+Existing jobs are preserved verbatim, including disabled/custom schedules and
+legacy curriculum aliases. Existing `learning_consolidate_nightly` and
+`pwn_stores_lean_nightly` are **not** removed automatically. If either exists
+when a missing session job is seeded, that job uses maintenance-only payloads
+rather than duplicate retention. Consolidate those live schedules only after
+all writers and the matched helper have been safely upgraded and tested.
 
-See [Reinforcement Learning](Reinforcement-Learning.md).
+Curriculum schedules are **not seeded at all**, including after deletion,
+startup, or repeat migration. `CURRICULUM_JOBS` contains optional templates for
+`curriculum_practice_nightly`, `curriculum_train_weekly`, and
+`curriculum_offline_judge`. Explicitly create a selected template only when
+wanted; templates default disabled:
 
-`cron_disable(id:)` turns either off; `install_defaults` is idempotent (including legacy alias collapse) and
-never overwrites a job you already have with the same name.
+```ruby
+spec = PWN::Cron::CURRICULUM_JOBS.find { |job| job[:name] == 'curriculum_practice_nightly' }
+PWN::Cron.create(spec.merge(enabled: false, sync_native: false))
+```
+
+Practice runs real tools, judge can spend provider tokens, and training needs
+its own explicit configuration/approval. See [Reinforcement Learning](Reinforcement-Learning.md).
+
+For schedule-only deletion without touching native schedulers, use
+`PWN::Cron.remove(id: exact_id, sync_native: false)`. It preserves job logs and
+other evidence. Registry writes use a permanent lock and atomic replacement;
+completion updates merge into the current registry and never resurrect a deleted
+job. Old workers without this protocol must drain safely before a registry edit;
+never use a forced stop while a job is writing. A current worker reloads the
+registry each tick; ordinary schedule changes need no restart.
 
 ## Example
 

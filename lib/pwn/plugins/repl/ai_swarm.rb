@@ -164,7 +164,7 @@ module PWN
             when 'create' then create(tokens.join(' '))
             when 'use' then use(tokens.first)
             when 'spawn' then spawn(tokens)
-            when 'retire' then retire(tokens.first)
+            when 'retire' then retire(tokens.first, continuation: tokens.include?('--continuation'))
             when 'dm' then ask(tokens, opts)
             when 'mission' then solve(tokens, opts)
             when 'debate' then debate(tokens, opts)
@@ -180,7 +180,7 @@ module PWN
           def help_text
             {
               ok: true,
-              usage: '/swarm mission REQUEST|agents|status [JOB]|create [topic]|use ID|spawn NAME ROLE [--engine E --model M --toolsets a,b]|retire NAME|dm NAME REQUEST|debate NAMES TOPIC [--rounds N]|broadcast REQUEST [--names a,b]|tail [N]|steer JOB INSTRUCTION|pause JOB|resume JOB|cancel JOB|all'
+              usage: '/swarm mission REQUEST|agents|status [JOB]|create [topic]|use ID|spawn NAME ROLE [--engine E --model M --toolsets a,b]|retire NAME [--continuation]|dm NAME REQUEST|debate NAMES TOPIC [--rounds N]|broadcast REQUEST [--names a,b]|tail [N]|steer JOB INSTRUCTION|pause JOB|resume JOB|cancel JOB|all'
             }
           end
 
@@ -215,10 +215,10 @@ module PWN
             { ok: true, persona: result[:name], swarm_id: @swarm_id, scope: :swarm }
           end
 
-          def retire(name)
+          def retire(name, continuation: false)
             return { ok: false, error: 'invalid persona name' } unless identifier?(name)
 
-            result = PWN::AI::Agent::Swarm.retire(name: name, swarm_id: @swarm_id, local: true)
+            result = PWN::AI::Agent::Swarm.retire(name: name, swarm_id: @swarm_id, local: true, continuation: continuation)
             { ok: result[:removed], scope: result[:scope], name: name }
           end
 

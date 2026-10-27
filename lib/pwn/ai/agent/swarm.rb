@@ -120,12 +120,19 @@ module PWN
         public_class_method def self.retire(opts = {})
           name = opts[:name].to_s
           sid = opts[:swarm_id].to_s
+          continuation = nil
+          if opts[:continuation]
+            raise ArgumentError, 'Continuation retirement requires local and swarm_id' unless opts[:local] == true && !sid.empty?
+
+            require File.expand_path('../../../../etc/default_cron/session_cleanup', __dir__)
+            continuation = PWN::SessionCleanup.retire_continuation(root: SWARM_ROOT, swarm_id: sid, name: name)
+          end
           if opts[:local] == true && !sid.empty?
             path = File.join(SWARM_ROOT, sid, 'agents.yml')
             all = load_personas_file(path: path)
             gone = all.delete(name.to_sym)
             File.write(path, YAML.dump(deep_stringify(hash: all))) if gone
-            return { name: name, removed: !gone.nil?, scope: :swarm }
+            return { name: name, removed: !gone.nil?, scope: :swarm, continuation: continuation }
           end
 
           all  = personas
@@ -414,21 +421,28 @@ module PWN
           sid  = opts[:swarm_id].to_s
           name = opts[:name].to_s
           map_path = File.join(SWARM_ROOT, sid, 'personas.json')
-          map = File.exist?(map_path) ? JSON.parse(File.read(map_path)) : {}
-          if map[name]
-            opts[:leases] << PWN::Sessions.activate(session_id: map[name]) if opts[:leases]
-            return map[name]
-          end
+          require File.expand_path('../../../../etc/default_cron/session_cleanup', __dir__)
+          PWN::SessionCleanup.with_continuation_lock(root: File.dirname(SWARM_ROOT)) do
+            raise IOError, 'Unsafe continuation map' if File.symlink?(map_path)
 
-          sess = PWN::Sessions.create(
-            title: "swarm:#{sid} persona:#{name}",
-            source: 'pwn-ai-swarm',
-            active: !opts[:leases].nil?
-          )
-          opts[:leases] << sess[:lease] if opts[:leases]
-          map[name] = sess[:id]
-          File.write(map_path, JSON.pretty_generate(map))
-          sess[:id]
+            map = File.exist?(map_path) ? JSON.parse(File.read(map_path)) : {}
+            raise IOError, 'Unknown continuation map' unless map.is_a?(Hash)
+
+            if map[name]
+              opts[:leases] << PWN::Sessions.activate(session_id: map[name]) if opts[:leases]
+              next map[name]
+            end
+
+            sess = PWN::Sessions.create(
+              title: "swarm:#{sid} persona:#{name}",
+              source: 'pwn-ai-swarm',
+              active: !opts[:leases].nil?
+            )
+            opts[:leases] << sess[:lease] if opts[:leases]
+            map[name] = sess[:id]
+            PWN::SessionCleanup.publish(map_path, JSON.pretty_generate(map))
+            sess[:id]
+          end
         end
 
         private_class_method def self.build_persona_prompt(opts = {})
@@ -759,7 +773,8 @@ module PWN
             #{self}.retire(
               name: 'required - persona name',
               swarm_id: 'optional - swarm directory when local is true',
-              local: 'optional - true retires only that swarm registry'
+              local: 'optional - true retires only that swarm registry',
+              continuation: 'optional - explicitly retire the inactive saved conversation association; requires local and swarm_id'
             )
 
             # Swarm lifecycle & bus

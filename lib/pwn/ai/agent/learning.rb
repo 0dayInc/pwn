@@ -101,7 +101,14 @@ module PWN
         # Plan by default; no provider calls, vault reads, transcript logging or deletion.
         public_class_method def self.migrate_evidence(opts = {})
           dry = opts[:dry_run] != false
-          lock = learning_lock unless dry
+          max_sessions = opts[:max_sessions]
+          stop = opts[:stop]
+          raise ArgumentError, 'max_sessions must be positive' if max_sessions && (!max_sessions.is_a?(Integer) || max_sessions <= 0)
+
+          leases = []
+          lock = learning_lock(nonblocking: opts[:nonblocking]) unless dry
+          return { dry_run: false, deferred: 'learning_writer_active', migrated_rows: 0 } if lock == :busy
+
           original = File.exist?(LEARNING_FILE) ? evidence_read(path: LEARNING_FILE) : ''
           malformed = 0
           rows = original.lines.filter_map do |line|
@@ -116,9 +123,13 @@ module PWN
 
           report = { dry_run: dry, rows: rows.length, malformed_rows: malformed, session_refs: 0, migratable_sessions: 0,
                      missing_sessions: 0, malformed_sessions: 0, malformed_refs: 0, verified_rows: 0,
-                     estimated_source_bytes: 0, migrated_rows: 0 }
+                     estimated_source_bytes: 0, migrated_rows: 0, deferred_active_sessions: 0 }
           snapshots = {}
           rows.each do |row|
+            if stop&.call || (max_sessions && report[:migratable_sessions] >= max_sessions)
+              report[:bounded] = true
+              break
+            end
             sid = row[:session_id]
             next if sid.nil? || sid == ''
 
@@ -140,6 +151,22 @@ module PWN
               next
             end
             begin
+              # Keep the permanent exclusive lease through index publication;
+              # a point-in-time active? check alone races subsequent activation.
+              if dry
+                if PWN::Sessions.active?(session_id: sid)
+                  report[:deferred_active_sessions] += 1
+                  next
+                end
+              else
+                lease = File.open(PWN::Sessions.support_path(kind: :lease, session_id: sid), File::RDWR | File::CREAT | File::NOFOLLOW, 0o600) # rubocop:disable Style/FileOpen -- released together after commit
+                leases << lease
+                unless lease.flock(File::LOCK_EX | File::LOCK_NB)
+                  lease.close
+                  report[:deferred_active_sessions] += 1
+                  next
+                end
+              end
               body = evidence_read(path: path)
               transcript = body.lines.map { |line| JSON.parse(line, symbolize_names: true) }
               raise IOError, 'Malformed source transcript' if transcript.empty? || !transcript.all?(Hash)
@@ -179,7 +206,8 @@ module PWN
 
           evidence_commit(rows: rows, original: original, snapshots: snapshots, report: report)
         ensure
-          learning_unlock(lock: lock) if lock
+          leases&.each { |lease| lease.close unless lease.closed? }
+          learning_unlock(lock: lock) if lock && lock != :busy
         end
 
         private_class_method def self.evidence_read(opts = {})
@@ -253,6 +281,8 @@ module PWN
 
             raise IOError, 'Restore source sessions before rollback' unless evidence_complete?(row: row) && File.file?(File.join(PWN::Sessions::SESSIONS_DIR, "#{sid}.jsonl"))
           end
+          return { dry_run: true, restored: false } if opts[:dry_run] == true
+
           evidence_write(path: LEARNING_FILE, body: backup)
           evidence_write(path: path, body: JSON.generate(record.merge(state: 'rolled_back')))
           { restored: true }
@@ -332,7 +362,7 @@ module PWN
         end
 
         # Reentrant across note_outcome -> pruning; flock serializes cooperating processes.
-        private_class_method def self.learning_lock
+        private_class_method def self.learning_lock(opts = {})
           key = :pwn_learning_write_lock
           owner = Thread.current[key]
           return nil if owner.is_a?(Hash) && owner[:pid] == Process.pid && owner[:thread] == Thread.current && !owner[:file].closed?
@@ -344,7 +374,10 @@ module PWN
 
           # Ownership transfers to the caller's ensure/learning_unlock.
           file = File.open(path, File::RDWR | File::CREAT | File::NOFOLLOW, 0o600) # rubocop:disable Style/FileOpen
-          file.flock(File::LOCK_EX)
+          unless file.flock(File::LOCK_EX | (opts[:nonblocking] ? File::LOCK_NB : 0))
+            file.close
+            return :busy
+          end
           Thread.current[key] = { pid: Process.pid, thread: Thread.current, file: file }
           file
         end
@@ -2388,10 +2421,18 @@ module PWN
         public_class_method def self.help
           puts "
             # Plan a full-snapshot evidence migration, or explicitly apply it.
-            #{self}.migrate_evidence(dry_run: 'optional - Boolean; defaults true, false writes evidence and references')
+            #{self}.migrate_evidence(
+              dry_run: 'optional - Boolean; defaults true, false writes evidence and references',
+              max_sessions: 'optional - Positive maximum source snapshots per transaction',
+              nonblocking: 'optional - Boolean; defer instead of waiting for a cooperating learning writer',
+              stop: 'optional - Cooperative stop callable checked between source snapshots'
+            )
 
             # Restore an unchanged learning ledger before any source-session cleanup.
-            #{self}.rollback_evidence(migration: 'required - SHA-256 migration ID from the ledger filename')
+            #{self}.rollback_evidence(
+              migration: 'required - SHA-256 migration ID from the ledger filename',
+              dry_run: 'optional - validate rollback without replacing learning bytes; defaults to false'
+            )
 
             # Persist derived PRM rewards without rewriting immutable supporting content.
             #{self}.annotate_evidence(

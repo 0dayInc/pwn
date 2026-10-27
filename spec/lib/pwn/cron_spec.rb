@@ -34,6 +34,48 @@ describe PWN::Cron do
       FileUtils.remove_entry(@tmp) if @tmp && Dir.exist?(@tmp)
     end
 
+    it 'removes only a schedule without native effects when explicitly requested' do
+      target = described_class.create(name: 'curriculum_practice_nightly', enabled: false, sync_native: false)
+      other = described_class.create(name: 'custom', enabled: false, sync_native: false)
+      log = File.join(@tmp, "#{target[:id]}.log")
+      File.write(log, 'evidence')
+      expect(described_class).not_to receive(:remove_native_job)
+      described_class.remove(id: target[:id], sync_native: false)
+      expect(described_class.list).to eq(other[:id] => other)
+      expect(File.read(log)).to eq('evidence')
+    end
+
+    it 'does not resurrect a schedule removed during execution or erase concurrent creations' do
+      target = described_class.create(name: 'running', ruby: '42', sync_native: false)
+      allow(described_class).to receive(:eval) do
+        described_class.remove(id: target[:id], sync_native: false)
+        described_class.create(name: 'concurrent', ruby: '43', sync_native: false)
+        42
+      end
+      described_class.run(id: target[:id])
+      expect(described_class.list.values.map { |row| row[:name] }).to eq(['concurrent'])
+    end
+
+    it 'refuses destructive registry updates when existing YAML is corrupt' do
+      File.write(described_class.jobs_file, '--- [broken')
+      before = File.binread(described_class.jobs_file)
+      expect { described_class.remove(id: 'absent', sync_native: false) }.to raise_error(IOError)
+      expect(File.binread(described_class.jobs_file)).to eq(before)
+    end
+
+    it 'preserves concurrent process creations with atomic registry readback' do
+      count = 4
+      pids = Array.new(count) do |index|
+        fork do
+          5.times { |n| described_class.create(name: "process-#{index}-#{n}", ruby: '42', enabled: false, sync_native: false) }
+          exit! 0
+        end
+      end
+      pids.each { |pid| expect(Process.wait2(pid).last.success?).to be(true) }
+      expect(described_class.list.length).to eq(count * 5)
+      expect(Dir.glob("#{described_class.jobs_file}.*.tmp")).to be_empty
+    end
+
     it 'exposes worker control methods' do
       %i[
         due? due_jobs run_due tick worker_loop
@@ -155,6 +197,9 @@ describe PWN::Cron do
       expect(res[:started]).to be true
     end
   end
+end
+
+describe PWN::Cron do
   describe 'OS-agnostic scheduler' do
     before do
       @tmp = Dir.mktmpdir('pwn-cron-os-spec-')
@@ -170,6 +215,51 @@ describe PWN::Cron do
       FileUtils.remove_entry(@tmp) if @tmp && Dir.exist?(@tmp)
     end
 
+    it 'keeps default housekeeping off every native installer' do
+      allow(described_class).to receive(:scheduler_backend).and_return(:systemd_user)
+      expect(described_class).not_to receive(:systemd_user)
+      described_class.install_defaults
+      job = described_class.list.values.find { |row| row[:name] == 'session_cleanup' }
+      %i[install_native_job install_systemd_user_job install_crontab_job install_launchd_job install_schtasks_job].each do |method|
+        expect(described_class.public_send(method, job: job, apply: true)).to include(skipped: true, reason: :housekeeping_internal_only)
+      end
+      expect(Dir.glob(File.join(@tmp, 'native', "*#{job[:id]}*"))).to be_empty
+    end
+
+    it 'setup uses only the existing internal worker even with systemd available' do
+      allow(described_class).to receive(:systemd_user_available?).and_return(true)
+      expect(described_class).not_to receive(:install_scheduler)
+      expect(described_class).not_to receive(:uninstall_scheduler)
+      expect(described_class).not_to receive(:install_native_job)
+      allow(described_class).to receive(:worker_status).and_return({ running: false }, { running: true, pid: 123 })
+      expect(described_class).to receive(:ensure_worker).with(restart: false, interval: nil).once.and_return(started: true, pid: 123)
+      expect(PWN::Setup.ensure_cron(io: StringIO.new)).to include(ok: true, backend: :worker)
+    end
+
+    it 'preserves custom cron bytes and runs housekeeping identically by tick and manual run' do
+      custom = described_class.create(name: 'operator-custom', schedule: '12 9 * * *', ruby: '41', enabled: false)
+      described_class.install_defaults
+      expect(described_class.list[custom[:id]]).to eq(custom)
+      jobs = described_class.list
+      jobs.each_value { |job| job[:enabled] = false }
+      job = jobs.values.find { |row| row[:name] == 'session_cleanup' }
+      job.merge!(enabled: true, schedule: 'every 1s', ruby: 'PWN::SessionCleanup.maintain(dry_run: false)')
+      File.write(described_class.jobs_file, YAML.dump(jobs))
+      expect(PWN::SessionCleanup).to receive(:maintain).with(dry_run: false).twice.and_return(deleted: 0)
+      expect(described_class.run(id: job[:id])).to include(status: 'success', result: { deleted: 0 })
+      expect(described_class.tick(now: Time.now + 2)).to contain_exactly(include(id: job[:id], status: 'success'))
+      expect(described_class.list[custom[:id]]).to eq(custom)
+    end
+
+    it 'native worker markers exclude housekeeping while leaving custom jobs runnable' do
+      allow(ENV).to receive(:[]).and_call_original
+      allow(ENV).to receive(:[]).with('PWN_CRON_NATIVE').and_return('1')
+      house = described_class.create(name: 'session_cleanup', ruby: 'raise "must not run"')
+      custom = described_class.create(name: 'operator-custom', schedule: 'every 1s', ruby: '41')
+      expect(described_class.tick).to contain_exactly(include(id: custom[:id], status: 'success'))
+      expect(described_class.list[house[:id]][:last_run]).to be_nil
+    end
+
     it 'exposes scheduler control methods' do
       %i[
         os_type scheduler_backend cron_to_calendar
@@ -178,12 +268,12 @@ describe PWN::Cron do
       ].each do |m|
         expect(PWN::Cron).to respond_to(m)
       end
-      expect(PWN::Cron::DEFAULT_JOBS.length).to eq(6)
+      expect(PWN::Cron::DEFAULT_JOBS.length).to eq(1)
       names = PWN::Cron::DEFAULT_JOBS.map { |j| j[:name] }
-      expect(names).to include('pwn_stores_lean_nightly')
-      expect(names).to include('learning_consolidate_nightly')
+      expect(names).to eq(['session_cleanup'])
       enabled = PWN::Cron::DEFAULT_JOBS.reject { |j| j[:enabled] == false }.map { |j| j[:name] }
-      expect(enabled).to contain_exactly('pwn_stores_lean_nightly', 'learning_consolidate_nightly', 'session_cleanup')
+      expect(enabled).to contain_exactly('session_cleanup')
+      expect(PWN::Cron::CURRICULUM_JOBS.length).to eq(3)
     end
 
     it 'picks a native backend per OS without consulting live daemons' do
@@ -237,6 +327,7 @@ describe PWN::Cron do
       expect(body).to include('<key>KeepAlive</key>')
       PWN::Cron.list.each_value do |job|
         next unless job[:enabled]
+        next if described_class.send(:housekeeping_job?, job: job)
 
         plist = File.join(@tmp, 'native', "com.0dayinc.pwn.cron.job.#{job[:id]}.plist")
         expect(File).to exist(plist)
@@ -245,6 +336,15 @@ describe PWN::Cron do
         expect(xml).to include("<integer>#{cal['Hour']}</integer>")
         expect(xml).to include("<integer>#{cal['Minute']}</integer>")
       end
+    end
+
+    it 'rejects housekeeping execution from a systemd invocation without evaluating the payload' do
+      job = described_class.create(name: 'session_cleanup', ruby: 'raise "must not run"')
+      allow(File).to receive(:read).and_call_original
+      allow(File).to receive(:read).with('/proc/self/cgroup').and_return('0::/user.slice/pwn-cron-worker.service')
+      expect(described_class.run(id: job[:id])).to include(skipped: true, reason: :housekeeping_internal_only)
+      expect(described_class.list[job[:id]][:last_run]).to be_nil
+      expect(described_class.tick).to eq([])
     end
 
     it 'systemd backend emits OnCalendar that matches each default schedule' do
@@ -256,6 +356,7 @@ describe PWN::Cron do
       expect(unit).to include('Restart=always')
       PWN::Cron.list.each_value do |job|
         next unless job[:enabled]
+        next if described_class.send(:housekeeping_job?, job: job)
 
         tmr = File.join(@tmp, 'native', "pwn-cron-j#{job[:id]}.timer")
         expect(File).to exist(tmr)
@@ -273,6 +374,7 @@ describe PWN::Cron do
       expect(worker).to include('PWN::Cron.ensure_worker')
       PWN::Cron.list.each_value do |job|
         next unless job[:enabled]
+        next if described_class.send(:housekeeping_job?, job: job)
 
         preview = File.read(File.join(@tmp, 'native', "job-#{job[:id]}.crontab"))
         expect(preview).to include(job[:schedule])

@@ -5,6 +5,17 @@ require 'spec_helper'
 describe PWN::Plugins::REPL::AISwarm::Controller do
   include_context 'pwn tmp sandbox'
 
+  it 'routes explicit continuation retirement through the slash command without changing ordinary retire' do
+    controller = described_class.new(session_id: 'fixture')
+    allow(PWN::AI::Agent::Swarm).to receive(:create).and_return(swarm_id: 'fixture-swarm')
+    expect(PWN::AI::Agent::Swarm).to receive(:retire).with(hash_including(name: 'scout', continuation: true)).and_return(retired: true)
+    expect(PWN::AI::Agent::Swarm).to receive(:retire).with(hash_including(name: 'critic', continuation: false)).and_return(retired: true)
+    controller.execute(line: '/swarm retire scout --continuation')
+    controller.execute(line: '/swarm retire critic')
+  ensure
+    controller&.close
+  end
+
   it 'retains cancellation evidence and forwards bounded mission options unchanged' do
     allow(PWN::AI::Agent::Swarm).to receive(:solve) do |opts|
       expect(opts).to include(worktree: true, rounds: 2, verification_timeout: 120, role_timeout: 45)

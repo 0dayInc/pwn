@@ -12,6 +12,33 @@ describe PWN::AI::Agent::Policy do
     expect(described_class).to respond_to :help
   end
 
+  it 'serializes trajectory retention and episode append on the same permanent writer lock' do
+    Dir.mktmpdir do |tmp|
+      stub_const('PWN::AI::Agent::Policy::POLICY_FILE', File.join(tmp, 'policy.json'))
+      stub_const('PWN::AI::Agent::Policy::TRAJECTORY_FILE', File.join(tmp, 'policy_traj.jsonl'))
+      File.write(described_class::TRAJECTORY_FILE, '')
+      [-> { described_class.lean! }, -> { described_class.send(:persist_episode!, episode: { session_id: 'fixture', score: nil, steps: [] }) }].each do |operation|
+        entered = Queue.new
+        thread = nil
+        begin
+          PWN::Memory.transaction(path: described_class::TRAJECTORY_FILE) do
+            thread = Thread.new do
+              entered << true
+              operation.call
+            end
+            entered.pop
+            expect(thread.join(0.1)).to be_nil
+          end
+          expect(thread.join(2)).to eq(thread)
+          thread.value
+        ensure
+          thread&.join(2)
+        end
+      end
+      expect(described_class.trajectories.length).to eq(1)
+    end
+  end
+
   it 'learns a better Q for a rewarded action than a punished one' do
     tmp = Dir.mktmpdir
     stub_const('PWN::AI::Agent::Policy::POLICY_FILE', File.join(tmp, 'policy.json'))

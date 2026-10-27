@@ -317,7 +317,7 @@ describe 'session maintenance command workers' do
     console.instance_variable_get(:@tool_input)&.close
   end
 
-  it 'keeps navigation and input alive through the real maintenance learning lock and queues errors' do
+  it 'defers a real maintenance learning lock without blocking navigation and queues errors' do
     require File.expand_path('../../../../../etc/default_cron/session_cleanup', __dir__)
     allow(PWN::SessionCleanup).to receive(:legacy_owners).and_return([])
     stub_const('PWN::AI::Agent::Learning::LEARNING_FILE', File.join(@tmp, '.pwn', 'learning.jsonl'))
@@ -339,7 +339,7 @@ describe 'session maintenance command workers' do
     Timeout.timeout(2) { console.submit('/sessions cleanup') }
     Timeout.timeout(2) { entered.pop }
     worker = console.instance_variable_get(:@worker)
-    expect(worker.join(0.05)).to be_nil
+    expect(worker.join(5)).to eq(worker)
     console.submit('/input fixture')
     expect(reader.read_nonblock(8)).to eq("fixture\n")
     console.handle("\u0014")
@@ -349,6 +349,16 @@ describe 'session maintenance command workers' do
     PWN::AI::Agent::Learning.send(:learning_unlock, lock: lock)
     lock = nil
     expect(worker.join(5)).to eq(worker)
+    console.send(:drain)
+    # A busy writer defers before deletion admission without waiting for release.
+    # A fresh command must still delete, proving the stop state does not leak.
+    expect(File).to exist(File.join(PWN::Sessions.sessions_dir, "#{sid}.jsonl"))
+    ledgers = Dir.glob(File.join(@tmp, '.pwn', 'maintenance', 'runs', '*.json')).map { |path| JSON.parse(File.read(path)) }
+    expect(ledgers.last).to include('state' => 'blocked')
+    expect(ledgers.last.dig('result', 'evidence_migration', 'deferred')).to eq('learning_writer_active')
+    expect(console.send(:busy?)).to be_falsey
+    console.submit('/sessions cleanup')
+    expect(console.instance_variable_get(:@worker).join(5)).not_to be_nil
     console.send(:drain)
     expect(File).not_to exist(File.join(PWN::Sessions.sessions_dir, "#{sid}.jsonl"))
     expect(console.instance_variable_get(:@timeline).select { |row| row[0] == :command }.map { |row| row[1] }.join).to include('deleted: 1')
@@ -379,10 +389,12 @@ describe 'session maintenance command workers' do
     console.instance_variable_set(:@tool_input, writer)
     entered = Queue.new
     release = Queue.new
-    allow(PWN::SessionCleanup).to receive(:run).and_wrap_original do |method, **options|
+    # Pause inside the admitted deletion transaction, not before run checks stop.
+    # Cancellation here must finish the backed-up commit without deleting late IDs.
+    allow(PWN::Sessions).to receive(:delete).and_wrap_original do |method, **options|
       entered << true
       release.pop
-      method.call(**options)
+      method.call(options)
     end
     Timeout.timeout(2) { console.handle("\r") }
     Timeout.timeout(2) { entered.pop }

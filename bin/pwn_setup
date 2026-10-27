@@ -58,7 +58,7 @@ pwn_driver = PWN::Driver::Parser.new do |options|
   end
 
   options.on('--[no-]cron',
-             '<Optional - Enable (default) or disable OS-native persistence of pwn-ai cron jobs>') do |o|
+             '<Optional - Enable (default) or disable the built-in pwn-ai cron worker; no OS scheduler changes>') do |o|
     opts[:cron] = o
   end
 end
