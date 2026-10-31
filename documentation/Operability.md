@@ -57,6 +57,23 @@ PKI DMs remain unsupported. Topic `region` is an opaque prefix, not the radio's
 regulatory-band setting; `radio_index` is distinct from legacy `channel_num`.
 See [General Usage](General-PWN-Usage.md) and [REPL](pwn-REPL.md).
 
+## Current runtime contract
+
+These are source contracts. A checkout edit does not change an installed gem or
+a process that is already running. Restart after installing the matching package.
+
+| Contract | Current behavior |
+| --- | --- |
+| Tool writes | Unspecified `pwn-ai` writes and `TMPDIR` use `~/.pwn/workspaces/runtime`. Another path is writable only when the original operator request names it, including `mv`/`to`. A missing file grants its parent so the file can be created; that parent is still granted when it contains unrelated unreadable directories. `/opt/pwn` and the loaded package stay read-only. |
+| Mission lifetime | CTRL+C kills the mission through `PWN::AI::Agent::MissionNamespace`. That owner is Ruby plus util-linux `unshare` and Linux pidfds. There is no compiled `pwn_mission` extension and no systemd fallback. |
+| Recovery copies | Every PWN recovery producer uses `PWN::Backups` and `~/.pwn/backup/`, seven generation folders total. Adjacent `.bak` files are not the current producer. |
+| Housekeeping | A fresh install seeds one internal `session_cleanup` coordinator. Curriculum jobs are not seeded. Housekeeping never uses systemd. |
+
+Details: [Runtime Source Protection](Runtime-Source-Protection.md),
+[Mission Cancellation](Mission-Cancellation.md),
+[Backup Retention](Backup-Retention.md), [Cron](Cron.md),
+[Persistence](Persistence.md).
+
 ## Deployment and safe verification
 
 1. Inspect the intended checkout and preserve existing changes before upgrading.

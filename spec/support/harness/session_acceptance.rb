@@ -6,9 +6,9 @@ require_relative 'experiments'
 module HarnessSessionAcceptance
   def self.invoke(root, steps, args, options)
     source = options[:source_root] || HarnessEvaluation::ROOT
-    FileUtils.mkdir_p(File.join(root, 'home'))
+    FileUtils.mkdir_p("#{root}-home")
     File.write(File.join(root, 'provider.json'), JSON.generate(responses: steps))
-    env = { 'HOME' => File.join(root, 'home'), 'PATH' => HarnessEvaluation.isolated_path, 'LANG' => 'C.UTF-8',
+    env = { 'HOME' => "#{root}-home", 'PATH' => HarnessEvaluation.isolated_path, 'LANG' => 'C.UTF-8',
             'GEM_HOME' => options[:gem_home] || Gem.dir, 'GEM_PATH' => options[:gem_path] || Gem.path.join(File::PATH_SEPARATOR),
             'PWN_HARNESS_FIXTURE' => File.join(root, 'provider.json'), 'PWN_HARNESS_EVENTS' => File.join(root, 'events.jsonl'),
             'PWN_HARNESS_FINGERPRINT' => File.join(root, 'fingerprint.json') }
@@ -29,7 +29,7 @@ module HarnessSessionAcceptance
       File.write(contract_path, JSON.generate(contract))
       initial = invoke(root, [HarnessExperiments.tool('shell', { command: "printf 'wrong\\n' > result.txt", timeout: 10 }, 'wrong')] + Array.new(8) { final },
                        ['--ai', prompt, '--verification-contract', contract_path], options)
-      old_path = Dir.glob(File.join(root, 'home/.pwn/sessions/requests/**/*.json')).first
+      old_path = Dir.glob(File.join("#{root}-home", '.pwn/sessions/requests/**/*.json')).first
       unless old_path
         File.write(File.join(root, 'process.json'), JSON.pretty_generate(initial: initial))
         next { id: name, outcome: 'FAIL', initial_exit_status: initial[:exit_status], exit_status: initial[:exit_status],
@@ -51,7 +51,7 @@ module HarnessSessionAcceptance
       steps = [HarnessExperiments.tool('shell', { command: "printf '#{wanted}\\n' > result.txt", timeout: 10 }, 'repair'),
                HarnessExperiments.tool('shell', { command: 'cat result.txt', timeout: 10 }, 'read'), final]
       result = invoke(root, steps, args, options)
-      paths = Dir.glob(File.join(root, 'home/.pwn/sessions/requests/**/*.json'))
+      paths = Dir.glob(File.join("#{root}-home", '.pwn/sessions/requests/**/*.json'))
       latest = paths.map { |path| JSON.parse(File.read(path)) }.find { |row| row.dig('outcome', 'status') == 'complete' }
       identity = if name == 'resume'
                    paths.length == 1 && latest && latest['request_id'] == old['request_id'] && latest['original_request'] == old['original_request'] && latest['verification_contract'] == old['verification_contract']

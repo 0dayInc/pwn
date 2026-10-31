@@ -273,6 +273,13 @@ module PWN
           pending = []
           next
         end
+        if line =~ /^\s*class\s+([A-Z][\w:]*)/
+          ident = Regexp.last_match(1)
+          if snake(name: ident.split('::').last) == File.basename(src, '.rb')
+            const = ident.include?('::') ? ident : (stack + [ident]).join('::')
+            blurb = pending.join(' ').strip if blurb.empty?
+          end
+        end
         pending = []
         next if line =~ /^\s*private_class_method/
 

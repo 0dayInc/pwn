@@ -32,7 +32,7 @@ RSpec.describe 'Bundled session cleanup' do
       File.write(policy, JSON.generate(config))
       File.write(PWN::Migrate::SCHEMA_FILE, JSON.generate(schema: 10))
       upgrade = PWN::Migrate.run(fix: false, backup: false, io: StringIO.new)
-      raise 'missing upgrade' unless upgrade[:applied_migrations] == [11]
+      raise 'missing upgrade' unless upgrade[:applied_migrations] == [11, 12]
       raise 'overwritten policy' unless JSON.parse(File.read(policy))['batch_size'] == 7
       raise 'non-idempotent upgrade' unless PWN::Migrate.run(fix: false, backup: false, io: StringIO.new)[:applied_migrations].empty?
       raise 'wrong helper' unless File.read(File.join(PWN::Cron.cron_dir, 'session_cleanup.rb')).include?('session_cleanup v10')
@@ -60,8 +60,10 @@ RSpec.describe 'Bundled session cleanup' do
       begin
         job = PWN::Plugins::Jobs.start(command: command, session_id: sid, cwd: Dir.home, max_runtime: 20)
         raise 'job not running' unless PWN::Plugins::Jobs.status(id: job[:id])[:status] == 'RUNNING'
-        maintenance = PWN::SessionCleanup.coordinate(dry_run: false)
-        raise 'missing coordinator phases' unless maintenance[:phases].keys == %i[maintenance memory_consolidation learning_retention mistakes_retention policy_retention]
+        proc_root = File.join(Dir.home, 'fixture-proc')
+        FileUtils.mkdir_p(proc_root)
+        maintenance = PWN::SessionCleanup.coordinate(dry_run: false, proc_root: proc_root)
+        raise "missing coordinator phases: \#{maintenance.inspect}" unless maintenance[:phases].keys == %i[maintenance memory_consolidation learning_retention mistakes_retention policy_retention]
         raise 'active job session deleted' unless File.file?(File.join(PWN::Sessions.sessions_dir, sid + '.jsonl'))
         raise 'job dependency omitted' unless PWN::Sessions.dependency_index[:dependencies].fetch(sid).any? { |path| path.include?('/jobs/') }
         File.write(release, 'release')
@@ -79,7 +81,7 @@ RSpec.describe 'Bundled session cleanup' do
     RUBY
     output, error, ran = Open3.capture3(env, RbConfig.ruby, '-e', script, chdir: @tmp)
     expect(ran.success?).to be(true), "#{output}\n#{error}"
-    expect(JSON.parse(output)).to include('installed' => true, 'schema' => 11)
+    expect(JSON.parse(output)).to include('installed' => true, 'schema' => 12)
   end
 
   it 'never seeds curriculum on fresh install, upgrade or repeated migration after deletion' do
@@ -187,7 +189,7 @@ RSpec.describe 'Bundled session cleanup' do
     original = PWN::Cron.create(name: 'session_cleanup', schedule: '12 9 * * *', ruby: 'custom guard', enabled: false)
     File.write(File.join(@tmp, '.schema'), JSON.generate(schema: 7))
     result = PWN::Migrate.run(fix: false, backup: false, io: StringIO.new)
-    expect(result[:applied_migrations]).to eq([8, 9, 10, 11])
+    expect(result[:applied_migrations]).to eq([8, 9, 10, 11, 12])
     expect(PWN::Cron.list.fetch(original[:id])).to eq(original)
     expect(PWN::Cron.list.values.count { |job| job[:name] == 'session_cleanup' }).to eq(1)
     expect(File).to exist(File.join(PWN::Cron.cron_dir, 'session_cleanup.rb'))

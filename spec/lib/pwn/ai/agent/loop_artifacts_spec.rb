@@ -21,6 +21,11 @@ RSpec.describe PWN::AI::Agent::Loop do
     allow(PWN::AI::Agent::Mistakes).to receive(:record)
   end
 
+  it 'never adopts cached model destinations absent from the original request' do
+    Thread.current[:pwn_loop_deliverables] = { paths: ['/tmp/invented.pdf'] }
+    expect(described_class.send(:declared_deliverables, request: 'Generate a report')).to eq([])
+  end
+
   it 'does not let source read evidence bypass the destination contract' do
     Dir.mktmpdir do |dir|
       source = File.join(dir, 'source.md')

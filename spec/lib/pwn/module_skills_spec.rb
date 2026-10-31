@@ -51,6 +51,14 @@ describe PWN::ModuleSkills do
     expect(described_class).to respond_to :help
   end
 
+  it 'identifies the file-owning class rather than its enclosing module or nested error class' do
+    lib = File.expand_path('../../../lib', __dir__)
+    rec = described_class.send(:parse_file, path: File.join(lib, 'pwn/ai/agent/mission_namespace.rb'), lib_root: lib).first
+    expect(rec[:const]).to eq('PWN::AI::Agent::MissionNamespace')
+    expect(rec[:source]).to eq('pwn/ai/agent/mission_namespace.rb')
+    expect(described_class.render(module: rec)).to include('module: PWN::AI::Agent::MissionNamespace')
+  end
+
   it 'maps a constant or source file to a namespace-mirrored SKILL.md path' do
     expect(described_class.relpath(const: 'PWN::Plugins::TransparentBrowser')).to eq(
       'pwn/plugins/transparent_browser/SKILL.md'

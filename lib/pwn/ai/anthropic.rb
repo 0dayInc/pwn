@@ -614,6 +614,7 @@ module PWN
           end
           http_body[:tool_choice] = anth_tool_choice(choice: opts[:tool_choice], model: model) if opts[:tool_choice]
         end
+        http_body = PWN::AI::ServerTools.attach(engine: :anthropic, http_body: http_body, request: opts)
         effort = opts[:reasoning_effort].to_s
         if !effort.empty? && effort != 'none' && reasoning_efforts(model: model)[:efforts].include?(effort)
           http_body[:output_config] = { effort: effort }

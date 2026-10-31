@@ -24,6 +24,7 @@ module PWN
   autoload :Memory, 'pwn/memory'
   autoload :MemoryIndex, 'pwn/memory_index'
   autoload :Migrate, 'pwn/migrate'
+  autoload :Backups, 'pwn/backups'
   autoload :ModuleSkills, 'pwn/module_skills'
   autoload :Sessions, 'pwn/sessions'
   autoload :SessionTrace, 'pwn/session_trace'

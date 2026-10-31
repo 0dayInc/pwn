@@ -1,27 +1,82 @@
-# Historical migration backup retention
+# Shared recovery backup retention
 
-## Explicit legacy diagnostic and generated-copy expiry
+All PWN-owned recovery producers use `PWN::Backups` and the single
+`~/.pwn/backup` store. The limit is **seven total generation folders**, not seven
+per producer. Producer payloads and recovery receipts are grouped inside their
+transaction's generation. No new adjacent learning, preference, skill or
+Terminator `.bak` / `.pwnbak` files are produced.
 
-`PWN::SessionCleanup.expire_legacy` is a separate, explicit maintenance entry point, defaulting to a preview. Apply requires `dry_run: false` and a **new external** `manifest:` path for one compressed metadata ledger; it does not archive payloads back into the managed home or run session/swarm retirement.
+## Producers
 
-Only recognized expired closed request logs, the exact `learning.jsonl.bak-lean-YYYYMMDD` and `preferences.jsonl.bak-p15-YYYYMMDDhhmmss` recovery families, and verified duplicate BinaryParser triage caches qualify. Root recovery retains at least the latest three nonempty parseable copies per family, all literal reference pins, and copies younger than thirty days. Cache expiry requires byte-identical retained ArtifactRegistry evidence; absent inputs are not claimed reproducible. Decompiler stdout caches are not adopted by this policy.
+| Producer | Contents |
+| --- | --- |
+| Migrate | Exact registry-owned state paths, encrypted configuration and decryptor; verified snapshot manifest; no recursive logs/cache/backup copies |
+| Learning | Learning rewrites and original evidence-migration index |
+| Reward | Preference rewrite recovery |
+| SkillReview / SkillConsolidation | Original skill bytes |
+| PolicyEvaluation | Pinned routing-policy rollback snapshot |
+| Setup | Original Terminator configuration |
+| SessionCleanup | Session/layout recovery, dependency removal, continuation retirement and disposable quarantine payloads with their recovery receipts |
 
-The operation holds the canonical maintenance lock, rejects unsafe path/inode identities, checks retained references without exposing content, and checks process descriptors before classification and unlink. Existing producer leases must be available. Retained recovery/evidence proofs and candidate hashes are rechecked before unlink. An unreadable process inventory fails closed; do not bypass it when an older client is active. Coordinate any legacy writers before applying, and keep the learning producer lock during root recovery expiry. The external ledger records prepared versus completed state; it is not an undo archive. Existing immutable workers require a separately verified matched release before this entry point is deployed; it is not automatically enabled by importing the source.
+Immutable learning evidence, artifacts, evaluation inputs and user-requested
+exports are not disposable backup generations. Device read/write backup commands,
+GitHub gist exports and Jenkins-to-S3 transfer operate on operator-selected data,
+not PWN's internal recovery state.
 
-## Migration generations
+## Admission, locking and failures
 
-Migration backups are recovery generations, not an indefinite archive of every distinct historical byte. `PWN::Migrate.prune_backups` stays duplicate-only until an operator explicitly authorizes historical expiry. Its optional `expire_history: true` argument or private `~/.pwn/backup/.retention-policy.json` enables generation retention:
+The permanent `.retention.lock` serializes cooperating producers. Maintenance
+acquires its maintenance lock, then the Learning writer lock, then the backup
+lock. Ordinary backup producers acquire Learning before backups and never acquire
+maintenance. Learning reentrancy is bound to the owning PID and thread; an
+attempt to acquire Learning underneath an unowned backup transaction is rejected.
+Maintenance still defers when the Learning writer is busy.
 
-```json
-{"version":1,"expire_history":true,"keep":3,"pins":[]}
-```
+Before a new folder is admitted, oldest completed, unpinned generations may be
+expired to make room. Prepared/interrupted generations, explicit pins and current
+literal evidence references remain protected. Malformed reference data fails
+closed when expiry would be needed. Pins count **inside** the seven-folder limit:
+if they occupy capacity, the next producer fails before modifying its source.
+Unknown legacy folders count toward capacity but are not silently certified or
+expired. A pre-existing over-limit store can therefore block admission until an
+explicit offline remediation is performed; importing this source does not fix a
+live store or grant permission to prune it.
 
-`keep` cannot be less than three. `pins` contains exact timestamp generation directory names. Current structured evidence paths and prepared/interrupted or explicitly pinned maintenance records also retain their referenced generations. Quoted directory inventories and historical prose are not evidence dependencies. No logs, metrics, or historical learning versions are copied aside merely because their bytes are unique.
+Transactions publish `prepared` before payload/source changes and `complete`
+only after successful return. Exceptions, interrupted/blocked results and failed
+receipts leave prepared recovery. Copies are hash-verified and fsynced. Keep the
+transaction open through source mutation and receipt publication. Restoring one
+store does not undo all children of a maintenance operation.
 
-Before expiry, the newest retained point must cover every existing current migration-owned input path, and current encrypted configuration and decryptor bytes must match retained recovery copies. Every retained and expiring payload is hashed, current inputs and references are rechecked, symlinks are rejected, and deletion shares the snapshot producer's permanent `.retention.lock`. The ordinary maintenance transaction supplies its own maintenance lock and cooperative work admission. Manual backup-only calls must also coordinate live writers before apply. Default automatic batches consider at most ten older generations; exhausted admission defers expiry rather than weakening protection.
+Use the owning store's recovery API (`SessionCleanup.recover`,
+`Learning.rollback_evidence`, skill review rollback or policy rollback) first.
+`Backups.reconcile` only acknowledges recovery: it requires the exact generation,
+its inspected manifest SHA-256 and explicit confirmation. It retains a pin by
+default; `pinned: false` permits normal retention but does not override live
+references. It does not restore payloads or declare a failed operation successful.
+Never edit shared/hardlinked historical payloads in place; restore by copying.
 
-The single mode-0600 `.retention-manifest.json.gz` contains prepared/committed inventories and expiry names, not a second payload tree. Older unpinned versions are permanently expired: that manifest is an audit record, not an undo payload. Incomplete historical snapshots are never retrospectively certified complete. Their extant payloads can be verified for bounded recovery; the newly produced complete snapshot establishes current coverage. Restore by **copying only migration-owned paths**, not overlaying an entire old home, and never edit hardlinked backup bytes in place. Keep explicit pins for any recovery boundary needed during an active migration.
+## Upgrade and legacy relocation
 
-Scheduled retention is called by the managed v10 `SessionCleanup.maintain` helper through PWN's internal cron worker. No native scheduler or systemd installation is needed. Use `PWN::Migrate.prune_backups(dry_run: true)` for a strictly backup-only preview; do not invoke full session maintenance to test backup expiry. When no generation can expire, this preview avoids scanning evidence bodies and reports `evidence_scan: not_needed_no_expiry`; it is not a fresh payload-integrity audit.
+Schema 12 changes the existing retention policy from three to seven, preserving
+pins and other policy fields. A second migration is byte-stable. The old
+`Migrate.prune_backups` entry point is a compatibility report only; it cannot run
+an independent three-generation pruning policy. Retention happens at producer
+admission, not via another scheduler.
 
-An isolated maintenance release may coexist with older interactive clients: run the worker from the release's immutable `lib` load path, verify source/release/live-helper SHA-256 equality, and leave the active gem and clients untouched. The cron helper does not retrofit methods into those clients. A later normal application upgrade is separate from this scoped maintenance deployment.
+`Backups.relocate_legacy(paths: ..., dry_run: true)` previews exact recognized
+legacy paths. Applying requires `dry_run: false, writers_stopped: true`, owned
+non-symlink sources, unchanged verified copies and no references to their old
+paths. The shared generation contains an origin mapping before originals are
+removed. Unknown, referenced or over-capacity inputs must be resolved explicitly,
+not bypassed. Existing cleanup recovery readers remain available for legacy
+ledgers. Legacy diagnostic/cache expiry is a separate explicit operation and is
+not a new backup producer.
+
+## Deployment boundary
+
+Source changes do not upgrade installed gems, existing clients or immutable cron
+releases. Deploy a matched release and restart only explicitly authorized
+processes separately. Use only PWN's existing internal cron worker; no systemd,
+native scheduler, live provider calls or live backup pruning is required for
+fixture verification. Tests must use an isolated HOME and scratch storage.

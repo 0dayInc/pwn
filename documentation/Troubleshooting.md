@@ -32,8 +32,9 @@ $ pwn setup --migrate --dry-run  # report only
 ```
 
 Corrupt / incompatible files are moved to `~/.pwn/quarantine/` (never
-deleted); a full timestamped backup is written to `~/.pwn/backup/<ts>/`
-first. Missing config keys added by the new release are deep-merged into
+deleted). Recovery copies go to one shared generation under `~/.pwn/backup/`
+first; the store keeps seven generations total. See
+[Backup Retention](Backup-Retention.md). Missing config keys added by the new release are deep-merged into
 your encrypted `~/.pwn/pwn.yaml` **under** your existing values. See
 [Installation § Upgrading](Installation.md#upgrading--pwn-state-migration-pwnmigrate).
 

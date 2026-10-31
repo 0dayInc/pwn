@@ -6,18 +6,21 @@ require 'json'
 describe PWN::AI::Agent::Dispatch do
   it 'does not replay a timed-out real shell mutation after restoring its request checkpoint' do
     Dir.mktmpdir do |root|
-      options = { request: 'Write counter', session_id: 'timeout', request_id: 'fixture', artifact_root: root, trace: false }
+      work = File.join(root, 'work')
+      FileUtils.mkdir_p(work)
+      allow(PWN::Plugins::AISandbox).to receive(:workspace).and_return(work)
+      options = { request: 'Write counter', session_id: 'timeout', request_id: 'fixture', artifact_root: File.join(root, 'control'), trace: false }
       runtime = PWN::AI::Agent::RequestRuntime.new(options)
       Thread.current[:pwn_request_runtime] = runtime
       PWN::AI::Agent::Registry.discover
-      call = { id: 'mutation', function: { name: 'shell', arguments: { command: "printf effect >> #{root}/counter; sleep 3", timeout: 1 } } }
+      call = { id: 'mutation', function: { name: 'shell', arguments: { command: "printf effect >> #{work}/counter; sleep 3", timeout: 1 } } }
       first = JSON.parse(described_class.call(tool_call: call, scope_policy: { enabled: false }))
       expect(first.dig('result', 'error')).to include('timeout')
       Thread.current[:pwn_request_runtime] = PWN::AI::Agent::RequestRuntime.new(options.merge(resume: true))
       second = JSON.parse(described_class.call(tool_call: call, scope_policy: { enabled: false }))
       expect(second['success']).to be false
       expect(second.dig('result', 'error')).to eq('uncertain_side_effect')
-      expect(File.read(File.join(root, 'counter'))).to eq('effect')
+      expect(File.read(File.join(work, 'counter'))).to eq('effect')
       expect(call.dig(:function, :arguments, :timeout)).to eq(1)
     end
   ensure

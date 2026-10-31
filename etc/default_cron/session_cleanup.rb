@@ -20,7 +20,7 @@ module PWN
       'learning' => %w[learning.jsonl learning lessons.json memory.json memory.archive.json memory.idx mistakes.json policy policy.json policy_traj.jsonl curriculum curriculum_kpi.jsonl extrospection.json finetune preferences.jsonl reward_sentinel.json skill_review.jsonl operator-learning-review.jsonl],
       'artifacts' => %w[artifacts exports findings.jsonl engagements corpora binws redb ghidra sandbox_snapshots],
       'state' => %w[swarm cron agents.yml open_goal.json jobs missions runs metrics metrics.json capabilities.json],
-      'logs' => %w[logs], 'cache' => %w[cache], 'tmp' => %w[tmp],
+      'logs' => %w[logs], 'cache' => %w[cache], 'tmp' => %w[workspaces/runtime],
       'maintenance' => %w[maintenance session_cleanup_archive],
       'backups' => %w[backup]
     }.freeze
@@ -38,16 +38,17 @@ module PWN
         raise IOError, 'Symlinked maintenance policy' if File.symlink?(path)
 
         publish(path, JSON.pretty_generate(POLICY)) unless File.exist?(path)
-        %w[cache tmp].each { |name| private_directory(File.join(root, name)) unless File.exist?(File.join(root, name)) }
+        private_directory(File.join(root, 'cache')) unless File.exist?(File.join(root, 'cache'))
+        private_directory(File.join(root, 'workspaces', 'runtime')) unless File.exist?(File.join(root, 'workspaces', 'runtime'))
         layout = File.join(directory, 'layout.json')
         raise IOError, 'Unsafe maintenance inventory' if File.symlink?(layout)
 
         previous = File.file?(layout) ? JSON.parse(File.binread(layout)) : nil
-        raise IOError, 'Unknown maintenance inventory version' if previous && ![1, 2].include?(previous['version'])
+        raise IOError, 'Unknown maintenance inventory version' if previous && ![1, 2, 3].include?(previous['version'])
 
-        publish(layout, JSON.generate(version: 2, categories: STORAGE)) unless previous && previous['version'] == 2
+        publish(layout, JSON.generate(version: 3, categories: STORAGE)) unless previous && previous['version'] == 3
       end
-      { version: 2, root: directory }
+      { version: 3, root: directory }
     end
 
     # Startup performs only fixed-path checks and one coalesced request write.
@@ -368,7 +369,7 @@ module PWN
     def self.register_disposable(path:, category:, expires_at: nil)
       raise ArgumentError, 'Not a disposable category' unless %w[cache tmp logs].include?(category)
 
-      root = File.join(Dir.home, '.pwn', category)
+      root = disposable_directory(category)
       path = File.expand_path(path)
       raise IOError, 'Disposable path escapes its category' unless path.start_with?("#{root}/") && File.realpath(path) == path
       raise IOError, 'Disposable must be an owned regular file' unless File.file?(path) && File.stat(path).uid == Process.uid
@@ -421,7 +422,7 @@ module PWN
     # Known disposable input producer. The permanent lease covers publication,
     # consumption and unlink; a killed consumer leaves a registered exact file.
     def self.temporary(bytes:)
-      directory = private_directory(File.join(Dir.home, '.pwn', 'tmp'))
+      directory = private_directory(disposable_directory('tmp'))
       path = File.join(directory, "input-#{SecureRandom.hex(12)}.txt")
       File.open("#{path}.lease", File::RDWR | File::CREAT | File::NOFOLLOW, 0o600) do |lease|
         lease.flock(File::LOCK_EX)
@@ -465,6 +466,14 @@ module PWN
       path
     end
 
+    # Disposable category tmp lives in the runtime workspace, not ~/.pwn/tmp.
+    def self.disposable_directory(category)
+      raise ArgumentError, 'Not a disposable category' unless %w[cache tmp logs].include?(category)
+
+      base = File.join(Dir.home, '.pwn')
+      category == 'tmp' ? File.join(base, 'workspaces', 'runtime') : File.join(base, category)
+    end
+
     def self.private_directory(path)
       ancestor = File.expand_path(path)
       loop do
@@ -499,7 +508,7 @@ module PWN
       return 'unknown_schema' unless row.is_a?(Hash) && row['version'] == 1 && %w[cache tmp logs].include?(row['category']) && row['expires_at'].is_a?(Integer)
 
       path = row['path']
-      root = File.join(Dir.home, '.pwn', row['category'])
+      root = disposable_directory(row['category'])
       return 'unsafe_path' unless path.is_a?(String) && path.start_with?("#{root}/") && File.expand_path(path) == path
       return 'missing' unless File.exist?(path)
       return 'unsafe_path' unless File.realpath(path) == path && File.file?(path) && File.stat(path).uid == Process.uid
@@ -574,7 +583,7 @@ module PWN
             next if dry_run
 
             unless result[:ledger]
-              directory = private_directory(File.join(root, 'quarantine', SecureRandom.hex(12)))
+              directory = PWN::Backups.directory(label: 'disposable')
               result[:ledger] = File.join(directory, 'ledger.json')
             end
             backup_path = File.join(File.dirname(result[:ledger]), "#{Digest::SHA256.hexdigest(path)}.bin")
@@ -788,11 +797,14 @@ module PWN
     # children. Restoring a ledger alone never undoes deletion or migration.
     def self.recovery_status(ledger:)
       root = File.join(Dir.home, '.pwn')
-      prefixes = %w[maintenance session_cleanup_archive learning/migrations].map { |name| "#{File.join(root, name)}/" }
+      prefixes = %w[backup maintenance session_cleanup_archive learning/migrations].map { |name| "#{File.join(root, name)}/" }
       raise IOError, 'Unsafe recovery ledger' unless prefixes.any? { |prefix| ledger.start_with?(prefix) } && File.realpath(ledger) == ledger
 
       data = JSON.parse(File.binread(ledger))
       operation = data['operation']
+      operation = 'session_cleanup' if ledger.include?('/backup/') && data['records'].is_a?(Array) && data['deleted_ids'].is_a?(Array)
+      operation = 'continuation_retirement' if ledger.include?('/backup/') && data['backup'] == File.join(File.dirname(ledger), 'personas.json')
+      operation = 'session_layout' if ledger.include?('/backup/') && File.basename(ledger) == 'layout.json'
       operation = 'session_layout' if File.basename(ledger) == 'layout.json' && ledger.start_with?("#{File.join(root, 'session_cleanup_archive')}/") && data['records'].is_a?(Array)
       operation = 'learning_migration' if ledger.start_with?("#{File.join(root, 'learning', 'migrations')}/") && data['version'] == 1 && data['before_sha256'] == File.basename(ledger, '.json')
       operation = 'session_cleanup' if ledger.start_with?("#{File.join(root, 'session_cleanup_archive')}/") && data['dry_run'] == false && data['records'].is_a?(Array) && data['deleted_ids'].is_a?(Array)
@@ -841,7 +853,7 @@ module PWN
         end
       end
       root = File.join(Dir.home, '.pwn', 'maintenance', 'quarantine')
-      raise IOError, 'Unsafe recovery ledger' unless ledger.start_with?("#{root}/") && File.realpath(ledger) == ledger
+      raise IOError, 'Unsafe recovery ledger' unless [root, File.join(Dir.home, '.pwn', 'backup')].any? { |base| ledger.start_with?("#{base}/") } && File.realpath(ledger) == ledger
 
       data = JSON.parse(File.binread(ledger))
       raise IOError, 'Unknown recovery ledger' unless data['operation'] == 'routine' && data['records'].is_a?(Array)
@@ -851,7 +863,7 @@ module PWN
         data['records'].each do |row|
           path = row.fetch('path')
           category = row.fetch('category')
-          target_root = File.join(Dir.home, '.pwn', category)
+          target_root = disposable_directory(category)
           backup_path = row.fetch('backup')
           raise IOError, 'Unsafe recovery path' unless %w[cache tmp logs].include?(category) && path.start_with?("#{target_root}/") && File.expand_path(path) == path && File.realpath(File.dirname(path)) == File.dirname(path)
           raise IOError, 'Unsafe recovery backup' unless File.dirname(backup_path) == File.dirname(ledger) && File.realpath(backup_path) == backup_path && Digest::SHA256.file(backup_path).hexdigest == row['sha256']
@@ -1021,7 +1033,7 @@ module PWN
           File.open(PWN::Sessions.support_path(kind: :lease, session_id: id), File::RDWR | File::CREAT | File::NOFOLLOW, 0o600) do |lease|
             raise IOError, 'Swarm continuation active' unless lease.flock(File::LOCK_EX | File::LOCK_NB)
 
-            directory = private_directory(File.join(Dir.home, '.pwn', 'maintenance', 'retirements', SecureRandom.hex(12)))
+            directory = PWN::Backups.directory(label: 'continuation')
             backup_path = File.join(directory, 'personas.json')
             publish(backup_path, bytes)
             raise IOError, 'Continuation backup mismatch' unless File.binread(backup_path) == bytes
@@ -1141,7 +1153,7 @@ module PWN
     def self.publish(path, bytes)
       temporary = "#{path}.#{SecureRandom.hex(8)}.tmp"
       root = File.join(Dir.home, '.pwn')
-      category = %w[cache tmp].find { |name| path.start_with?("#{File.join(root, name)}/") }
+      category = %w[cache tmp].find { |name| path.start_with?("#{disposable_directory(name)}/") }
       if category
         directory = private_directory(File.join(root, 'maintenance', 'atomic'))
         journal = File.join(directory, "#{SecureRandom.hex(12)}.json")
@@ -1183,7 +1195,7 @@ module PWN
           next if days.nil? || (expired_only && row.fetch('created_at') > Time.now.to_i - (days * 86_400))
 
           path, target = row.values_at('path', 'target')
-          base = "#{File.join(root, row['category'])}/"
+          base = "#{disposable_directory(row['category'])}/"
           raise IOError, 'Unsafe atomic path' unless [path, target].all? { |name| name.is_a?(String) && name.start_with?(base) && File.expand_path(name) == name } && File.dirname(path) == File.dirname(target) && path.match?(/\A#{Regexp.escape(target)}\.[a-f0-9]{16}\.tmp\z/)
           next unless File.exist?(path) || File.symlink?(path)
           raise IOError, 'Changed atomic bytes' unless verified_backup?(path, row['sha256']) && File.stat(path).ino == row['inode'] && File.stat(path).dev == row['device']
@@ -1210,16 +1222,7 @@ module PWN
     end
 
     def self.backup(path, expected, result)
-      unless result[:archive_dir]
-        base = File.join(Dir.home, '.pwn', 'session_cleanup_archive')
-        raise 'Unsafe archive directory' if File.symlink?(base)
-
-        FileUtils.mkdir_p(base, mode: 0o700)
-        raise 'Unsafe archive permissions' unless File.stat(base).uid == Process.uid && (File.stat(base).mode & 0o777) == 0o700
-
-        result[:archive_dir] = File.join(base, "#{Time.now.utc.strftime('%Y%m%dT%H%M%S')}-#{SecureRandom.hex(8)}")
-        Dir.mkdir(result[:archive_dir], 0o700)
-      end
+      result[:archive_dir] ||= PWN::Backups.directory(label: 'session-cleanup')
       expected.each do |name, record|
         next unless record
 
@@ -1273,6 +1276,9 @@ module PWN
       locks = []
       begin
         paths.each do |path|
+          owner = Thread.current[:pwn_learning_write_lock]
+          next if File.basename(path) == '.learning-write.lock' && owner && owner[:pid] == Process.pid && owner[:thread] == Thread.current
+
           lock = File.open(path, File::RDWR | File::CREAT | File::NOFOLLOW, 0o600) # rubocop:disable Style/FileOpen -- closed together in ensure
           locks << lock
           raise 'Dependency writer active' unless lock.flock(File::LOCK_EX | File::LOCK_NB)
@@ -1327,7 +1333,7 @@ module PWN
     # Legacy writers block all mutations, including evidence migration.
     # One permanent inode serializes CLI, curses and cron maintenance writers.
     # Read-only previews never acquire a writer lock or create lock files.
-    def self.with_maintenance_lock(dry_run:)
+    def self.with_maintenance_lock(dry_run:, &block)
       return yield if dry_run
 
       root = PWN::Sessions.sessions_dir
@@ -1342,8 +1348,16 @@ module PWN
 
         begin
           Thread.current[:pwn_session_maintenance_lock] = { pid: Process.pid, thread: Thread.current, path: path, file: file }
-          yield
+          learning = PWN::AI::Agent::Learning.send(:learning_lock, nonblocking: true)
+          if learning == :busy
+            Thread.current[:pwn_backup_learning_busy] = true
+            yield
+          else
+            PWN::Backups.transaction(&block)
+          end
         ensure
+          PWN::AI::Agent::Learning.send(:learning_unlock, lock: learning) unless learning == :busy
+          Thread.current[:pwn_backup_learning_busy] = nil
           Thread.current[:pwn_session_maintenance_lock] = owner
         end
       end
@@ -1452,6 +1466,8 @@ module PWN
 
     def self.maintenance_transaction(dry_run:, current_session_id:, proc_root:)
       preflight = sweep(dry_run: true, current_session_id: current_session_id, proc_root: proc_root)
+      return preflight.merge(apply_blocked: true, evidence_migration: { deferred: 'learning_writer_active', migrated_rows: 0 }) if Thread.current[:pwn_backup_learning_busy] && !dry_run
+
       blocked = stopping? || !preflight[:legacy_owners].empty? || Array(preflight[:unresolved_store_remediation]).any?
       unless dry_run || blocked
         # Private metadata-only preflight survives an interrupted migration.

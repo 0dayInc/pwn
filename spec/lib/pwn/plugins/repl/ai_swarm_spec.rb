@@ -100,7 +100,7 @@ describe PWN::Plugins::REPL::AISwarm::Controller do
     controller = described_class.new(session_id: 'fixture')
     controller.execute(line: "/swarm mission #{request}")
     controller.send(:workers).each(&:join)
-    expect(controller.snapshot[:jobs].first).to include(state: 'incomplete', team: include(roles: include(protagonist: 'build')))
+    expect(controller.snapshot[:jobs].first).to include(state: 'incomplete', team: include(roles: include('protagonist' => 'build')))
   ensure
     controller&.close
   end
@@ -131,20 +131,20 @@ describe PWN::Plugins::REPL::AISwarm::Controller do
   end
 
   it 'owns model interrupts on the job thread and copies request-local routing' do
-    entered = Queue.new
+    entered = PWNTestPipeQueue.new
     allow(PWN::AI::Agent::Swarm).to receive(:create).and_return(swarm_id: 'fixture')
     Thread.current[:pwn_workspace_fixture] = :copied
     allow(PWN::AI::Agent::Swarm).to receive(:ask) do |opts|
       control = opts[:steering]
-      entered << [control.instance_variable_get(:@owner), Thread.current, Thread.current[:pwn_workspace_fixture], Thread.current[:pwn_steering_input]]
+      entered << [control.instance_variable_get(:@owner) == Thread.current, Thread.current[:pwn_workspace_fixture], Thread.current[:pwn_steering_input].is_a?(PWN::Plugins::REPL::AISwarm::JobControl)]
       { reply: 'done' }
     end
     controller = described_class.new(session_id: 'fixture')
     controller.execute(line: '/swarm dm scout inspect')
-    owner, worker, local, marker = entered.pop
-    expect(owner).to eq(worker)
-    expect(local).to eq(:copied)
-    expect(marker).to be_a(PWN::Plugins::REPL::AISwarm::JobControl)
+    owner_matches, local, marker = entered.pop
+    expect(owner_matches).to be(true)
+    expect(local).to eq('copied')
+    expect(marker).to be(true)
   ensure
     controller&.close
     Thread.current[:pwn_workspace_fixture] = nil
@@ -152,9 +152,9 @@ describe PWN::Plugins::REPL::AISwarm::Controller do
 
   it 'passes prior speakers to debate, preserves literal flag-like missions, and retains failures' do
     allow(PWN::AI::Agent::Swarm).to receive(:create).and_return(swarm_id: 'fixture')
-    calls = []
+    recorded = PWNTestPipeQueue.new
     allow(PWN::AI::Agent::Swarm).to receive(:ask) do |opts|
-      calls << opts
+      recorded << opts.slice(:request, :name)
       raise IOError, 'fixture unavailable' if opts[:name] == 'broken'
 
       { reply: "reply from #{opts[:name]}" }
@@ -162,6 +162,8 @@ describe PWN::Plugins::REPL::AISwarm::Controller do
     controller = described_class.new(session_id: 'fixture')
     controller.execute(line: '/swarm debate scout,critic "--literal mission"')
     controller.send(:workers).each(&:join)
+    calls = []
+    calls << recorded.pop until recorded.empty?
     expect(calls.first[:request]).to eq('--literal mission')
     expect(calls.last[:request]).to include('reply from scout', '--literal mission')
     controller.execute(line: '/swarm dm broken inspect')
@@ -172,7 +174,7 @@ describe PWN::Plugins::REPL::AISwarm::Controller do
   end
 
   it 'cancels only its owned blocked model and cannot switch swarms while it runs' do
-    entered = Queue.new
+    entered = PWNTestPipeQueue.new
     foreign = Thread.new { sleep }
     allow(PWN::AI::Agent::Swarm).to receive(:create).and_return(swarm_id: 'fixture')
     allow(PWN::AI::Agent::Swarm).to receive(:ask) do |opts|
@@ -199,12 +201,13 @@ describe PWN::Plugins::REPL::AISwarm::Controller do
   end
 
   it 'runs, steers, and cancels a persona through the existing Swarm API' do
-    entered = Queue.new
+    entered = PWNTestPipeQueue.new
     allow(PWN::AI::Agent::Swarm).to receive(:ask) do |opts|
-      entered << opts[:steering]
+      entered << true
       opts[:on_tool].call('shell', { command: 'true' }, '{"success":true}')
-      sleep 0.01 until opts[:steering].instance_variable_get(:@stopping)
-      raise PWN::Plugins::REPL::AISwarm::JobControl::Stopped, 'cancelled'
+      sleep 0.01 while opts[:steering].instance_variable_get(:@pending).empty?
+      entered << opts[:steering].instance_variable_get(:@pending)
+      sleep 30
     end
     events = Queue.new
     controller = described_class.new(session_id: 'console-session')
@@ -212,11 +215,11 @@ describe PWN::Plugins::REPL::AISwarm::Controller do
     allow(PWN::AI::Agent::Swarm).to receive(:spawn).and_return(name: 'scout')
     controller.execute(line: '/swarm spawn scout inspect evidence')
     queued = controller.execute(line: '/swarm dm scout inspect the fixture', on_event: ->(type, text) { events << [type, text] })
-    steering = entered.pop
+    expect(entered.pop).to be(true)
     expect(queued[:ok]).to eq(true)
     expect(controller.snapshot[:jobs].first[:state]).to eq('running')
     controller.execute(line: "/swarm steer #{queued[:job_id]} stop the scan")
-    expect(steering.instance_variable_get(:@pending)).to include('stop the scan')
+    expect(entered.pop).to include('stop the scan')
     controller.execute(line: "/swarm cancel #{queued[:job_id]}")
     sleep 0.05
     expect(controller.snapshot[:jobs].first[:state]).to eq('cancelled')

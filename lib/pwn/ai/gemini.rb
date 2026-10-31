@@ -238,6 +238,7 @@ module PWN
           }]
           http_body[:toolConfig] = gemini_tool_config(choice: opts[:tool_choice]) if opts[:tool_choice]
         end
+        http_body = PWN::AI::ServerTools.attach(engine: :gemini, http_body: http_body, request: opts)
 
         response = gemini_rest_call(
           http_method: :post,

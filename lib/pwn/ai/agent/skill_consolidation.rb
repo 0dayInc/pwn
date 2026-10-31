@@ -85,6 +85,8 @@ module PWN
         end
 
         public_class_method def self.consolidate_file(opts = {})
+          return PWN::Backups.transaction { consolidate_file(opts) } if opts[:dry_run] == false && !PWN::Backups.active?
+
           path = File.expand_path(opts.fetch(:path))
           raise ArgumentError, 'symlink skills are not writable consolidation targets' if File.symlink?(path)
 
@@ -99,8 +101,7 @@ module PWN
             lock.flock(File::LOCK_EX)
             raise ArgumentError, 'skill changed during consolidation' unless File.read(path) == original && !File.symlink?(path)
 
-            backup = "#{path}.#{digest}.bak"
-            File.open(backup, File::WRONLY | File::CREAT | File::EXCL, 0o600) { |file| file.write(original) } unless File.exist?(backup)
+            backup = PWN::Backups.capture(path: path, label: 'skill-consolidation')
             tmp = "#{path}.#{Process.pid}.tmp"
             File.open(tmp, File::WRONLY | File::CREAT | File::EXCL, File.stat(path).mode & 0o777) do |file|
               file.write(result[:content])

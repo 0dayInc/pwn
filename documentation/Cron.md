@@ -9,8 +9,8 @@ jobs require that worker, while manual commands do not. `--no-cron` disables
 the internal worker without changing host services.
 
 **Housekeeping must never use systemd or another native scheduler.**
-The three enabled housekeeping defaults below use only this existing worker
-or manual commands. `install_native_job` and each platform-specific job
+The one enabled housekeeping default, `session_cleanup`, uses only this existing
+worker or a manual command. `install_native_job` and each platform-specific job
 installer explicitly skip housekeeping (`housekeeping_internal_only`),
 including recognizable cleanup payloads under another name. Native worker
 contexts exclude housekeeping from ticks and direct job execution.

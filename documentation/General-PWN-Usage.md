@@ -18,7 +18,8 @@ $ pwn setup --migrate --fix   # after `gem update pwn`: verify + autofix ~/.pwn 
 ```
 
 See [Installation](Installation.md) for every flag and the
-`PWN::Setup` / `PWN::Migrate` API.
+`PWN::Setup` / `PWN::Migrate` API. Unspecified `pwn-ai` writes use
+`~/.pwn/workspaces/runtime`; see [Operability](Operability.md).
 
 ## Inside the REPL
 

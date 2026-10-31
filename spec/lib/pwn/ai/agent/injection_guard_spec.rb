@@ -34,6 +34,7 @@ describe 'indirect prompt-injection guards' do
   it 'does not re-infer the acceptance contract on a nested loop' do
     Thread.current[:pwn_loop_active] = true
     Thread.current[:pwn_loop_nested] = true
+    PWN::AI::Agent::TurnFinalizer.commit_artifacts!(request: 'Write /tmp/frozen.pdf')
     Thread.current[:pwn_loop_deliverables] = {
       paths: ['/tmp/frozen.pdf'], min_seconds: 0, skills: [], proofs: [], hosts: []
     }
@@ -44,6 +45,7 @@ describe 'indirect prompt-injection guards' do
   ensure
     Thread.current[:pwn_loop_active] = nil
     Thread.current[:pwn_loop_nested] = nil
+    Thread.current[:pwn_artifact_contract] = nil
     Thread.current[:pwn_loop_deliverables] = nil
   end
 

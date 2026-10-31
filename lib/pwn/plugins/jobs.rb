@@ -26,7 +26,7 @@ module PWN
 
         root = File.expand_path(JOBS_DIR)
         FileUtils.mkdir_p(root, mode: 0o700)
-        File.chmod(0o700, root)
+        File.chmod(0o700, root) unless (File.stat(root).mode & 0o777) == 0o700
         runtime = Float(opts[:max_runtime] || 0)
         raise ArgumentError, 'max_runtime must be finite and nonnegative' unless runtime.finite? && runtime >= 0
 

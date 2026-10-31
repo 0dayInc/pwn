@@ -25,7 +25,7 @@ describe PWN::AI::Router do
     it "routes session summaries only to the active #{engine} model" do
       stub_const('PWN::Env', { ai: { active: engine.to_sym, engine.to_sym => { model: 'selected-model', key: 'fixture-key', base_uri: 'http://localhost:1234' } } })
       mod = Object.const_get(described_class::ENGINE_MOD.fetch(engine))
-      expect(mod).to receive(:chat).with(hash_including(model: 'selected-model', quiet: true, spinner: false)).and_return('{"title":"Topic","summary":"Overall conversation context."}')
+      expect(mod).to receive(:chat).with(hash_including(model: 'selected-model', quiet: true, spinner: false, timeout: 90, reasoning_effort: 'none')).and_return('{"title":"Topic","summary":"Overall conversation context."}')
       expect(described_class.summarize(text: 'Conversation', llm: true, session: true)).to include('Topic')
       expect(PWN::Env[:ai][:active]).to eq(engine.to_sym)
     end

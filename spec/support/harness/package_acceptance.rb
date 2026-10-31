@@ -45,7 +45,7 @@ module HarnessPackageAcceptance
     commands.each_with_index do |command, index|
       result = HarnessEvaluation.capture(env, command, snapshot, 120)
       File.write(File.join(root, "build-#{index}.json"), JSON.pretty_generate(result))
-      raise "package step failed: #{command.inspect}; #{root}/build-#{index}.json" unless result[:exit_status]&.zero?
+      raise "package step failed: #{command.inspect}; #{root}/build-#{index}.json; #{process_evidence(result.merge(artifact_root: root))}" unless result[:exit_status]&.zero?
     end
     installed = Dir.glob(File.join(gem_home, 'gems/pwn-*')).fetch(0)
     installed_mismatches = ledger.keys.select { |relative| relative.start_with?('lib/', 'bin/', 'spec/support/harness/', 'spec/fixtures/harness/') }.reject do |relative|
@@ -66,12 +66,40 @@ module HarnessPackageAcceptance
       File.file?(source) && Digest::SHA256.file(source).hexdigest == ledger.fetch(relative)
     end
     rows = report[:results] + report[:cli_faults][:results] + report[:experiments][:training] + report[:experiments][:results] + report[:swarm_acceptance][:results] + report[:session_acceptance][:results]
+    File.write(File.join(root, 'acceptance.json'), JSON.pretty_generate(report))
+    validate_fingerprints!(rows, installed)
+    report
+  end
+
+  def self.validate_fingerprints!(rows, installed)
     rows.each do |row|
-      fingerprint = JSON.parse(File.read(File.join(row[:artifact_root], 'fingerprint.json')))
-      wrong = fingerprint.fetch('components').reject { |item| item.fetch('path').start_with?("#{installed}/lib/") }
+      path = File.join(row.fetch(:artifact_root), 'fingerprint.json')
+      begin
+        fingerprint = JSON.parse(File.read(path))
+        components = fingerprint.fetch('components')
+        raise KeyError, 'empty component inventory' unless components.is_a?(Array) && !components.empty?
+      rescue SystemCallError, JSON::ParserError, KeyError => e
+        raise "#{row[:id] || row[:task]}: missing or invalid fingerprint #{path} (#{e.class}); child evidence: #{process_evidence(row)}"
+      end
+      wrong = components.reject { |item| item.fetch('path').start_with?("#{installed}/lib/") }
       raise "loaded another PWN deployment: #{wrong.inspect}" unless wrong.empty?
     end
-    File.write(File.join(root, 'acceptance.json'), JSON.pretty_generate(report))
-    report
+  end
+
+  def self.process_evidence(row)
+    require 'pwn'
+    root = row.fetch(:artifact_root)
+    evidence = { result: row }
+    Dir.glob(File.join(root, '*process.json')).each do |path|
+      evidence[File.basename(path)] = JSON.parse(File.read(path))
+    rescue JSON::ParserError
+      evidence[File.basename(path)] = 'invalid process JSON; inspect artifact'
+    end
+    %w[stdout stderr].each do |stream|
+      path = File.join(root, "#{stream}.txt")
+      evidence[stream] = File.read(path) if File.file?(path)
+    end
+    # Redact before truncating so a cut cannot expose a partial credential.
+    JSON.generate(PWN::Redaction.redact(value: evidence))[0, 16_384]
   end
 end

@@ -50,7 +50,7 @@ RSpec.describe 'Swarm solve' do # rubocop:disable Metrics/BlockLength -- end-to-
     PWN::Env[:ai][:active] = :openai
     PWN::Env[:ai][:openai] = { key: 'offline-fixture-key' }
     @agent_cfg[:plan_first] = false
-    runtime = PWN::AI::Agent::RequestRuntime.new(request: 'Enclosing request', session_id: 'enclosing', artifact_root: @tmp, trace: false)
+    runtime = PWN::AI::Agent::RequestRuntime.new(request: 'Enclosing request', session_id: 'enclosing', artifact_root: File.join(@tmp, 'controller'), trace: false)
     expect(runtime).not_to receive(:call)
     Thread.current[:pwn_request_runtime] = runtime
     allow(PWN::AI::OpenAI).to receive(:chat_with_tools) do |opts|
@@ -78,7 +78,8 @@ RSpec.describe 'Swarm solve' do # rubocop:disable Metrics/BlockLength -- end-to-
     console.instance_variable_set(:@mission_options, { workspace: @workspace, worktree: true, rounds: 1, verification_timeout: 60 })
     out = Timeout.timeout(15) do
       console.submit('/swarm mission Write hello to greeting.txt')
-      controller.send(:workers).last.value
+      controller.send(:workers).last.join
+      controller.snapshot[:jobs].last[:team]
     end
     expect(out).to include(status: 'accepted')
     expect(out[:evidence].first).to include(stdout: 'hello', exitstatus: 0)
@@ -95,6 +96,7 @@ RSpec.describe 'Swarm solve' do # rubocop:disable Metrics/BlockLength -- end-to-
     expect(File.read(File.join(@workspace, 'greeting.txt'))).to eq('hello')
     expect(JSON.parse(File.read(out[:record_path])).dig('application', 'status')).to eq('applied')
   ensure
+    Thread.current[:pwn_request_runtime] = nil
     console&.send(:stop_worker)
     controller&.close
     if out && out[:worktree]
@@ -620,8 +622,8 @@ RSpec.describe 'Swarm solve' do # rubocop:disable Metrics/BlockLength -- end-to-
   end
 
   it 'pauses dispatch, resumes, and cancels through the coordinator command entry' do
-    entered = Queue.new
-    release = Queue.new
+    entered = PWNTestPipeQueue.new
+    release = PWNTestPipeQueue.new
     @hook = lambda do |handoff, _answer|
       if handoff[:phase] == 'assess'
         entered << true

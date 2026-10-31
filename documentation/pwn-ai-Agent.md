@@ -5,6 +5,9 @@ the goal; the agent plans a sequence of tool calls (`pwn_eval`, `shell`,
 `memory_*`, `skill_*`, `mistakes_*`, `reward_*`, `curriculum_*`, `extro_*`,
 `agent_*`, ...), executes them against the live process, observes the results,
 and checks completion against the original request and available host evidence.
+Unspecified tool writes go to `~/.pwn/workspaces/runtime`. A path outside that
+directory is allowed only when the original request names it. See
+[Operability](Operability.md).
 Learning records failures and corrections; it cannot guarantee nonrecurrence.
 
 ## Two ways to run it
@@ -642,7 +645,7 @@ After the reply, `Learning.auto_introspect` calls `rsi_tick`. That tick reads ES
 
 ## What the agent can call
 
-16 toolsets · **150 tools** - full table at
+16 toolsets · **152 tools** - full table at
 [Agent Tool Registry](Agent-Tool-Registry.md).
 
 The two that matter most:

@@ -89,6 +89,8 @@ module PWN
         #   )
 
         public_class_method def self.spawn(opts = {})
+          return PWN::Plugins::AISandbox.swarm_control(operation: 'spawn', args: opts) if Thread.current[:pwn_swarm_controller]
+
           name = opts[:name].to_s
           raise ArgumentError, 'name is required' if name.strip.empty?
           raise ArgumentError, 'role is required' if opts[:role].to_s.strip.empty?
@@ -243,6 +245,8 @@ module PWN
           empty_tools = false
           prior_id = Thread.current[:pwn_swarm_id]
           prior_honesty = Thread.current[:pwn_swarm_honesty]
+          return PWN::Plugins::AISandbox.swarm_control(operation: 'ask', args: opts) if Thread.current[:pwn_swarm_controller]
+
           sid     = opts[:swarm_id] || create(topic: opts[:request].to_s[0, 60])[:swarm_id]
           persona = opts[:persona] || personas(swarm_id: sid)[name.to_sym]
           raise ArgumentError, "unknown persona: #{name} (see #{AGENTS_FILE})" unless persona

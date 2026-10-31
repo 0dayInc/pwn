@@ -52,7 +52,7 @@ module PWN
     # Bump this whenever the shape of any file under ~/.pwn changes in a
     # way that requires a one-time transform.  Add the transform as an
     # entry in MIGRATIONS keyed by the NEW schema number.
-    SCHEMA_VERSION = 11
+    SCHEMA_VERSION = 12
 
     OK   = "\e[32mok\e[0m"
     BAD  = "\e[31mFAIL\e[0m"
@@ -276,6 +276,10 @@ module PWN
       11 => lambda { |_root, io|
         io.puts '    · versioned housekeeping policy and managed session_cleanup helper'
         PWN::Cron.install_defaults
+      },
+      12 => lambda { |root, io|
+        io.puts '    · global seven-folder recovery policy; legacy relocation remains explicit'
+        PWN::Backups.configure(root: File.join(root, 'backup'))
       }
     }.freeze
 
@@ -385,6 +389,8 @@ module PWN
     # and decryptor available)  5. stamp .schema.
 
     public_class_method def self.run(opts = {})
+      return PWN::Backups.transaction(root: BACKUP_ROOT) { run(opts) } unless opts[:dry_run] || PWN::Backups.active?
+
       fix     = opts[:fix] ? true : false
       dry_run = opts[:dry_run] ? true : false
       backup  = opts.fetch(:backup, true)
@@ -623,211 +629,16 @@ module PWN
     end
 
     # Supported Method Parameters::
-    # PWN::Migrate.prune_backups(dry_run: true, keep: 3, limit: 10, admission: nil)
-    # Default duplicate-only pruning is nondestructive to unique history.
-    # Explicit expire_history policy bounds recovery generations instead.
+    # PWN::Migrate.prune_backups(dry_run: true)
+    # Retention now runs only at shared producer admission, never separately.
     public_class_method def self.prune_backups(opts = {})
-      return expire_backup_generations(opts) if opts[:expire_history] || backup_retention_policy['expire_history']
-
-      dry_run = opts.fetch(:dry_run, true)
-      keep = [Integer(opts.fetch(:keep, 3)), 3].max
-      limit = Integer(opts.fetch(:limit, 10))
-      admission = opts[:admission]
-      result = { eligible: [], deleted: [], retained: [], incomplete: false }
-      return result unless File.directory?(BACKUP_ROOT)
-      raise IOError, 'Unsafe backup root' unless File.realpath(BACKUP_ROOT) == BACKUP_ROOT && File.stat(BACKUP_ROOT).uid == Process.uid
-
-      work = lambda do
-        names = Dir.children(BACKUP_ROOT).grep(/\A\d{8}_\d{6}(?:_[a-f0-9]{8})?\z/).sort
-        retained = names.last(keep)
-        manifests = retained.to_h { |name| [name, backup_inventory(path: File.join(BACKUP_ROOT, name), admission: admission)] }
-        names[0...-keep].to_a.last(limit).reverse_each do |name|
-          path = File.join(BACKUP_ROOT, name)
-          inventory = backup_inventory(path: path, admission: admission)
-          match = manifests.find { |_other, rows| rows == inventory }
-          unless match
-            result[:retained] << name
-            next
-          end
-          result[:eligible] << name
-          next if dry_run
-
-          canonical = File.join(BACKUP_ROOT, match.first)
-          raise IOError, 'Backup changed before pruning' unless backup_inventory(path: canonical, admission: admission) == inventory && backup_inventory(path: path, admission: admission) == inventory
-
-          FileUtils.remove_entry_secure(path)
-          raise IOError, 'Backup pruning failed' if File.exist?(path)
-
-          result[:deleted] << name
-        end
-        result
-      end
-      return work.call if dry_run
-
-      File.open(File.join(BACKUP_ROOT, '.retention.lock'), File::RDWR | File::CREAT | File::NOFOLLOW, 0o600) do |lock|
-        raise IOError, 'Backup maintenance active' unless lock.flock(File::LOCK_EX | File::LOCK_NB)
-
-        work.call
-      end
-    rescue IOError => e
-      result[:incomplete] = true
-      result[:error] = e.message
-      result
-    end
-
-    # Explicit opt-in expires historical versions, not merely duplicate bytes.
-    private_class_method def self.backup_retention_policy
-      path = File.join(BACKUP_ROOT, '.retention-policy.json')
-      return { 'keep' => 3, 'pins' => [], 'expire_history' => false } unless File.exist?(path) || File.symlink?(path)
-      raise IOError, 'Unsafe retention policy' unless File.realpath(path) == path && File.stat(path).uid == Process.uid
-
-      value = JSON.parse(File.binread(path))
-      valid = value['version'] == 1 && [true, false].include?(value['expire_history']) && value['keep'].is_a?(Integer) && value['keep'] >= 3 && value['pins'].is_a?(Array)
-      valid &&= value['pins'].all? { |name| name.is_a?(String) && name.match?(/\A\d{8}_\d{6}(?:_[a-f0-9]{8})?\z/) }
-      raise IOError, 'Invalid retention policy' unless valid
-
-      value
+      { eligible: [], deleted: [], retained: [], incomplete: false,
+        dry_run: opts.fetch(:dry_run, true), keep: PWN::Backups::LIMIT,
+        scope: 'global', retention: 'shared_producer_admission' }
     end
 
     private_class_method def self.backup_input_names
       (STATE_FILES.keys.map { |rel| rel.delete_suffix('/') } + %w[.schema pwn.yaml.decryptor]).uniq.reject { |rel| %w[sessions swarm].include?(rel.split('/').first) }
-    end
-
-    # Conservative literal-path protection in current evidence/continuation stores.
-    # Historical log/history/metrics copies are not operational dependencies.
-    private_class_method def self.backup_reference_pins(opts = {})
-      admission = opts[:admission]
-      pins = []
-      roots = %w[learning learning.jsonl memory.json mistakes.json policy.json policy_traj.jsonl preferences.jsonl engagements artifacts sessions swarm jobs runs open_goals open_goal.json curriculum finetune extrospection skill_review.jsonl maintenance]
-      roots.each do |name|
-        path = File.join(PWN_ROOT, name)
-        next unless File.exist?(path) || File.symlink?(path)
-
-        Find.find(path) do |file|
-          stat = File.lstat(file)
-          raise IOError, 'Unsafe current evidence entry' unless stat.file? || stat.directory?
-          next unless stat.file? && file.match?(/\.jsonl?\z/)
-          raise IOError, 'Backup work budget exhausted' if admission && !admission.call(stat.size + 1)
-
-          documents = file.end_with?('.jsonl') ? File.foreach(file).reject { |line| line.strip.empty? }.map { |line| JSON.parse(line) } : [JSON.parse(File.binread(file))]
-          documents.select! { |row| row.is_a?(Hash) && (%w[prepared interrupted].include?(row['state']) || row['pinned'] == true) } if name == 'maintenance'
-          until documents.empty?
-            value = documents.pop
-            case value
-            when Hash then documents.concat(value.values)
-            when Array then documents.concat(value)
-            when String
-              match = value.match(%r{\A(?:#{Regexp.escape(BACKUP_ROOT)}/|backup/)(\d{8}_\d{6}(?:_[a-f0-9]{8})?)(?:/|\z)})
-              pins << match[1] if match
-            end
-          end
-        end
-      end
-      pins.uniq
-    end
-
-    private_class_method def self.expire_backup_generations(opts = {})
-      require 'zlib'
-      result = { eligible: [], deleted: [], retained: [], incomplete: false, permanent_history_expiry: true }
-      return result unless File.directory?(BACKUP_ROOT)
-      raise IOError, 'Unsafe backup root' unless File.realpath(PWN_ROOT) == PWN_ROOT && File.realpath(BACKUP_ROOT) == BACKUP_ROOT && File.stat(BACKUP_ROOT).uid == Process.uid
-
-      dry_run = opts.fetch(:dry_run, true)
-      admission = opts[:admission]
-      policy = backup_retention_policy
-      keep = [Integer(opts.fetch(:keep, policy['keep'])), 3].max
-      limit = Integer(opts.fetch(:limit, 10))
-      raise ArgumentError, 'Invalid retention limit' unless limit.positive?
-
-      operation = lambda do
-        names = Dir.children(BACKUP_ROOT).grep(/\A\d{8}_\d{6}(?:_[a-f0-9]{8})?\z/).sort
-        raise IOError, 'Pinned backup missing' unless (policy['pins'] - names).empty?
-
-        if (names - (names.last(keep) + policy['pins'])).empty?
-          result[:retained] = names
-          result[:pins] = policy['pins']
-          result[:evidence_scan] = 'not_needed_no_expiry'
-          return result
-        end
-
-        pins = (policy['pins'] + backup_reference_pins(admission: admission)).uniq
-        raise IOError, 'Pinned backup missing' unless (pins - names).empty?
-
-        retained = (names.last(keep) + pins).uniq.sort
-        result[:retained] = retained
-        result[:pins] = pins
-        return result if (names - retained).empty?
-        raise IOError, 'Insufficient recovery generations' if retained.length < keep
-
-        current = backup_inventory(path: PWN_ROOT, names: backup_input_names, admission: admission)
-        inventories = retained.to_h { |name| [name, backup_inventory(path: File.join(BACKUP_ROOT, name), admission: admission)] }
-        newest = inventories.fetch(names.last)
-        raise IOError, 'Current migration input coverage missing' unless current.all? { |path, row| newest[path] && newest[path].first == row.first }
-
-        %w[pwn.yaml pwn.yaml.decryptor].each do |name|
-          raise IOError, 'Current encrypted configuration recovery missing' if current.key?(name) && newest[name] != current[name]
-        end
-        result[:coverage] = { current_paths: current.length, newest: names.last, legacy_completeness_certified: false, restore: 'copy migration-owned paths only; never overlay entire legacy trees or edit shared inodes' }
-        candidates = (names - retained).first(limit)
-        expired = candidates.to_h { |name| [name, backup_inventory(path: File.join(BACKUP_ROOT, name), admission: admission)] }
-        result[:eligible] = candidates
-        return result if dry_run
-
-        # Recheck everything before publishing the single private metadata ledger.
-        raise IOError, 'Current migration input changed' unless current == backup_inventory(path: PWN_ROOT, names: backup_input_names, admission: admission)
-        raise IOError, 'Backup references changed' unless pins == (policy['pins'] + backup_reference_pins(admission: admission)).uniq
-
-        inventories.merge(expired).each do |name, rows|
-          raise IOError, 'Backup changed before expiry' unless rows == backup_inventory(path: File.join(BACKUP_ROOT, name), admission: admission)
-        end
-        ledger = File.join(BACKUP_ROOT, '.retention-manifest.json.gz')
-        raise IOError, 'Unsafe retention manifest' if File.symlink?(ledger)
-
-        record = { version: 1, state: 'prepared', policy: policy, coverage: result[:coverage], retained: inventories, expiring: expired, deleted: [] }
-        verification_bytes = inventories.values.sum { |rows| rows.values.sum { |row| row.first == 'file' ? row[4] + 1 : 0 } }
-        reserved_bytes = (JSON.generate(record).bytesize * 2) + verification_bytes
-        raise IOError, 'Backup commit budget exhausted' if admission && !admission.call(reserved_bytes)
-
-        publish_backup_retention(path: ledger, record: record)
-        candidates.each do |name|
-          FileUtils.remove_entry_secure(File.join(BACKUP_ROOT, name))
-          raise IOError, 'Backup expiry failed' if File.exist?(File.join(BACKUP_ROOT, name))
-
-          result[:deleted] << name
-          record[:deleted] << name
-        end
-        inventories.each do |name, rows|
-          raise IOError, 'Retained backup changed' unless rows == backup_inventory(path: File.join(BACKUP_ROOT, name))
-        end
-        record[:state] = 'committed'
-        publish_backup_retention(path: ledger, record: record)
-        result
-      end
-      return operation.call if dry_run
-
-      File.open(File.join(BACKUP_ROOT, '.retention.lock'), File::RDWR | File::CREAT | File::NOFOLLOW, 0o600) do |lock|
-        raise IOError, 'Backup maintenance active' unless lock.flock(File::LOCK_EX | File::LOCK_NB)
-
-        operation.call
-      end
-    rescue IOError => e
-      result[:incomplete] = true
-      result[:error] = e.message
-      result
-    end
-
-    private_class_method def self.publish_backup_retention(opts = {})
-      path = opts[:path]
-      temporary = "#{path}.#{SecureRandom.hex(8)}"
-      File.open(temporary, File::WRONLY | File::CREAT | File::EXCL, 0o600) do |file|
-        writer = Zlib::GzipWriter.new(file)
-        writer.write(JSON.generate(opts[:record]))
-        writer.finish
-        file.flush
-        file.fsync
-      end
-      File.rename(temporary, path)
-      File.open(BACKUP_ROOT, File::RDONLY, &:fsync)
     end
 
     private_class_method def self.backup_inventory(opts = {})
@@ -859,38 +670,30 @@ module PWN
     end
 
     private_class_method def self.backup!
-      FileUtils.mkdir_p(BACKUP_ROOT, mode: 0o700)
-      raise IOError, 'Unsafe backup root' unless File.realpath(BACKUP_ROOT) == BACKUP_ROOT
-
-      File.open(File.join(BACKUP_ROOT, '.retention.lock'), File::RDWR | File::CREAT | File::NOFOLLOW, 0o600) do |lock|
-        lock.flock(File::LOCK_EX)
-        ts = "#{Time.now.utc.strftime('%Y%m%d_%H%M%S')}_#{SecureRandom.hex(4)}"
-        dst = File.join(BACKUP_ROOT, ts)
-        partial = File.join(BACKUP_ROOT, ".partial-#{ts}")
-        Dir.mkdir(partial, 0o700)
-        # Only state owned by the migration registry. Logs, caches, artifacts,
-        # jobs and prior maintenance archives are not schema migration inputs.
+      PWN::Backups.transaction(root: BACKUP_ROOT) do
+        dst = PWN::Backups.directory(label: 'migration')
         names = backup_input_names
         inventory = backup_inventory(path: PWN_ROOT, names: names)
         names.each do |name|
           src = File.join(PWN_ROOT, name)
           next unless File.exist?(src)
 
-          target = File.join(partial, name)
+          target = File.join(dst, name)
           FileUtils.mkdir_p(File.dirname(target), mode: 0o700)
           FileUtils.cp_r(src, target, preserve: true)
         end
         raise IOError, 'Migration input changed during backup' unless inventory == backup_inventory(path: PWN_ROOT, names: names)
-        raise IOError, 'Backup verification failed' unless inventory == backup_inventory(path: partial, names: names)
+        raise IOError, 'Backup verification failed' unless inventory == backup_inventory(path: dst, names: names)
 
-        manifest = JSON.generate(version: 1, complete: true, scope: names.sort, files: inventory)
-        File.open(File.join(partial, '.snapshot-manifest.json'), File::WRONLY | File::CREAT | File::EXCL, 0o600) do |file|
-          file.write(manifest)
+        inventory.each do |name, row|
+          File.open(File.join(dst, name), File::RDONLY, &:fsync) if row.first == 'file'
+        end
+        File.open(File.join(dst, '.snapshot-manifest.json'), File::WRONLY | File::CREAT | File::EXCL, 0o600) do |file|
+          file.write(JSON.generate(version: 1, complete: true, scope: names.sort, files: inventory))
           file.flush
           file.fsync
         end
-        File.rename(partial, dst)
-        File.open(BACKUP_ROOT, File::RDONLY, &:fsync)
+        File.open(dst, File::RDONLY, &:fsync)
         dst
       end
     end
@@ -1041,13 +844,9 @@ module PWN
           iv: 'optional - iv value consumed by #backfill_vault'
         )
 
-        # Prune duplicate trees, or explicitly expire historical generations.
+        # Compatibility report; shared producer admission owns retention.
         #{self}.prune_backups(
-          expire_history: 'optional - permanently expire old unpinned history after current recovery coverage verification; default reads backup/.retention-policy.json',
-          dry_run: 'optional - preview without writes, default true',
-          keep: 'optional - recent recovery points to retain, minimum three',
-          limit: 'optional - maximum older snapshots examined per invocation, default ten',
-          admission: 'optional - callable byte/work budget admission guard'
+          dry_run: 'optional - preview without writes, default true'
         )
 
         # Run env template and return its result

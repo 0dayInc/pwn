@@ -464,6 +464,40 @@ module PWN
           end
         end
 
+        # JSON-only, generation-tagged child events; never deserialize Ruby objects.
+        class MissionEvents
+          def initialize(io, generation)
+            @io = io
+            @generation = generation
+            @mutex = Mutex.new
+          end
+
+          def <<(event)
+            @mutex.synchronize { @io.write("#{JSON.generate([@generation, *event])}\n") }
+            self
+          end
+        end
+
+        # Parent-side steering endpoint; cancellation belongs to the process owner.
+        class MissionControl
+          def initialize(io)
+            @io = io
+          end
+
+          def submit(text)
+            @io.puts(JSON.generate(text.to_s))
+            @io.flush
+          end
+
+          def phase
+            'mission process'
+          end
+
+          def stop
+            :stopping
+          end
+        end
+
         # Own the terminal, event pump and the lifetime of exactly one request.
         class Console # rubocop:disable Metrics/ClassLength -- cohesive single-owner terminal state machine
           COLORS = { operator: :operator, task: :task, thinking: :notice, tool: :tool, result: :result, assistant: :assistant, notice: :notice, warning: :warning }.freeze
@@ -616,8 +650,27 @@ module PWN
 
           def drain
             200.times do
-              type, text = @events.pop(true)
+              type, text, generation = @events.pop(true)
+              next if generation && generation != @mission_generation && generation != @swarm_generation
+
               case type
+              when :command_state
+                if text[:ai].is_a?(Hash)
+                  text[:ai][:active] = text[:ai][:active].to_sym if PWN::Env.dig(:ai, :active).is_a?(Symbol) && text[:ai][:active].is_a?(String)
+                  PWN::Env[:ai] = text[:ai]
+                end
+                text.fetch(:config, {}).each do |key, value|
+                  @pry.config.public_send("#{key}=", value) if %i[pwn_ai_session_id pwn_ai_debug pwn_ai_trace].include?(key)
+                end
+              when :usage
+                @usage.record(text)
+              when :mission_done
+                @worker.join
+                finish_request_metrics
+                @running = false
+                @control = nil
+                @mission = nil
+                @mission_commands&.close unless @mission_commands&.closed?
               when :operator_loaded
                 generation, data = text
                 if @operator_view && @operator_view[:generation] == generation
@@ -695,97 +748,230 @@ module PWN
             PWN::Plugins::Log.mirror_tui!(msg: "#{type.to_s.upcase}\n#{clean}") if @pry.config.pwn_ai_debug && type != :notice
           end
 
-          def start_request(request, command: false, &operation)
+          private_class_method def self.mission_entry(opts = {})
+            data = opts[:descriptor]
+            console = allocate
+            pry = Pry.new
+            data.fetch(:config).each { |key, value| pry.config.public_send("#{key}=", value) }
+            console.instance_variable_set(:@pry, pry)
+            console.instance_variable_set(:@input, PWN::AI::Agent::MissionNamespace.io(5))
+            writer = PWN::AI::Agent::MissionNamespace.io(4)
+            if data[:operation] == :console
+              console.send(:mission_request_child, data, writer, PWN::AI::Agent::MissionNamespace.io(6))
+            else
+              console.send(:mission_command_child, data[:request], data[:generation], data[:baseline_ai], writer, data[:cleanup])
+            end
+          end
+
+          def mission_config
+            %i[pwn_ai_session_id pwn_ai_debug pwn_ai_trace pwn_ai_speak pwn_ai_agent].to_h { |key| [key, @pry.config.public_send(key)] }
+          end
+
+          def mission_request_child(data, writer, commands)
+            request, generation, session_id, title_config = data.values_at(:request, :generation, :session_id, :title_config)
+            events = MissionEvents.new(writer, generation)
+            output = EventIO.new(events)
+            $stdout = $stderr = output
+            $stdin = @input
+            @pry.config.output = output
+            control = Control.new(input: @input, output: output)
+            Thread.current[:pwn_steering_input] = control
+            Thread.current[:pwn_usage_observer] = ->(usage) { events << [:usage, usage] }
+            Thread.new do
+              commands.each_line { |line| control.submit(JSON.parse(line)) }
+            end
+            begin
+              workspace = File.realpath(Dir.pwd)
+              lock_path = File.join(Dir.tmpdir, "pwn-solve-#{Digest::SHA256.hexdigest(workspace)}.lock")
+              File.open(lock_path, File::RDWR | File::CREAT | File::NOFOLLOW, 0o600) do |lease|
+                raise IOError, 'Workspace busy: another mission owns this directory.' unless lease.flock(File::LOCK_EX | File::LOCK_NB)
+
+                events << [:session_title, PWN::Sessions.provisional_title(session_id: session_id, request: request)]
+                on_tool = lambda do |name, args, result|
+                  if %w[task thinking].include?(name.to_s)
+                    events << [name.to_sym, args.to_s]
+                  else
+                    events << [:tool, "#{name}\n#{args.is_a?(String) ? args : args.inspect}"]
+                    events << [:result, result.to_s]
+                  end
+                end
+                final = PWN::AI::Agent::Loop.run(request: request, session_id: session_id,
+                                                 enabled_toolsets: PWN::Env.dig(:ai, :agent, :toolsets),
+                                                 on_tool: on_tool, steering: control, debug: @pry.config.pwn_ai_debug,
+                                                 trace: @pry.config.pwn_ai_trace, debug_tee: output)
+                promoted = Thread.current[:pwn_thinking_promoted] && final.to_s.strip == Thread.current[:pwn_last_thinking].to_s.strip
+                events << [:assistant, final.to_s] unless promoted
+                events << [:session_title, PWN::Sessions.refresh_title(session_id: session_id, ai_config: title_config, on_error: ->(kind) { events << [:warning, "Session title refresh unavailable (#{kind}); previous title retained."] })]
+              end
+            rescue StandardError, Interrupt, Control::Stopped => e
+              events << [:warning, "#{e.class}: #{e.message}"]
+            ensure
+              output.flush
+              writer.close
+            end
+          end
+
+          def mission_command_child(request, generation, baseline_ai, writer, cleanup)
+            events = MissionEvents.new(writer, generation)
+            output = EventIO.new(events)
+            $stdout = $stderr = output
+            $stdin = @input
+            @pry.config.output = output
+            Thread.current[:pwn_steering_input] = Control.new(input: @input, output: output)
+            @events = events
+            @output = output
+            begin
+              if cleanup
+                result = PWN::SessionCleanup.run(dry_run: false, current_session_id: @pry.config.pwn_ai_session_id, approved_candidates: cleanup)
+                events << [:command, REPL.pwn_ai_result_text(value: result)]
+              elsif request.match?(%r{\A/model(?:\s|$)})
+                REPL.pwn_ai_run_model(args: request.split.drop(1), prompt: lambda { |selection|
+                  events << [:model_prompt, selection]
+                  :deferred
+                })
+              else
+                REPL.pwn_ai_dispatch_slash!(request: request, pry: @pry, raise_errors: true)
+              end
+              config = %i[pwn_ai_session_id pwn_ai_debug pwn_ai_trace].to_h { |key| [key, @pry.config.public_send(key)] }
+              ai = PWN::Env[:ai] unless JSON.generate(PWN::Env[:ai]) == baseline_ai
+              events << [:command_state, { ai: ai, config: config }]
+            rescue StandardError, Interrupt, Control::Stopped => e
+              events << [:warning, "#{e.class}: #{e.message}"]
+            ensure
+              output.flush
+              writer.close
+            end
+          end
+
+          def start_mission_request(request)
+            return add(:warning, 'A mission is still running; cancel and reap it first.') if busy?
+
+            @mission_generation = SecureRandom.uuid
+            generation = @mission_generation
             session_id = @pry.config.pwn_ai_session_id
             title_config = Marshal.load(Marshal.dump(PWN::Env[:ai]))
-            @locals = Thread.current.keys.select { |key| key.to_s.start_with?('pwn_') }.to_h { |key| [key, Thread.current[key]] }
-            @thread_variables = Thread.current.thread_variables.select { |key| key.to_s.start_with?('pwn_') }.to_h { |key| [key, Thread.current.thread_variable_get(key)] }
-            # A fresh forwarding pipe prevents unread input crossing requests.
-            @tool_input.close unless @tool_input.closed?
+            @tool_input&.close unless @tool_input&.closed?
+            forwarded, @tool_input = IO.pipe
+            @input.reopen(forwarded)
+            forwarded.close
+            @cancelling = @command = false
+            begin_request_metrics
+            add(:operator, request)
+            reader, writer = IO.pipe
+            commands, @mission_commands = IO.pipe
+            @mission = PWN::Plugins::AISandbox::MissionProcess.new(
+              descriptor: { operation: :console, request: request, generation: generation, session_id: session_id, title_config: title_config, config: mission_config },
+              fds: { 4 => writer, 5 => @input, 6 => commands }
+            )
+            writer.close
+            commands.close
+            @control = MissionControl.new(@mission_commands)
+            @running = true
+            mission = @mission
+            @worker = Thread.new do
+              reader.each_line do |line|
+                tag, type, text = JSON.parse(line, symbolize_names: true)
+                next unless tag == generation && %w[task thinking tool result assistant notice warning session_title usage].include?(type)
+
+                @events << [type.to_sym, text, tag]
+              end
+            rescue StandardError => e
+              @events << [:warning, "Mission IPC: #{e.message}", generation]
+            ensure
+              mission.close
+              reader.close
+              @events << [:mission_done, nil, generation]
+            end
+            @worker.report_on_exception = false
+          rescue StandardError => e
+            [reader, writer, commands, @mission_commands].compact.each { |io| io.close unless io.closed? }
+            @mission&.close
+            @mission = nil
+            @running = false
+            add(:warning, "Mission not started: #{e.message}")
+          end
+
+          def cancel_mission
+            # Invalidate queued events first. Ready is set only after the reader
+            # reaps namespace PID 1, including all provider and tool descendants.
+            @cancelling = true
+            @mission_generation = nil
+            @mission.close
+            @worker&.join
+            @mission_commands&.close unless @mission_commands&.closed?
+            @tool_input&.close unless @tool_input&.closed?
+            @mission = @control = nil
+            @running = false
+            finish_request_metrics
+            add(:warning, 'Mission cancelled; all owned processes reaped. Completed work is not undone.')
+          end
+
+          def start_request(request, command: false, cleanup: nil)
+            return start_mission_request(request) unless command
+            return add(:warning, 'A mission is still running; cancel and reap it first.') if busy?
+
+            @mission_generation = SecureRandom.uuid
+            generation = @mission_generation
+            @tool_input&.close unless @tool_input&.closed?
             forwarded, @tool_input = IO.pipe
             @input.reopen(forwarded)
             forwarded.close
             @cancelling = false
-            @command = command
+            @command = true
+            baseline_ai = JSON.generate(PWN::Env[:ai])
             begin_request_metrics
             add(:operator, request)
+            reader, writer = IO.pipe
+            @mission = PWN::Plugins::AISandbox::MissionProcess.new(
+              descriptor: { operation: :slash, request: request, generation: generation, baseline_ai: baseline_ai, config: mission_config, cleanup: cleanup },
+              fds: { 4 => writer, 5 => @input }
+            )
+            writer.close
             @running = true
-            ready = Queue.new
-            gate = Queue.new
+            mission = @mission
             @worker = Thread.new do
-              @locals.each { |key, value| Thread.current[key] = value }
-              @thread_variables.each { |key, value| Thread.current.thread_variable_set(key, value) }
-              control = Control.new(input: @input, output: @output)
-              Thread.current[:pwn_steering_input] = control
-              Thread.current[:pwn_usage_observer] = @usage.method(:record)
-              ready << control
-              gate.pop
-              on_tool = lambda do |name, args, result|
-                if name.to_s == 'task'
-                  @events << [:task, args.to_s]
-                elsif name.to_s == 'thinking'
-                  @events << [:thinking, args.to_s]
-                else
-                  @events << [:tool, "#{name}\n#{args.is_a?(String) ? args : args.inspect}"]
-                  @events << [:result, result.to_s]
-                end
-              end
-              if command
-                control.checkpoint(messages: [], phase: :tool)
-                if operation
-                  operation.call
-                elsif request.match?(%r{\A/model(?:\s|$)})
-                  REPL.pwn_ai_run_model(args: request.split.drop(1), prompt: lambda { |selection|
-                    control.checkpoint(messages: [])
-                    @events << [:model_prompt, selection]
-                    :deferred
-                  })
-                else
-                  REPL.pwn_ai_dispatch_slash!(request: request, pry: @pry, raise_errors: true)
-                end
-                # Maintenance is one safe transaction: never label its committed
-                # deletions cancelled merely because stop was requested mid-write.
-                if request.match?(%r{\A/(?:sessions\s+cleanup|maintenance)(?:\s|$)})
-                  @events << [:notice, 'Session cleanup finished; completed work is not undone.']
-                else
-                  control.checkpoint(messages: [])
-                end
-              else
-                workspace = File.realpath(Dir.pwd)
-                workspace_lock = File.open(File.join(Dir.tmpdir, "pwn-solve-#{Digest::SHA256.hexdigest(workspace)}.lock"), File::RDWR | File::CREAT | File::NOFOLLOW, 0o600) # rubocop:disable Style/FileOpen -- worker ensure owns the lease
-                raise IOError, 'Workspace busy: another request or mission owns this directory. Wait or cancel it before retrying.' unless workspace_lock.flock(File::LOCK_EX | File::LOCK_NB)
+              reader.each_line do |line|
+                tag, type, text = JSON.parse(line, symbolize_names: true)
+                next unless tag == generation && %w[notice warning command command_notice model_prompt command_state].include?(type)
 
-                @events << [:session_title, PWN::Sessions.provisional_title(session_id: session_id, request: request)]
-                final = PWN::AI::Agent::Loop.run(
-                  request: request, session_id: session_id,
-                  enabled_toolsets: PWN::Env.dig(:ai, :agent, :toolsets),
-                  on_tool: on_tool, steering: control, debug: @pry.config.pwn_ai_debug, debug_tee: @output
-                )
-                promoted = Thread.current[:pwn_thinking_promoted] && final.to_s.strip == Thread.current[:pwn_last_thinking].to_s.strip
-                @events << [:assistant, final.to_s] unless promoted
+                @events << [type.to_sym, text, tag]
               end
-            rescue Control::Stopped => e
-              @events << [:warning, e.message]
-            rescue StandardError, Interrupt => e
-              Thread.current[:pwn_log_progress] = false
-              PWN::Plugins::Log.note_exception!(error: e, where: 'curses agent', which_self: AIConsole)
-              @events << [:warning, "#{e.class}: #{e.message}"]
+            rescue StandardError => e
+              @events << [:warning, "Command IPC: #{e.message}", generation]
             ensure
-              workspace_lock&.close
-              @events << [:done, command ? nil : [session_id, title_config]]
+              mission.close
+              reader.close
+              @events << [:mission_done, nil, generation]
             end
             @worker.report_on_exception = false
-            @control = ready.pop
-            gate << true
+          rescue StandardError => e
+            [reader, writer].compact.each { |io| io.close unless io.closed? }
+            @mission&.close
+            @mission = nil
+            @running = false
+            add(:warning, "Command not started: #{e.message}")
+          end
+
+          def swarm_event_callback
+            @swarm_generation ||= SecureRandom.uuid
+            generation = @swarm_generation
+            ->(type, text) { @events << [type, text, generation] }
           end
 
           def cancel
+            @swarm_generation = SecureRandom.uuid
+            if @mission
+              cancel_mission
+              @swarm&.cancel_all
+              return
+            end
+
             if busy?
               first = !@cancelling
               @cancelling = true
               @control&.stop
               @swarm&.cancel_all
-              @tool_input.close unless @tool_input.closed?
+              @tool_input&.close unless @tool_input&.closed?
               add(:warning, 'Cancellation requested. Waiting for a safe boundary; work already started is not undone.') if first
             else
               @editor.replace('')
@@ -793,11 +979,12 @@ module PWN
           end
 
           def stop_worker
+            cancel_mission if @mission
             return unless @worker&.alive? || @swarm&.busy?
 
             @control&.stop
             @swarm&.cancel_all
-            @tool_input.close unless @tool_input.closed?
+            @tool_input&.close unless @tool_input&.closed?
             @worker&.join
             @swarm&.close
           ensure
@@ -914,7 +1101,7 @@ module PWN
 
             return add(:warning, 'Workspace busy: wait or cancel the ordinary request before launching a swarm writer.') if @running && line.match?(%r{\A/swarm\s+(?:mission|dm|broadcast|debate)\b})
 
-            result = @swarm.execute(mission_options.merge(line: line, on_event: ->(type, text) { @events << [type, text] }, usage_observer: @usage.method(:record)))
+            result = @swarm.execute(mission_options.merge(line: line, on_event: swarm_event_callback, usage_observer: @usage.method(:record)))
             text = result[:job_id] ? "Swarm job #{result[:job_id]} queued (#{result[:state]})." : (result[:usage] || REPL.pwn_ai_result_text(value: result))
             add(:command, text)
           end
@@ -2410,13 +2597,9 @@ module PWN
 
             view = @operator_view
             approved = view[:plan][:records].select { |row| view[:plan][:candidate_ids].include?(row[:id]) }.to_h { |row| [row[:id], { files: row[:files], dependency_records: row[:dependency_records] }] }
-            session_id = @pry.config.pwn_ai_session_id
             view.delete(:confirm)
             @operator_view = nil
-            start_request('/sessions cleanup (approved preview)', command: true) do
-              result = PWN::SessionCleanup.run(dry_run: false, current_session_id: session_id, approved_candidates: approved)
-              @events << [:command, REPL.pwn_ai_result_text(value: result)]
-            end
+            start_request('/sessions cleanup (approved preview)', command: true, cleanup: approved)
           end
 
           def operator_viewport(page)
@@ -2581,7 +2764,7 @@ module PWN
               @workspace[:notice] = 'Workspace busy: wait or cancel the ordinary request first.'
               return
             end
-            options = mission_options.merge(line: Shellwords.join(['/swarm'] + args), on_event: ->(type, text) { @events << [type, text] }, usage_observer: @usage.method(:record))
+            options = mission_options.merge(line: Shellwords.join(['/swarm'] + args), on_event: swarm_event_callback, usage_observer: @usage.method(:record))
             options[:solve_request] = args.last if args.first == 'mission'
             result = @swarm.execute(options)
             @workspace[:notice] = result[:error] || "#{args.first}: accepted#{" · job #{result[:job_id]}" if result[:job_id]}"

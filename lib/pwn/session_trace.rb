@@ -91,6 +91,9 @@ module PWN
       timeout = Float(opts.fetch(:timeout, 30))
       raise ArgumentError, 'Invalid rerun deadline' unless timeout.positive? && timeout <= 300
 
+      # A deliberately bootstrapped user-namespace caller retains capabilities
+      # for per-mission PID creation. Bubblewrap requires a nonprivileged caller.
+      argv.unshift('setpriv', '--ambient-caps=-all', '--inh-caps=-all', '--bounding-set=-all', '--') if PWN::AI::Agent::MissionNamespace.prepared?
       Open3.popen3(*argv, unsetenv_others: true, pgroup: true) do |stdin, stdout, stderr, wait|
         readers = [Thread.new { stdout.read }, Thread.new { stderr.read }]
         begin

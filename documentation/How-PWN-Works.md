@@ -28,7 +28,7 @@ hardware).
 |---|---|
 | `Loop` | plan → **TaskSummarizer** briefs → dispatch tool_calls → observe → repeat until `may_finalize?`. No iteration-budget abort |
 | **`TaskSummarizer`** | Executive UX: every request gets an English task compass (`emit_plan!` · `about_to` as `task k/n`) - no statement/question/goal type |
-| `Registry` | JSON-Schema function definitions grouped into 16 **toolsets** · **150 tools** · `CORE_TOOLS` = `DEFAULT_PREFERENCE` (`memory_recall` · `session_recall` · `skills_recall` · `pwn_eval` · `shell` · `mistakes_record` · `mistakes_resolve` · `learning_note_outcome` · `memory_remember` · `skills_update` · `artifact_read` · `artifact_grep` · `job_run` · `job_status` · `job_tail` · `job_result` · `job_kill`) |
+| `Registry` | JSON-Schema function definitions grouped into 16 **toolsets** · **152 tools** · `CORE_TOOLS` = `DEFAULT_PREFERENCE` (`memory_recall` · `session_recall` · `skills_recall` · `pwn_eval` · `shell` · `mistakes_record` · `mistakes_resolve` · `learning_note_outcome` · `memory_remember` · `skills_update` · `artifact_read` · `artifact_grep` · `job_run` · `job_status` · `job_tail` · `job_result` · `job_kill`) |
 | `Dispatch` / `Result` | execute a tool, capture stdout/value/error/duration |
 | `PromptBuilder` | inject MEMORY / SKILLS / LEARNING / **KNOWN MISTAKES + FIXES** / METRICS / **POLICY** / EXTROSPECTION / RECENT TURNS |
 | `Metrics` · `Learning` · `Reflect` · **`Policy`** | **introspection** - how well am I doing? (Policy is live Q / REINFORCE, advisory rank only) |
@@ -74,9 +74,10 @@ Q / REINFORCE only for eligible resolved outcomes with independently attributed 
 (MEMORY · SKILLS · LEARNING · KNOWN MISTAKES/FIXES · TOOL EFFECTIVENESS ·
 POLICY · EXTROSPECTION · RECENT TURNS) are re-injected into the next system
 prompt.
-Nightly hygiene cron trims `~/.pwn` stores. Curriculum practice, offline
-judge, and weekly LoRA train ship seeded but disabled; turn them on with
-`cron_enable` when you want that loop.
+Nightly hygiene is the one seeded `session_cleanup` coordinator. It is not three
+separate enabled jobs, and it does not use systemd. Curriculum practice, offline
+judge, and weekly LoRA train are optional templates; they are not seeded, and
+deleting them does not cause the next launch to recreate them.
 
 `Metrics.esr` is `verified_exploit_tools / vulnerable_tools`. `Metrics.asr` is `successful_attacks / total_attack_attempts`. `Learning.rsi_tick` compares ESR with the previous snapshot and writes a lesson when it falls. A file hash, a nuclei template match, or a CVE id does not move ESR. Only a reproduced exploit does.
 

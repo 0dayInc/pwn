@@ -129,7 +129,11 @@ module PWN
           begin
             runtime = Thread.current[:pwn_request_runtime]
             result = if runtime
-                       runtime.execute_tool(name: entry.name, args: args, effect: effect(name: entry.name, args: args), action_id: tool_call[:id] || tool_call['id']) { entry.handler.call(args) }
+                       runtime.execute_tool(name: entry.name, args: args, effect: effect(name: entry.name, args: args), action_id: tool_call[:id] || tool_call['id']) do
+                         PWN::Plugins::AISandbox.protect_call(handler: { name: entry.name, args: args }, runtime: runtime, workspace: runtime.contract[:cwd], write_roots: runtime.contract[:required_artifacts]) do
+                           entry.handler.call(args)
+                         end
+                       end
                      else
                        entry.handler.call(args)
                      end
@@ -147,7 +151,7 @@ module PWN
             result = JSON.parse(PWN::Plugins::Vault.redact(text: JSON.generate(Result.utf8_value(value: result))))
           end
           response = { success: true, result: result, effect: effect(name: entry.name, args: args) }
-          response[:success] = false if result.is_a?(Hash) && (result[:error] || result['error'] || result[:success] == false || result['success'] == false)
+          response[:success] = false if result.is_a?(Hash) && (result[:error] || result['error'] || result[:success] == false || result['success'] == false || result[:ok] == false || result['ok'] == false || (result.key?(:exit) && result[:exit] != 0) || (result.key?('exit') && result['exit'] != 0))
           response[:budget] = telemetry if telemetry
           if telemetry && telemetry[:remaining_s].zero?
             response[:success] = false

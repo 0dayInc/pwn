@@ -28,7 +28,7 @@ module HarnessExperiments
 
   def self.trial(task, arm, gold, snapshot, options)
     root = Dir.mktmpdir("#{task.fetch('id')}-#{arm}-", options.fetch(:output))
-    home = File.join(root, 'home')
+    home = "#{root}-home"
     FileUtils.mkdir_p(home)
     FileUtils.cp_r(File.join(snapshot, '.'), home) if snapshot && arm != 'single-cold'
     # The immutable source snapshot is never mounted as a writable live store.

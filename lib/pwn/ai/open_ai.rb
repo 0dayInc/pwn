@@ -563,7 +563,7 @@ module PWN
           end
           retry if retry_count < max_attempts
 
-          raise e if oauth_selected || Thread.current[:pwn_provider_attempt_owner]
+          raise e if oauth_selected || Thread.current[:pwn_provider_attempt_owner] || Thread.current[:pwn_session_title]
 
           nil
         end
@@ -717,6 +717,7 @@ module PWN
             reasoning_effort: effort
           )
         end
+        http_body = PWN::AI::ServerTools.attach(engine: :openai, http_body: http_body, request: opts)
 
         response = open_ai_rest_call(
           http_method: :post,
@@ -1039,7 +1040,10 @@ module PWN
         }
         # Reasoning models reject sampler params (temperature, top_p, etc.)
         http_body[:temperature] = temp unless reasoning
-        http_body[:reasoning_effort] = opts[:reasoning_effort] if reasoning && opts[:reasoning_effort]
+        effort = opts[:reasoning_effort].to_s
+        if reasoning && !effort.empty?
+          http_body[:reasoning_effort] = effort == 'none' ? 'minimal' : effort
+        end
 
         response = open_ai_rest_call(
           http_method: :post,

@@ -34,7 +34,7 @@ anchors:
 | state | `swarm/`, `cron/`, `agents.yml`, `jobs/`, `missions/`, `runs/`, metrics | Preserve continuation associations and active work |
 | logs | `logs/` | Only explicitly registered disposable closed logs are eligible; unknown logs remain |
 | cache | `cache/` | Only producer-registered, checksum-verified, inactive disposable files |
-| tmp | `tmp/` | Same registration contract; never glob-delete arbitrary temp files |
+| tmp | `workspaces/runtime/` | Same registration contract; never glob-delete arbitrary temp files |
 | maintenance | `maintenance/`, legacy `session_cleanup_archive/` | Policy, permanent locks, metadata ledgers and recoverable quarantine |
 
 `maintenance/policy.json` is non-secret JSON, version 1. `batch_size` defaults to
@@ -42,7 +42,7 @@ anchors:
 `work_seconds: 30` and `work_bytes: 67108864` for dependency and maintenance
 payload reads, plus reserved disposable backup writes. Existing policy
 files acquire these defaults in memory, without rewriting operator values.
-`maintenance/layout.json` upgrades recognized inventory v1 to v2 separately from
+`maintenance/layout.json` upgrades recognized inventory v1 or v2 to v3 separately from
 policy; unknown inventory versions are refused. `retention_days` defaults to sessions 0, logs 30,
 cache 7, tmp 1, maintenance 90. Null disables that category's expiry. Session
 age is an additional floor, never an override of leases, provenance or evidence.
@@ -149,7 +149,7 @@ deployment or provider run is implied.
 
 The audit covers `Dir.tmpdir`, `Tempfile`, `mktmpdir` and atomic replacement
 call sites, not a filesystem filename sweep:
-- Festival speech input now uses `SessionCleanup.temporary` in `~/.pwn/tmp`, with
+- Festival speech input now uses `SessionCleanup.temporary` in `~/.pwn/workspaces/runtime`, with
   a lifetime lease and exact registration. Concurrent calls have unique names;
   normal completion unlinks the input and a crashed consumer leaves registered bytes.
 - Ghidra/BinaryParser canonical cache publication and managed temporary inputs
@@ -365,7 +365,8 @@ What `--migrate` does:
    (`PWN::Migrate::STATE_FILES` - no re-implemented parsers). If the raw
    file has bytes but the owner returned its empty-fallback, the file is
    flagged incompatible.
-3. **Autofix** (with `--fix`): timestamped backup under `~/.pwn/backup/<ts>/`
+3. **Autofix** (with `--fix`): one shared recovery generation under
+   `~/.pwn/backup/` (seven folders total; see [Backup Retention](Backup-Retention.md))
    → ordered schema migrations → per-file repair (quarantine corrupt to
    `~/.pwn/quarantine/`, re-seed missing dirs, strip unparsable JSONL lines,
    convert legacy flat skills to the [agentskills.io](https://agentskills.io)
@@ -410,8 +411,10 @@ and schedule-only deletion. Already-running old binaries must be upgraded before
 their startup/config-refresh hooks can be relied on to honor the new defaults.
 
 **Housekeeping never uses systemd or any other native scheduler.**
-`session_cleanup`, `learning_consolidate_nightly`, and `pwn_stores_lean_nightly`
-run only through PWN's built-in cron worker or manual commands. Native job
+`session_cleanup` is the only seeded housekeeping job. It runs only through
+PWN's built-in cron worker or a manual command. Older split names
+(`learning_consolidate_nightly`, `pwn_stores_lean_nightly`) are not seeded and
+are not removed automatically. Native job
 installers explicitly skip them with `housekeeping_internal_only`; this also
 covers renamed payloads that invoke `SessionCleanup` or `session_cleanup.rb`.
 Generic scheduler APIs remain available for unrelated custom jobs. Native

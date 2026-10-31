@@ -158,7 +158,7 @@ describe 'Native capability broker daemon' do
           status = File.read("/proc/#{pid}/status")
           expect(status[/^Uid:\s+(.+)/, 1].split.map(&:to_i)).to eq([Process.uid] * 4)
           expect(status[/^Gid:\s+(.+)/, 1].split.map(&:to_i)).to eq([Process.gid] * 4)
-          expect(status[/^Groups:[^\S\n]*([^\n]*)/, 1].split.map(&:to_i)).to eq(Process.groups.sort)
+          expect(status[/^Groups:[^\S\n]*([^\n]*)/, 1].split.map(&:to_i).sort).to eq(Process.groups.sort)
           expect(status[/^NoNewPrivs:\s+(\d+)/, 1]).to eq('1')
           expect(status[/^CapEff:\s+(\h+)/, 1].to_i(16) & ~((1 << 12) | (1 << 13))).to eq(0)
           expect(status[/^CapPrm:\s+(\h+)/, 1].to_i(16) & ~((1 << 12) | (1 << 13))).to eq(0)

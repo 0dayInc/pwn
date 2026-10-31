@@ -109,12 +109,13 @@ module PWN
           prompt = (opts[:input] || $stdin).read if prompt == '-'
           raise ArgumentError, '--ai requires a non-empty prompt' if prompt.strip.empty?
 
-          outcome = nil
           contract = JSON.parse(File.read(parsed[:verification_contract]), symbolize_names: true) if parsed[:verification_contract]
-          output.puts(PWN::AI::Agent::Loop.run(request: prompt, session_id: session[:id], enabled_toolsets: PWN::Env.dig(:ai, :agent, :toolsets),
-                                               verification_contract: contract,
-                                               require_resumable: parsed.key?(:resume_session),
-                                               on_outcome: ->(row) { outcome = row }))
+          response = mission_request(request: prompt, session_id: session[:id], enabled_toolsets: PWN::Env.dig(:ai, :agent, :toolsets),
+                                     verification_contract: contract, require_resumable: parsed.key?(:resume_session))
+          return response[:exit_status] if response[:exit_status]
+
+          output.puts(response[:final])
+          outcome = response[:outcome]
           return outcome && outcome[:status] == 'complete' ? 0 : 1
         else
           PWN::Plugins::REPL.start(ai_session_id: session[:id], ai_session_lease: session[:lease])
@@ -122,6 +123,34 @@ module PWN
         0
       ensure
         PWN::Sessions.deactivate(lease: session[:lease]) if session
+      end
+
+      private_class_method def self.mission_request(opts = {})
+        reader, writer = IO.pipe
+        mission = PWN::AI::Agent::MissionNamespace.new(descriptor: { operation: :loop, options: opts }, fds: { 4 => writer })
+        writer.close
+        raw = reader.read
+        mission.wait
+        return { exit_status: mission.status.exitstatus || 1 } if raw.empty?
+
+        response = JSON.parse(raw, symbolize_names: true)
+        raise IOError, response[:error] if response[:error]
+
+        response
+      ensure
+        mission&.close
+        [reader, writer].compact.each { |io| io.close unless io.closed? }
+      end
+
+      private_class_method def self.mission_entry(opts = {})
+        writer = PWN::AI::Agent::MissionNamespace.io(4)
+        outcome = nil
+        final = PWN::AI::Agent::Loop.run(opts.fetch(:options).merge(on_outcome: ->(row) { outcome = row }))
+        writer.write(JSON.generate(final: final, outcome: outcome))
+      rescue StandardError => e
+        writer.write(JSON.generate(error: "#{e.class}: #{e.message}"))
+      ensure
+        writer.close
       end
 
       private_class_method def self.validate_request_options(opts = {})

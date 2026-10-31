@@ -19,7 +19,7 @@
 | [How PWN Works](How-PWN-Works.md) | The five layers, with the architecture diagram |
 | [Installation](Installation.md) | `gem install --verbose pwn` → `pwn setup` doctor/provisioner · capability profiles · `--migrate` state doctor |
 | [General Usage](General-PWN-Usage.md) | Day-one cheat sheet |
-| [Operability and Evidence](Operability.md) | Completion, regressions, frozen evaluation, mesh and deployment boundaries |
+| [Operability and Evidence](Operability.md) | Runtime writes, backups, cron, completion and deployment boundaries |
 | [Configuration](Configuration.md) | `~/.pwn/pwn.yaml` (encrypted) - engines, keys, agent options · `pwn-vault` |
 | **[All Data-Flow Diagrams](Diagrams.md)** | **29 SVGs** in one scrollable page |
 
@@ -37,7 +37,7 @@
 | | |
 |---|---|
 | [AI / LLM Integration](AI-Integration.md) | OpenAI · Anthropic · Grok (OAuth) · Gemini · Ollama · Open WebUI |
-| [Agent Tool Registry](Agent-Tool-Registry.md) | 16 toolsets · **150** LLM-callable tools |
+| [Agent Tool Registry](Agent-Tool-Registry.md) | 16 toolsets · **152** LLM-callable tools |
 | [Memory · Skills · Learning](Skills-Memory-Learning.md) | Introspection, reviewed skill updates and bundled SOP/module skills on first launch |
 | [Mistakes](Mistakes.md) | **Negative feedback** - fingerprint failures · do-NOT-repeat · `[REPEATING]`/`[REGRESSED]` · inline self-correction |
 | [Reinforcement Learning](Reinforcement-Learning.md) | **`Reward` + `Curriculum` + `Policy`** - outcome/process judges · preference ledger · self-play practice · live Q / REINFORCE (advisory) · export-ready LoRA gate |
@@ -45,7 +45,7 @@
 | [Swarm (Multi-Agent)](Swarm.md) | Personas · ask · debate · broadcast · shared bus |
 | [Sessions](Sessions.md) | Transcript persistence + reflection |
 | [Session Workflow](Session-Workflow.md) | Keywords: `continue` / last session / write-then-read |
-| [Cron](Cron.md) | Scheduled jobs. Hygiene seeds on; curriculum practice/judge/train ship off |
+| [Cron](Cron.md) | Scheduled jobs. Fresh install seeds one `session_cleanup` coordinator; curriculum is not seeded |
 
 ## 🧩 Capability Namespaces  (`lib/pwn/*`)
 

@@ -278,9 +278,294 @@ module PWN
         # 2. '/' anywhere else → :path (host-native file nav)
         # 3. else → :ruby (same Pry::InputCompleter menu as the pwn REPL)
         class << PWN::Plugins::REPL # rubocop:disable Metrics/ClassLength
-          # Foreground Loop plus one scoped terminal reader, not another Pry
-          # readline and not a worker thread running tools without their locals.
+          # The terminal owner survives CTRL+C; only its mission tree is killed.
           def pwn_ai_run_steerable(opts = {})
+            pwn_ai_run_mission(opts.merge(operation: :steerable))
+          end
+
+          # Both native tools and regex-ReAct must execute below the same owner.
+          # Never retry a failed mission in the terminal/controller process.
+          def pwn_ai_run_legacy(opts = {})
+            result = pwn_ai_run_mission(opts.merge(operation: :legacy))
+            PWN::Env[:ai][result.fetch(:engine).to_sym][:response_history] = result[:response_history]
+          rescue StandardError => e
+            warn "[pwn-ai] legacy agent mission failed (#{e.class}: #{e.message.to_s.split("\n").first}); no uncontained retry was attempted"
+          ensure
+            opts[:request]&.replace('nil')
+            PWN::Plugins::REPL.ready_tty!
+          end
+
+          def pwn_ai_run_mission(opts = {})
+            require 'io/console'
+            input = opts[:input] || $stdin
+            reader, writer = IO.pipe
+            run = proc do
+              config = %i[pwn_ai_session_id pwn_ai_debug pwn_ai_trace pwn_ai_speak pwn_ai_agent].to_h { |key| [key, opts[:pry]&.config&.public_send(key)] }
+              descriptor = { operation: opts.fetch(:operation), config: config, options: opts.except(:pry, :input, :on_tool, :steering, :debug_tee) }
+              mission = PWN::Plugins::AISandbox::MissionProcess.new(descriptor: descriptor, fds: { 4 => writer, 0 => input })
+              writer.close
+              envelope = {}
+              reader.each_line do |line|
+                frame = JSON.parse(line, symbolize_names: true)
+                if frame[:event] == 'tool'
+                  opts[:on_tool]&.call(*frame[:args])
+                else
+                  envelope = frame
+                end
+              end
+              raise IOError, envelope[:error] if envelope[:error]
+
+              envelope[:result]
+            ensure
+              mission&.close
+            end
+            input.tty? ? input.cooked(&run) : run.call
+          ensure
+            [reader, writer].compact.each { |io| io.close unless io.closed? }
+          end
+
+          def pwn_ai_mission_entry(opts = {})
+            pry = Pry.new
+            opts.fetch(:config).each { |key, value| pry.config.public_send("#{key}=", value) }
+            writer = PWN::AI::Agent::MissionNamespace.io(4)
+            options = { trace: pry.config.pwn_ai_trace }.merge(opts.fetch(:options)).merge(
+              pry: pry, input: PWN::AI::Agent::MissionNamespace.io(0),
+              on_tool: ->(*args) { writer.puts(JSON.generate(event: 'tool', args: args)) }
+            )
+            begin
+              result = opts[:operation] == :legacy ? pwn_ai_run_legacy_child(options) : pwn_ai_run_steerable_child(options)
+              writer.puts(JSON.generate(result: result))
+            rescue StandardError => e
+              writer.puts(JSON.generate(error: "#{e.class}: #{e.message}"))
+            ensure
+              writer.close
+            end
+          end
+
+          def pwn_ai_run_legacy_child(opts = {})
+            request = opts[:request]
+            orig_request = opts[:original_request]
+            pi = opts[:pry]
+            # Do NOT rebind the 'request' parameter (the string object passed by Pry's after_read hook).
+            # We will mutate it to 'nil' at the end of handling so Pry does not eval the natural-language
+            # prompt text as Ruby (which was causing noisy exceptions *after* the green AI response print).
+            debug = pi.config.pwn_ai_debug
+            engine = PWN::Env[:ai][:active].to_s.downcase.to_sym
+            response_history = PWN::Env[:ai][engine][:response_history]
+            speak_answer = pi.config.pwn_ai_speak
+            is_agent = (pi.config.pwn_ai_agent == true)
+
+            # pwn-ai agent mode: load skills context for autonomous task carrying
+            skills_context = ''
+            PWN::Skills.each { |n, m| skills_context += "\n--- SKILL #{n} ---\n#{m[:content].to_s[0, 1200]}\n" } if is_agent && PWN.const_defined?(:Skills) && PWN::Skills.is_a?(Hash)
+
+            memory_context = ''
+            memory_context = PWN::Memory.to_context(limit: 25) if is_agent && PWN.const_defined?(:Memory)
+
+            sess_id = begin
+              pi.config.pwn_ai_session_id
+            rescue StandardError
+              nil
+            end
+
+            # Pre-process for clear CLI execution intent (e.g. "what does `id` return?")
+            # This makes the agent actually *run* commands instead of just explaining them.
+            curr_req = orig_request.chomp
+            if is_agent && sess_id && PWN.const_defined?(:Sessions)
+              begin
+                PWN::Sessions.append(session_id: sess_id, role: 'user', content: orig_request)
+              rescue StandardError
+                nil
+              end
+            end
+            if is_agent && request =~ /`([^`]+)`/
+              potential = ::Regexp.last_match(1).strip
+              # Looks like a shell command (not PWN ruby)
+              unless potential =~ /^(PWN::|def |class |require |puts |pp )/
+                curr_req = "The user wants the *actual raw output* of this command (do not just describe it): `#{potential}`. " \
+                           'To fulfill the request accurately, you MUST immediately output ONLY a bash code block with the exact command. ' \
+                           "Example format: ```bash\n#{potential}\n``` . After the host executes it, you will receive the OBSERVATION with the real output."
+              end
+            end
+
+            # Strict system prompt for agent mode (forces tool use over explanation)
+            system_role = nil
+            if is_agent
+              base = PWN::Env[:ai][engine][:system_role_content] || 'You are an ethical hacker.'
+              system_role = base + <<~PROMPT
+
+                                You are operating as an autonomous agent inside the PWN REPL driver.
+
+                                PRIMARY RULE FOR CLI AND TOOLS: When the user asks for the output of a command, "what does X return?", "run X", or anything that requires real execution, you MUST use a tool call.#{' '}
+                                NEVER just explain what a command does or what its output "would be".#{' '}
+                                To execute anything:
+                                  - Output *exactly and only* a fenced code block.
+                                  - For shell/CLI: ```bash
+                                <exact command here>
+                                ```
+                                  - For PWN Ruby modules: ```ruby
+                                PWN::Plugins::NmapIt.port_scan(...)
+                                ```
+                                The host will execute it (Ruby in full PWN context, bash via shell) and reply with an OBSERVATION containing the real result.#{' '}
+                                Then continue or give the final answer.
+
+                                Available tools include all PWN::Plugins (NmapIt, TransparentBrowser, etc.), SAST, Reports, and any CLI via bash blocks.
+                                Skills available this session:#{skills_context}
+                #{memory_context}
+
+                                PERSISTENT CAPABILITIES (use via ruby code blocks or direct calls):
+                                - Memory (cross-session): PWN::Memory.remember(key: :key, value: val, category: :fact|:preference|:lesson)
+                                  PWN::Memory.recall(query: 'foo'), PWN::Memory.forget(key: key)
+                                - Sessions: current session id = #{sess_id}; PWN::Sessions.append(session_id: '#{sess_id}', role: 'observation', content: obs)
+                                - Cron: PWN::Cron.create(schedule: '0 * * * *', prompt: 'task here', name: 'foo')
+                                  PWN::Cron.run(id: 'id'); list with PWN::Cron.list
+                                - Agents/Delegation: PWN::AI::Agent::SAST.analyze(request: ...); PWN::AI::Agent::VulnGen etc.
+                                  For sub-agents use threads or separate eval calls and feed results back as OBS.
+
+                                After receiving an observation, decide the next step or conclude.
+                                If you output text without a code block, it will be treated as your final answer to the user.
+              PROMPT
+            end
+
+            max_turns = is_agent ? 7 : 1
+            turn = 0
+            last_response = ''
+            tool_was_executed_this_turn = false
+
+            while turn < max_turns
+              chat_opts = {
+                request: curr_req,
+                response_history: response_history,
+                speak_answer: speak_answer,
+                spinner: false
+              }
+              chat_opts[:system_role_content] = system_role if system_role
+
+              case engine
+              when :anthropic
+                response = PWN::AI::Anthropic.chat(chat_opts)
+              when :gemini
+                response = PWN::AI::Gemini.chat(chat_opts)
+              when :grok
+                response = PWN::AI::Grok.chat(chat_opts)
+              when :ollama
+                response = PWN::AI::Ollama.chat(chat_opts)
+              when :openai
+                response = PWN::AI::OpenAI.chat(chat_opts)
+              when :openwebui
+                response = PWN::AI::OpenWebUI.chat(chat_opts)
+              else
+                raise "ERROR: Unsupported AI Engine: #{engine}"
+              end
+
+              if response.nil?
+                last_response = 'Model not currently supported with API key.'
+              else
+                if response[:choices].last.keys.include?(:text)
+                  last_response = response[:choices].last[:text].to_s
+                else
+                  last_response = response[:choices].last[:content].to_s
+                end
+                response_history = {
+                  id: response[:id],
+                  object: response[:object],
+                  model: response[:model],
+                  usage: response[:usage]
+                }
+                response_history[:choices] ||= response[:choices]
+              end
+
+              puts "\n\001\e[32m\002#{last_response}\001\e[0m\002\n\n"
+              if is_agent && sess_id && PWN.const_defined?(:Sessions)
+                begin
+                  PWN::Sessions.append(session_id: sess_id, role: 'assistant', content: last_response)
+                rescue StandardError
+                  nil
+                end
+              end
+
+              if debug
+                puts 'DEBUG: response_history => '
+                pp response_history
+              end
+              PWN::Env[:ai][engine][:response_history] = response_history
+
+              # === Agent tool execution: parse code blocks from *this* response and actually run them ===
+              tool_was_executed_this_turn = false
+              if is_agent
+                # Robust regex: tolerate language specifier, extra whitespace, and text around the block
+                last_response.scan(/```(?:\s*(ruby|bash|sh|shell|zsh))?\s*\n?(.*?)\n?```/m).each do |lang, code|
+                  code = code.strip
+                  next if code.empty? || tool_was_executed_this_turn
+
+                  lang = (lang || 'bash').downcase
+                  puts "\001\e[33m\002[ pwn-ai AGENT EXEC #{lang} ]\e[0m\002 #{code[0..90]}..."
+
+                  obs = ''
+                  begin
+                    obs = PWN::Plugins::AISandbox.protect_call do
+                      if lang == 'ruby'
+                        require 'stringio'
+                        old_stdout = $stdout
+                        $stdout = StringIO.new
+                        res = eval(code, TOPLEVEL_BINDING) # rubocop:disable Security/Eval -- intentional sandboxed legacy tool evaluation
+                        captured = $stdout.string
+                        $stdout = old_stdout
+                        (captured + "\n=> #{res.inspect}").strip
+                      else
+                        require 'open3'
+                        stdout, stderr, status = Open3.capture3(code)
+                        output = stdout
+                        output += "\n[stderr]\n#{stderr}" unless stderr.to_s.strip.empty?
+                        output += "\n[exit: #{status.exitstatus}]" unless status.success?
+                        output.strip
+                      end
+                    end
+                    obs = JSON.generate(obs) unless obs.is_a?(String)
+                  rescue StandardError => e
+                    obs = "ERROR executing #{lang} block: #{e.class} - #{e.message}"
+                  end
+
+                  puts "\001\e[36m\002[OBSERVATION from #{lang}]\001\e[0m\002\n#{obs[0..700]}\n"
+                  if is_agent && sess_id && PWN.const_defined?(:Sessions)
+                    begin
+                      PWN::Sessions.append(session_id: sess_id, role: 'observation', content: obs)
+                    rescue StandardError
+                      nil
+                    end
+                  end
+
+                  # Feed real result back to the model as the next "user" message in the loop
+                  curr_req = "OBSERVATION (#{lang} execution result for previous block):\n#{obs}\n\n" \
+                             "Now continue fulfilling the original user request: #{orig_request}. " \
+                             'If the task is complete, give the final answer (no more code blocks). Otherwise output the next needed tool block.'
+
+                  tool_was_executed_this_turn = true
+                  turn += 1
+                  break # one execution per model turn for controlled pacing
+                end
+              end
+
+              # If we executed something, loop to let the model react to the OBS
+              next if tool_was_executed_this_turn
+
+              # No tool executed this turn -> this last_response is the final answer
+              break
+            end
+
+            # If in agent mode and the model never produced an executable block but the query clearly wanted execution,
+            # give one last chance with a strong reminder (helps weaker models like some Ollama ones)
+            if is_agent && !tool_was_executed_this_turn && orig_request =~ /`[^`]+`/ && turn < max_turns
+              reminder = 'The user explicitly asked about the output of a command in backticks. ' \
+                         'Do not describe the command. Output *only* the corresponding ```bash block now so the host can run it and give you the real result.'
+              curr_req = "#{reminder}\nOriginal: #{orig_request}"
+              # One final direct call (no full re-loop to avoid complexity)
+              # (The main loop already handled most cases; this is a safety net)
+            end
+            { engine: engine, response_history: response_history }
+          end
+
+          def pwn_ai_run_steerable_child(opts = {})
             previous = Thread.current[:pwn_steering_input]
             workspace = File.realpath(Dir.pwd)
             lock_path = File.join(Dir.tmpdir, "pwn-solve-#{Digest::SHA256.hexdigest(workspace)}.lock")
@@ -874,11 +1159,8 @@ module PWN
             require 'tempfile'
             Tempfile.create(['.pwn-ai-selection', '.yaml'], File.dirname(env_path)) do |file|
               file.binmode
-              file.write(File.binread(env_path))
-              file.flush
               path = file.path
-              PWN::Plugins::Vault.decrypt(file: path, key: key, iv: iv)
-              cfg = YAML.load_file(path, symbolize_names: true)
+              cfg = PWN::Plugins::Vault.dump(file: env_path, key: key, iv: iv)
               cfg = {} unless cfg.is_a?(Hash)
               cfg[:ai] = {} unless cfg[:ai].is_a?(Hash)
               cfg[:ai][:active] = engine unless opts.key?(:system_role_content)
@@ -896,9 +1178,14 @@ module PWN
                 cfg[:ai][engine.to_sym][:system_role_content] = opts[:system_role_content]
               end
               yaml_env = YAML.dump(cfg).gsub(/^(\s*):/, '\1')
-              File.write(path, yaml_env)
-              File.chmod(0o600, path)
-              PWN::Plugins::Vault.encrypt(file: path, key: key, iv: iv)
+              cipher = OpenSSL::Cipher.new('aes-256-cbc')
+              cipher.encrypt
+              cipher.key = Base64.strict_decode64(key)
+              cipher.iv = Base64.strict_decode64(iv)
+              ciphertext = Base64.strict_encode64(cipher.update(yaml_env) + cipher.final)
+              file.write("#{ciphertext}\n")
+              file.flush
+              file.fsync
               File.rename(path, env_path)
             end
             true

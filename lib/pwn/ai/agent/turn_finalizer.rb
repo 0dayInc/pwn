@@ -209,10 +209,14 @@ module PWN
           request.to_enum(:scan, %r{["'`]((?:~/|/|\./|\.\./)[^"'`\n]+|[^"'`\n]+\.[A-Za-z0-9]+)["'`]|(?<![\w:/])((?:~/|/|\./|\.\./)[\w.+/-]+|[\w+-]+\.[A-Za-z0-9]+)}).each do
             match = Regexp.last_match
             literal = match[1] || match[2].sub(/[.,;:]+\z/, '')
+            # Unquoted dotted initials followed by a period are prose (i.e.,
+            # e.g., U.S.), not a filename. Quoted literals remain authoritative.
+            next if !match[1] && literal.match?(/\A(?:[A-Za-z]\.)+[A-Za-z]\z/) && request[match.end(0)] == '.'
+
             prefix = request[previous_end...match.begin(0)]
             previous_end = match.end(0)
-            intent = prefix.scan(/\b(write|save|store|output|export|create|update|modify|edit|generate|put|produce|deliver|read|inspect|review|analy[sz]e|summari[sz]e|from|using)\b/i).flatten.last&.downcase || intent
-            next unless %w[write save store output export create update modify edit generate put produce deliver].include?(intent)
+            intent = prefix.scan(/\b(write|save|store|output|export|create|update|modify|edit|generate|put|produce|deliver|into|mv|move|copy|cp|rename|to|read|inspect|review|analy[sz]e|summari[sz]e|from|using)\b/i).flatten.last&.downcase || intent
+            next unless %w[write save store output export create update modify edit generate put produce deliver into mv move copy cp rename to].include?(intent)
 
             paths << File.expand_path(literal, opts[:cwd] || Dir.pwd)
           end

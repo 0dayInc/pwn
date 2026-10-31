@@ -223,7 +223,7 @@ module PWN
           end
           retry if retry_count < max_attempts
 
-          raise e if Thread.current[:pwn_provider_attempt_owner]
+          raise e if Thread.current[:pwn_provider_attempt_owner] || Thread.current[:pwn_session_title]
 
           nil
         end
@@ -651,6 +651,47 @@ module PWN
       end
 
       # Supported Method Parameters::
+      # rows = PWN::AI::OpenWebUI.workspace_tools(
+      #   refresh: 'optional - true ignores a cached workspace tool list',
+      #   timeout: 'optional - seconds for the tool list request (default 30)'
+      # )
+      public_class_method def self.workspace_tools(opts = {})
+        refresh = opts[:refresh]
+        cached = Thread.current[:pwn_openwebui_workspace_tools]
+        return cached if cached && !refresh
+
+        raw = openwebui_rest_call(http_method: :get, rest_call: 'api/v1/tools/', timeout: opts[:timeout] || 30, quiet: true)
+        text = raw.is_a?(String) ? raw : raw.to_s
+        parsed = text.strip.empty? ? [] : JSON.parse(text)
+        rows = parsed.is_a?(Hash) ? (parsed['data'] || parsed[:data] || []) : parsed
+        listed = Array(rows).filter_map do |row|
+          next unless row.is_a?(Hash)
+
+          id = row['id'] || row[:id]
+          name = row['name'] || row[:name]
+          next if id.to_s.empty?
+
+          meta = row['meta'] || row[:meta] || {}
+          { id: id.to_s, name: name.to_s, description: meta['description'] || meta[:description] || row['description'] || row[:description] }
+        end
+        Thread.current[:pwn_openwebui_workspace_tools] = listed
+        listed
+      end
+
+      private_class_method def self.server_tool_ids(opts = {})
+        names = Array(opts[:names]).map(&:to_s).reject(&:empty?)
+        return [] if names.empty?
+
+        listed = workspace_tools
+        names.map do |name|
+          row = listed.find { |item| item[:id] == name || item[:name].casecmp?(name) }
+          raise ArgumentError, "Open WebUI workspace has no tool #{name}" unless row
+
+          row[:id]
+        end
+      end
+
+      # Supported Method Parameters::
       # response = PWN::AI::OpenWebUI.chat_with_tools(
       #   messages: 'required - full OpenAI-format messages array (system/user/assistant/tool)',
       #   tools: 'optional - OpenAI tools array [{type:"function", function:{...}}]',
@@ -704,6 +745,7 @@ module PWN
         end
         http_body[:tool_choice] = opts[:tool_choice] if opts[:tool_choice]
         http_body[:think] = think_wire(reasoning_effort: opts[:reasoning_effort], think: opts[:think])
+        raise ArgumentError, 'Open WebUI workspace tools do not run on the proxied Ollama chat path. Use chat(server_tools:) or workspace_tool.' if Array(opts[:server_tools]).any?
 
         response = openwebui_rest_call(
           http_method: :post,
@@ -797,6 +839,13 @@ module PWN
           messages: http_body[:messages],
           fold_into_user: strict_system_template?(model: model)
         )
+        server_ids = server_tool_ids(names: opts[:server_tools])
+        if server_ids.any?
+          http_body[:stream] = false
+          http_body[:tool_ids] = server_ids
+          http_body[:params] = { function_calling: 'legacy' }
+          http_body.delete(:tools)
+        end
 
         timeout = opts[:timeout]
         spinner = opts[:spinner]
@@ -809,7 +858,8 @@ module PWN
           spinner: spinner
         )
 
-        json_resp = JSON.parse(response, symbolize_names: true)
+        raw = response.is_a?(String) ? response : response.to_s
+        json_resp = JSON.parse(raw, symbolize_names: true)
         assistant_resp = json_resp[:choices].first[:message]
         if assistant_resp.is_a?(Hash)
           content = assistant_resp[:content].to_s
@@ -857,6 +907,12 @@ module PWN
             fallback: 'optional - false skips the catalog list when the direct route misses'
           )
 
+          # List workspace tools installed for this Open WebUI user, including Ask Jev.
+          #{self}.workspace_tools(
+            refresh: 'optional - true ignores a cached workspace tool list',
+            timeout: 'optional - seconds for the tool list request (default 30)'
+          )
+
           # Run chat with tools and return its result
           #{self}.chat_with_tools(
             messages: 'required - full OpenAI-format messages array (system/user/assistant/tool)',
@@ -867,7 +923,8 @@ module PWN
             timeout: 'optional - seconds (default 900)',
             spinner: 'optional - display spinner (default false)',
             think: 'optional - true enables backend think (default true; false disables)',
-            reasoning_effort: 'optional - think level when the proxied model publishes named levels'
+            reasoning_effort: 'optional - think level when the proxied model publishes named levels',
+            server_tools: 'optional - rejected here; workspace tools use chat(server_tools:) or workspace_tool'
           )
 
           # Run chat and return its result
@@ -879,7 +936,8 @@ module PWN
             response_history: 'optional - pass response back in to have a conversation',
             speak_answer: 'optional - optional speak answer using PWN::Plugins::Voice.text_to_speech (Default: nil)',
             timeout: 'optional - optional timeout in seconds (defaults to 900)',
-            spinner: 'optional - display spinner (defaults to false)'
+            spinner: 'optional - display spinner (defaults to false)',
+            server_tools: 'optional - workspace tool names or ids, such as Ask Jev; the server executes them and this request omits client tools'
           )
 
           # Print the AUTHOR(S) string for this module.

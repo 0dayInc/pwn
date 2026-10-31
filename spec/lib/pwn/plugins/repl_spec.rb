@@ -17,7 +17,14 @@ describe PWN::Plugins::REPL do # rubocop:disable Metrics/BlockLength
       File.write("#{path}.decryptor", YAML.dump(key: key, iv: iv))
       PWN::Plugins::Vault.encrypt(file: path, key: key, iv: iv)
       PWN::Env[:driver_opts] = { pwn_env_path: path, pwn_dec_path: "#{path}.decryptor" }
+      expect(PWN::Plugins::Vault).not_to receive(:decrypt)
+      allow(File).to receive(:write).and_wrap_original do |method, target, bytes, *args|
+        expect(bytes.to_s).not_to include('new role')
+        method.call(target, bytes, *args)
+      end
       expect(described_class.pwn_ai_apply_system_role(engine: 'openai', content: "new role\nsecond line")).to eq(:saved)
+      RSpec::Mocks.space.proxy_for(PWN::Plugins::Vault).reset
+      RSpec::Mocks.space.proxy_for(File).reset
       expect(PWN::Env.dig(:ai, :openai, :system_role_content)).to eq("new role\nsecond line")
       expect(File.read(path)).not_to include('new role')
       PWN::Plugins::Vault.decrypt(file: path, key: key, iv: iv)
@@ -42,12 +49,57 @@ describe PWN::Plugins::REPL do # rubocop:disable Metrics/BlockLength
       PWN::Plugins::Vault.encrypt(file: path, key: key, iv: iv)
       ciphertext = File.binread(path)
       PWN::Env[:driver_opts] = { pwn_env_path: path, pwn_dec_path: "#{path}.decryptor" }
-      allow(PWN::Plugins::Vault).to receive(:encrypt).and_raise(IOError, 'fixture encryption failure')
+      allow(OpenSSL::Cipher).to receive(:new).and_wrap_original do |method, *args|
+        cipher = method.call(*args)
+        allow(cipher).to receive(:encrypt).and_raise(IOError, 'fixture encryption failure')
+        cipher
+      end
       expect { described_class.pwn_ai_apply_system_role(engine: 'openai', content: 'unsaved') }.to raise_error(/not saved/)
       expect(PWN::Env.dig(:ai, :openai, :system_role_content)).to eq('original')
       expect(File.binread(path)).to eq(ciphertext)
       expect(Dir.glob(File.join(@tmp, '.pwn-ai-selection*'))).to be_empty
     ensure
+      PWN::Env[:driver_opts] = previous_driver_opts
+    end
+
+    it 'leaves no plaintext staging bytes when killed at encryption startup' do
+      previous_driver_opts = PWN::Env[:driver_opts]
+      path = File.join(@tmp, 'kill-model.yaml')
+      key = Base64.strict_encode64('k' * 32)
+      iv = Base64.strict_encode64('i' * 16)
+      File.write(path, YAML.dump(ai: { active: 'openai' }, fixture: 'PRIVATE_FIXTURE_SENTINEL'))
+      File.write("#{path}.decryptor", YAML.dump(key: key, iv: iv))
+      PWN::Plugins::Vault.encrypt(file: path, key: key, iv: iv)
+      ciphertext = File.binread(path)
+      PWN::Env[:driver_opts] = { pwn_env_path: path }
+      reader, writer = IO.pipe
+      pid = fork do
+        reader.close
+        allow(OpenSSL::Cipher).to receive(:new).and_wrap_original do |method, *args|
+          cipher = method.call(*args)
+          allow(cipher).to receive(:encrypt) do
+            writer.write('ready')
+            sleep 60
+          end
+          cipher
+        end
+        described_class.persist_ai_selection(engine: 'openai', model: 'offline')
+        exit! 1
+      end
+      writer.close
+      Timeout.timeout(5) { expect(reader.read(5)).to eq('ready') }
+      Process.kill('KILL', pid)
+      Process.wait(pid)
+      pid = nil
+      expect(File.binread(path)).to eq(ciphertext)
+      stages = Dir.glob(File.join(@tmp, '.pwn-ai-selection*'))
+      expect(stages.length).to eq(1)
+      expect(stages.map { |stage| File.binread(stage) }.join).not_to include('PRIVATE_FIXTURE_SENTINEL')
+    ensure
+      Process.kill('KILL', pid) if pid
+      Process.wait(pid) if pid
+      reader&.close
+      writer&.close unless writer&.closed?
       PWN::Env[:driver_opts] = previous_driver_opts
     end
 

@@ -49,7 +49,8 @@ module PWN
 
               ENVIRONMENT
                 host       : #{host_line}
-                cwd        : #{Dir.pwd}
+                cwd        : #{Thread.current[:pwn_request_runtime]&.contract&.dig(:cwd) || PWN::Plugins::AISandbox.task_directory}
+                writes     : new files go to #{PWN::Plugins::AISandbox.workspace} unless the original operator request names another path
                 ruby       : #{RUBY_VERSION}
                 pwn        : #{pwn_version}
                 session_id : #{session_id || '(none)'}
@@ -77,7 +78,8 @@ module PWN
 
             ENVIRONMENT
               host       : #{host_line}
-              cwd        : #{Dir.pwd}
+              cwd        : #{Thread.current[:pwn_request_runtime]&.contract&.dig(:cwd) || PWN::Plugins::AISandbox.task_directory}
+              writes     : new files go to #{PWN::Plugins::AISandbox.workspace} unless the original operator request names another path
               ruby       : #{RUBY_VERSION}
               pwn        : #{pwn_version}
               session_id : #{session_id || '(none)'}
@@ -100,6 +102,9 @@ module PWN
               resolved mistake or a durable procedure change, `skills_update`
               folds that RL note into the matching skill.
               TransparentBrowser: open once, reuse browser_obj, close once.
+              If Open WebUI lists a Jev model, browser_act uses Jev for the
+              click/type/select decision and the active model only for field text.
+              #{workspace_prompt(engine: engine)}
 
             HOST LOAD
               #{host_load_block}
@@ -193,6 +198,12 @@ module PWN
           "MISSION LEDGER\n#{text}\n"
         rescue StandardError
           ''
+        end
+
+        private_class_method def self.workspace_prompt(opts = {})
+          return '' unless opts[:engine].to_s == 'openwebui'
+
+          "Open WebUI workspace tools, including Ask Jev when it is installed, run on the server through workspace_tool. Do not put them in the client tools array.\n"
         end
 
         private_class_method def self.host_line

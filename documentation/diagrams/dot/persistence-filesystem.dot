@@ -26,16 +26,18 @@ digraph "PWN_Persistence" {
   ext  [label="extrospection.json\nsnapshot (host/net/tc/repo/env/\nrf/web/osint/serial/telecomm/\npacket/vision/voice) + prev + obs[]"];
   eart [label="extrospection/{web,packet,voice}/*\nscreenshots · pcaps · wav/txt"];
   ses  [label="sessions/*.jsonl\ntranscripts (+ step_reward)"];
-  crn  [label="cron/jobs.yml + log/\nhygiene ON: consolidate + lean\ncurriculum practice/judge/train OFF"];
+  crn  [label="cron/jobs.yml + log/\nfresh seed: session_cleanup only\ncurriculum not seeded"];
   agt  [label="agents.yml\npersona registry"];
   swm  [label="swarm/<id>/bus.jsonl\nmulti-agent chat"];
   cur  [label="curriculum/ + curriculum_kpi.jsonl\nself-play · A/B eval · KPI trend"];
   ftn  [label="finetune/*.jsonl\nShareGPT / OpenAI SFT + DPO"];
-  bkp  [label="backup/<ts>/ · quarantine/\nMigrate autofix snapshots"];
+  bkp  [label="backup/<generation>/\nPWN::Backups · 7 total"];
+  qtn  [label="quarantine/\ncorrupt originals\nnot a backup generation"];
+  rt   [label="workspaces/runtime/\npwn-ai writes · TMPDIR\nregistered disposable inputs"];
   hist [label="~/.pwn/pwn_history\nREPL history"];
 
   Root->cfg;  Root->schm; Root->mem;  Root->midx; Root->skl;  Root->lrn;
   Root->prf;  Root->mis;  Root->met;  Root->pol;  Root->rws;  Root->ext;  Root->eart;
   Root->ses;  Root->crn;  Root->agt;  Root->swm;  Root->cur;  Root->ftn;
-  Root->bkp;  Root->hist;
+  Root->bkp;  Root->qtn; Root->hist; Root->rt;
 }

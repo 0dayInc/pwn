@@ -5,6 +5,8 @@
 # replaced. This adapter injects steering/runtime controls as an interactive
 # caller does; public session selection is tested separately.
 require_relative 'fake_provider'
+# The exec-backed mission must restore these controls, not only the provider.
+PWN::AI::Agent::MissionNamespace.bootstrap_requires = [File.expand_path(__FILE__)]
 require 'stringio'
 
 fault = JSON.parse(File.read(ENV.fetch('PWN_HARNESS_FIXTURE')), symbolize_names: true)
@@ -19,7 +21,7 @@ PWN::AI::Agent::Loop.singleton_class.prepend(Module.new do
                end
     FileUtils.mkdir_p(root)
     File.write(identity_path, JSON.generate(identity))
-    runtime_options = identity.merge(artifact_root: root, resume: !!fault[:resume], trace: false, retrieve: false,
+    runtime_options = identity.merge(artifact_root: File.join(Dir.home, 'runtime'), resume: !!fault[:resume], trace: false, retrieve: false,
                                      window: fault.fetch(:window, 128_000), enabled_toolsets: ['shell'])
     runtime = PWN::AI::Agent::RequestRuntime.new(runtime_options)
     control = PWN::AI::Agent::Loop::Steering.new(input: $stdin, output: $stderr)

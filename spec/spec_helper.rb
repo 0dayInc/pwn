@@ -35,6 +35,21 @@ RSpec.configure do |config|
   config.filter_run_excluding :combo_nation_mcp unless ENV['PWN_TEST_COMBO_NATION_MCP'] == '1'
   config.filter_run_excluding :x86_64_binary unless RbConfig::CONFIG['host_cpu'].to_s.match?(/amd64|x86_64/)
 
+  config.before(:each) do
+    @pwn_spec_backup_root = Dir.mktmpdir('pwn-backup-spec-')
+    Thread.current[:pwn_backup_real_home] = Dir.home
+    Thread.current[:pwn_backup_root] = @pwn_spec_backup_root
+  end
+
+  config.after(:each) do
+    root = @pwn_spec_backup_root
+    Thread.current[:pwn_backup_root] = nil
+    Thread.current[:pwn_backup_real_home] = nil
+    @pwn_spec_backup_root = nil
+    # FileUtils.remove_entry calls Dir.children, which examples stub with a fixed path.
+    system('rm', '-rf', '--', root) if root.is_a?(String) && root.start_with?('/') && root.include?('/pwn-backup-spec-') && !root.include?('..')
+  end
+
   if ENV['PWN_RAKE_SPEC'] == '1'
     module SilenceRakeFilterBanner
       def report_filter_message(message)

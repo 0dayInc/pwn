@@ -11,6 +11,12 @@ describe PWN::AI::Agent::TurnFinalizer do
     expect(described_class).to respond_to :help
   end
 
+  it 'does not promote prose abbreviations into output filenames' do
+    request = 'Generate a report, i.e. a PDF; save /tmp/container_pentest-PWN.pdf'
+    expect(described_class.output_paths(request: request)).to eq(['/tmp/container_pentest-PWN.pdf'])
+    expect(described_class.output_paths(request: 'Write `i.e`')).to eq([File.expand_path('i.e')])
+  end
+
   describe 'user-path depth' do
     after { described_class.leave_user_path! while described_class.user_path? }
 
@@ -145,6 +151,7 @@ describe PWN::AI::Agent::TurnFinalizer do
 
     it 'preserves extensionless and quoted destination literals without inventing filenames' do
       expect(described_class.output_paths(request: 'Write the result to /tmp/answer')).to eq(['/tmp/answer'])
+      expect(described_class.output_paths(request: 'Are you able to mv foo to /tmp/test?')).to eq(['/tmp/test'])
       expect(described_class.output_paths(request: 'Save to "~/My Reports/answer.md"')).to eq([File.expand_path('~/My Reports/answer.md')])
       expect(described_class.output_paths(request: 'Use /tmp/source.md to write the report to ./result.md')).to eq([File.expand_path('./result.md')])
     end

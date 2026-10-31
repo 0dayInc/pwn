@@ -133,6 +133,14 @@ module PWN
     # (Extrospection.probe_toolchain already knows how to *detect* these;
     #  this table knows how to *install* them.)
     TOOLCHAIN = {
+      'setpriv' => {
+        apt: %w[util-linux], dnf: %w[util-linux], pacman: %w[util-linux], brew: %w[], port: %w[],
+        plugins: %w[PWN::SessionTrace]
+      },
+      'unshare' => {
+        apt: %w[util-linux], dnf: %w[util-linux], pacman: %w[util-linux], brew: %w[], port: %w[],
+        plugins: %w[PWN::AI::Agent::MissionNamespace]
+      },
       'nmap' => {
         apt: %w[nmap], dnf: %w[nmap], pacman: %w[nmap], brew: %w[nmap], port: %w[nmap],
         plugins: %w[PWN::Plugins::NmapIt]
@@ -408,7 +416,7 @@ module PWN
       ai: {
         desc: 'verify at least one AI engine key/oauth in ~/.pwn/pwn.yaml',
         gems: %w[],
-        bins: %w[jq]
+        bins: %w[jq unshare setpriv]
       },
       web: {
         desc: 'TransparentBrowser · BurpSuite · Zaproxy · extro_verify · extro_watch',
@@ -765,7 +773,7 @@ module PWN
     #      third_party/terminator/pwn_shift_enter.py to
     #      ~/.config/terminator/plugins/ and enables the PWNShiftEnter
     #      plugin in ~/.config/terminator/config — WITH confirmation and
-    #      a .pwnbak backup. This is the only VTE emulator we can fix at
+    #      a shared recovery backup. This is the only VTE emulator we can fix at
     #      the GTK layer without patching libvte itself.
     #
     # Everything here is host-config mutation, which is why it lives in
@@ -831,7 +839,7 @@ module PWN
       io.puts
       io.puts "    write   #{plugin_dst}"
       io.puts "    edit    #{cfg_path}   (add PWNShiftEnter to enabled_plugins)"
-      io.puts "    backup  #{cfg_path}.pwnbak"
+      io.puts '    backup  ~/.pwn/backup (shared seven-generation store)'
       io.puts
 
       unless yes
@@ -858,7 +866,7 @@ module PWN
         if cfg.include?('PWNShiftEnter')
           io.puts "  #{OK} PWNShiftEnter already enabled in #{cfg_path}"
         else
-          FileUtils.cp(cfg_path, "#{cfg_path}.pwnbak") unless File.exist?("#{cfg_path}.pwnbak")
+
           new_cfg =
             if cfg =~ /^\s*enabled_plugins\s*=\s*(.*)$/
               cfg.sub(/^(\s*enabled_plugins\s*=\s*)(.*)$/) do
@@ -871,8 +879,11 @@ module PWN
             else
               "[global_config]\n  enabled_plugins = PWNShiftEnter\n#{cfg}"
             end
-          File.write(cfg_path, new_cfg)
-          io.puts "  #{OK} enabled PWNShiftEnter in #{cfg_path} (backup: config.pwnbak)"
+          PWN::Backups.transaction do
+            backup = PWN::Backups.capture(path: cfg_path, label: 'terminator')
+            File.write(cfg_path, new_cfg)
+            io.puts "  #{OK} enabled PWNShiftEnter in #{cfg_path} (backup: #{backup})"
+          end
         end
       else
         FileUtils.mkdir_p(File.dirname(cfg_path))

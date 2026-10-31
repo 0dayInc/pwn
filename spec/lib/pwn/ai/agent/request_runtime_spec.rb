@@ -6,6 +6,54 @@ require 'pwn/ai/agent/request_runtime'
 describe PWN::AI::Agent::RequestRuntime do
   include_context 'pwn tmp sandbox'
 
+  it 'runs arbitrary runtime dispatch handlers behind the mandatory source boundary' do
+    registry = PWN::AI::Agent::Registry
+    entries = registry.instance_variable_get(:@entries).dup
+    discovered = registry.instance_variable_get(:@discovered)
+    protected = File.join(@tmp, 'checkout')
+    FileUtils.mkdir_p(protected)
+    target = File.join(protected, 'keep')
+    File.write(target, 'original')
+    allow(PWN::Plugins::AISandbox).to receive(:protected_roots).and_return([protected])
+    runtime = described_class.new(request: 'Write a report', session_id: 'protected', artifact_root: @tmp, trace: false)
+    Thread.current[:pwn_request_runtime] = runtime
+    PWN::AI::Agent::Registry.register(name: 'boundary_fixture', toolset: 'test', schema: { name: 'boundary_fixture', parameters: { type: 'object' } }, handler: ->(_args) { File.write(target, 'bad') })
+    response = JSON.parse(PWN::AI::Agent::Dispatch.call(tool_call: { id: 'protected', function: { name: 'boundary_fixture', arguments: '{}' } }))
+    expect(File.read(target)).to eq('original')
+    expect(response['success']).to be false
+  ensure
+    registry.instance_variable_set(:@entries, entries)
+    registry.instance_variable_set(:@discovered, discovered)
+    Thread.current[:pwn_request_runtime] = nil
+  end
+
+  it 'accumulates host artifact receipts from successful eval writes without transcript claims' do
+    first = File.join(@tmp, 'first.pdf')
+    second = File.join(@tmp, 'second.txt')
+    runtime = described_class.new(request: "Write #{first} and #{second}", session_id: 'cumulative', artifact_root: @tmp, trace: false)
+    Thread.current[:pwn_request_runtime] = runtime
+    Thread.current[:pwn_artifact_contract] = runtime.contract
+    runtime.execute_tool(name: 'fixture', args: { file: first }, effect: :eval, action_id: 'one') do
+      File.write(first, '%PDF-1.4 fixture')
+      { value: 'written' }
+    end
+    runtime.execute_tool(name: 'fixture', args: { file: second }, effect: :eval, action_id: 'two') do
+      File.write(second, 'verified')
+      { value: 'written' }
+    end
+    runtime.execute_tool(name: 'fixture', args: { file: second }, effect: :read, action_id: 'three') do
+      File.read(second)
+      { value: 'read' }
+    end
+    expect(runtime.observations.keys).to contain_exactly(first, second)
+    expect(PWN::AI::Agent::TurnFinalizer.arbitrate(request: runtime.request)[:complete]).to be true
+    File.write(first, 'stale')
+    expect(PWN::AI::Agent::TurnFinalizer.arbitrate(request: runtime.request)[:complete]).to be false
+  ensure
+    Thread.current[:pwn_request_runtime] = nil
+    Thread.current[:pwn_artifact_contract] = nil
+  end
+
   it 'accepts a binary-tagged request without raising JSON::GeneratorError' do
     request = "status \u2022 ok".b
     expect(request.encoding).to eq(Encoding::ASCII_8BIT)

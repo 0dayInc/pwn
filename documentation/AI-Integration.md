@@ -15,7 +15,7 @@ agent code never cares which model is behind it.
 | `grok` | `PWN::AI::Grok` | `key:` **or** `oauth: true` | OAuth = RFC-8628 device-code flow using xAI's public Grok-CLI client id (no secret) - see skill `xai_grok_oauth_device_flow` |
 | `gemini` | `PWN::AI::Gemini` | `key:` | function-calling native |
 | `ollama` | `PWN::AI::Ollama` | none (stock) | Direct Ollama server (default `http://127.0.0.1:11434`). Native `/api/chat` (`num_ctx`, `num_predict`, `keep_alive`, low `tool_temp`) and `/api/embed` for `PWN::MemoryIndex`. No prefix-cache field. |
-| `openwebui` | `PWN::AI::OpenWebUI` | `key:` (JWT / API token) + `base_uri:` | Open WebUI gateway - OpenAI-compatible `/api/v1/chat/completions` plus proxied Ollama `/ollama/api/*` (including embed) |
+| `openwebui` | `PWN::AI::OpenWebUI` | `key:` (JWT / API token) + `base_uri:` | Open WebUI gateway - OpenAI-compatible `/api/v1/chat/completions` plus proxied Ollama `/ollama/api/*`. Workspace tools such as Ask Jev run server-side through `tool_ids` on `chat` / `workspace_tool`. A client `tools` array on that same request disables them. |
 
 > PWN is **model-agnostic**. `ai.<engine>.model` is passed straight through to
 choose a provider-supported model ID (or a tag from `ollama list`).

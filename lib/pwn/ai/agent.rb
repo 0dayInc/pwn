@@ -48,6 +48,7 @@ module PWN
       autoload :TurnFinalizer, 'pwn/ai/agent/turn_finalizer'
       autoload :Engagement, 'pwn/ai/agent/engagement'
       autoload :Mission, 'pwn/ai/agent/mission'
+      autoload :MissionNamespace, 'pwn/ai/agent/mission_namespace'
       autoload :OpenGoal, 'pwn/ai/agent/open_goal'
       autoload :PromptCache, 'pwn/ai/agent/prompt_cache'
 
