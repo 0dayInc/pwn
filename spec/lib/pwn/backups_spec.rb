@@ -19,6 +19,21 @@ describe PWN::Backups do
     expect(Dir.children(root).count { |name| File.directory?(File.join(root, name)) }).to eq(7)
   end
 
+  it 'expires an unreferenced capture pin when capacity is full and keeps a referenced pin' do
+    root = File.join(@home, '.pwn', 'backup')
+    pinned = 7.times.map { described_class.capture(path: @source, label: 'policy-evaluation', pin: true) }
+    generations = pinned.map { |path| File.dirname(path, 2) }.uniq
+    generations.each_with_index { |dir, index| File.utime(Time.at(1_700_000_000 + index), Time.at(1_700_000_000 + index), dir) }
+    oldest_dir = generations.min_by { |dir| File.mtime(dir) }
+    referenced_dir = generations.max_by { |dir| File.mtime(dir) }
+    referenced = pinned.find { |path| path.start_with?("#{referenced_dir}/") }
+    File.write(File.join(@home, '.pwn', 'policy.json'), JSON.generate(rollback_path: referenced))
+    described_class.capture(path: @source, label: 'migration')
+    expect(File).not_to exist(oldest_dir)
+    expect(File).to exist(referenced)
+    expect(Dir.children(root).count { |name| File.directory?(File.join(root, name)) }).to eq(7)
+  end
+
   it 'keeps interrupted transactions prepared and refuses an eighth pinned generation' do
     7.times do
       expect do

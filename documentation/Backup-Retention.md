@@ -32,15 +32,14 @@ maintenance. Learning reentrancy is bound to the owning PID and thread; an
 attempt to acquire Learning underneath an unowned backup transaction is rejected.
 Maintenance still defers when the Learning writer is busy.
 
-Before a new folder is admitted, oldest completed, unpinned generations may be
-expired to make room. Prepared/interrupted generations, explicit pins and current
-literal evidence references remain protected. Malformed reference data fails
-closed when expiry would be needed. Pins count **inside** the seven-folder limit:
-if they occupy capacity, the next producer fails before modifying its source.
-Unknown legacy folders count toward capacity but are not silently certified or
-expired. A pre-existing over-limit store can therefore block admission until an
-explicit offline remediation is performed; importing this source does not fix a
-live store or grant permission to prune it.
+Before a new folder is admitted, oldest completed generations may be expired
+to make room. That includes a capture pin that is not listed in the retention
+policy and not named by current evidence. Prepared/interrupted generations,
+retention-policy pins and current literal evidence references remain protected.
+Malformed reference data fails closed when expiry would be needed. If those
+protected folders occupy the seven-folder limit, the next producer fails before
+modifying its source. Unknown legacy folders count toward capacity but are not
+silently certified or expired.
 
 Transactions publish `prepared` before payload/source changes and `complete`
 only after successful return. Exceptions, interrupted/blocked results and failed
