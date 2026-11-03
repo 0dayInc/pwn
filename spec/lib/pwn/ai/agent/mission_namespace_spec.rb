@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'spec_helper'
+require 'open3'
 require 'tmpdir'
 
 RSpec.describe 'PWN::AI::Agent::MissionNamespace compiler-free process ownership' do
@@ -10,6 +11,12 @@ RSpec.describe 'PWN::AI::Agent::MissionNamespace compiler-free process ownership
     example.run
   ensure
     PWN::AI::Agent::MissionNamespace.force_exec = previous
+  end
+
+  it 'does not ask newuidmap for a host uid range starting at 0' do
+    source = File.read(File.expand_path('../../../../support/mission_namespace.rb', __dir__))
+    expect(source).not_to include('--map-users=0:0:65536')
+    expect(source).to include('/proc/#{pid}/uid_map')
   end
 
   it 'loads through root and direct requires without suppressing sibling autoloads' do

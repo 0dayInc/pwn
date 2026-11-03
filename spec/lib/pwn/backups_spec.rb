@@ -49,6 +49,9 @@ describe PWN::Backups do
 
   it 'pins actual evidence paths but not quoted inventory prose' do
     copies = 7.times.map { described_class.capture(path: @source) }
+    generations = copies.map { |path| File.dirname(path, 2) }
+    generations.each_with_index { |dir, index| File.utime(Time.at(1_700_000_100 + index), Time.at(1_700_000_100 + index), dir) }
+    File.utime(Time.at(1_700_000_000), Time.at(1_700_000_000), generations[1])
     File.write(File.join(@home, '.pwn', 'learning.jsonl'), JSON.generate(evidence_path: copies.first, prose: "old path #{copies[1]}"))
     described_class.capture(path: @source)
     expect(File).to exist(copies.first)
