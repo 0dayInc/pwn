@@ -78,7 +78,9 @@ module PWN
           next false unless File.file?(state) && !File.symlink?(state)
 
           record = JSON.parse(File.binread(state))
-          record['version'] == 1 && record['state'] == 'complete' && record['pinned'] != true
+          # Capture pins that nothing references may be expired. Policy pins and
+          # evidence references are already in `pins`. Interrupted generations are not.
+          record['version'] == 1 && record['state'] == 'complete'
         end
         count = [names.length - LIMIT + 1, 0].max
         raise IOError, 'Backup capacity occupied by legacy, pinned or interrupted generations' if candidates.length < count

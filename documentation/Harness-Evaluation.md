@@ -64,7 +64,7 @@ replay potentially destructive historical actions.
 
 Reuse the existing policy CLI (`pwn-ai --policy evaluate`, `promote`, `rollback`)
 and frozen snapshots, rather than updating live stores during evaluation.
-`PolicyEvaluation.evaluate` runs the existing standalone worker with a cleared
+`PolicyEvaluation.evaluate` runs a fresh worker with a cleared
 environment and disposable HOME; off/baseline/candidate use frozen policy bytes
 and independently checked tasks. The split-corpus executable experiments clone
 frozen training HOMEs per trial, check input/snapshot hashes and reject duplicate

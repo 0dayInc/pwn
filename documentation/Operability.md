@@ -68,6 +68,7 @@ a process that is already running. Restart after installing the matching package
 | Mission lifetime | CTRL+C kills the mission through `PWN::AI::Agent::MissionNamespace`. That owner is Ruby plus util-linux `unshare` and Linux pidfds. There is no compiled `pwn_mission` extension and no systemd fallback. |
 | Recovery copies | Every PWN recovery producer uses `PWN::Backups` and `~/.pwn/backup/`, seven generation folders total. Adjacent `.bak` files are not the current producer. |
 | Housekeeping | A fresh install seeds one internal `session_cleanup` coordinator. Curriculum jobs are not seeded. Housekeeping never uses systemd. |
+| YubiKey | `PWN::Plugins::YubiKey` is native Ruby over HIDAPI and PC/SC. `required_bins` is empty and no `ykman` process is started. A library probe is not a connected device. Fixture coverage is not physical interoperability. See [YubiKey](YubiKey.md). |
 
 Details: [Runtime Source Protection](Runtime-Source-Protection.md),
 [Mission Cancellation](Mission-Cancellation.md),

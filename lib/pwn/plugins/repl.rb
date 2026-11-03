@@ -729,6 +729,14 @@ module PWN
           PWN.const_get(:MeshTxWin).close
           PWN.send(:remove_const, :MeshTxWin)
         end
+        %i[MeshSndrWin MeshRcvrWin].each do |name|
+          next unless PWN.const_defined?(name)
+
+          win = PWN.const_get(name)
+          win.close if win.respond_to?(:close)
+          PWN.send(:remove_const, name)
+        end
+        PWN.send(:remove_const, :MeshCurses) if PWN.const_defined?(:MeshCurses)
         PWN.send(:remove_const, :MeshColors) if PWN.const_defined?(:MeshColors)
         PWN.send(:remove_const, :MeshLastColor) if PWN.const_defined?(:MeshLastColor)
         PWN.send(:remove_const, :MeshMutex) if PWN.const_defined?(:MeshMutex)

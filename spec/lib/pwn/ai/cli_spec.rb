@@ -88,16 +88,11 @@ RSpec.describe 'PWN::AI::CLI' do
 
   it 'promotes only with both operator acknowledgements and rolls back using the saved receipt' do
     Dir.mktmpdir('pwn-cli-policy-', '/tmp') do |root|
-      output, error, status = Open3.capture3(
-        { 'HOME' => root, 'LANG' => 'C.UTF-8' }, RbConfig.ruby,
-        File.expand_path('../../../../scripts/benchmark_policy.rb', __dir__),
-        '--heldout', '--snapshot-dir', File.join(root, 'snapshots'), unsetenv_others: true
-      )
-      expect(status.success?).to be(true), error
+      report = PWN::AI::Agent::PolicyEvaluation.export_training(dir: File.join(root, 'snapshots'))
       baseline = File.join(root, 'snapshots', 'off.json')
       candidate = File.join(root, 'snapshots', 'on.json')
       reports = File.join(root, 'reports.json')
-      File.write(reports, JSON.generate(JSON.parse(output).fetch('heldout')))
+      File.write(reports, JSON.generate(report.fetch(:heldout)))
       live = File.join(root, 'live.json')
       FileUtils.cp(baseline, live)
       argv = ['--policy', 'promote', '--baseline', baseline, '--candidate', candidate, '--reports', reports, '--live-policy', live]

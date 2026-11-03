@@ -77,9 +77,11 @@ Required: `subfinder`, `httpx`. Fallback: `NmapIt.scan` + `Corpus.get`.
 
 ## pwn-plugins-yubikey
 
-Required: `ykman` (YubiKey Manager CLI). Preflight checks executable presence
-only; it never opens a device, requests a PIN, or performs a challenge. An `ok`
-status does not establish device availability, provisioning, or authorization.
+Required: none. `required_bins` is empty. Preflight probes HIDAPI and PC/SC
+through `available?` and reports `FIDO native transport` or
+`PC/SC native transport` when a library is missing. It never opens a device,
+requests a PIN, or performs a challenge. An `ok` library probe does not
+establish device availability, provisioning, or authorization.
 Hardware-backed vault operations require the selected YubiKey and its existing
 HMAC-SHA1 OTP slot; missing devices, denied touch, or authentication failures
 raise without falling back to a disk master key or software MFA. Restore device

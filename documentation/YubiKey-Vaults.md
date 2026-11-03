@@ -1,7 +1,7 @@
 # YubiKey-backed vaults and authentication
 
-See [YubiKey device operations](YubiKey.md) for the `ykman` command families,
-provisioning safeguards and supported hardware/firmware boundaries.
+See [YubiKey device operations](YubiKey.md) for native HID/PC/SC operations,
+provisioning safeguards and the firmware boundary. No `ykman` process is used.
 
 ## Encryption model
 
@@ -53,7 +53,9 @@ end
 ```
 
 `yubikey` is a Hash accepting `slot` (integer 1 or 2; default 2), optional
-`serial`, optional local `ykman` executable path and bounded `timeout` seconds.
+exact decimal `serial`, optional `reader` or `device_path`, and bounded
+`timeout` seconds. An executable path such as `ykman` is rejected. The
+envelope stores slot and serial only; it never stores a backend path.
 `dump`, `decrypt`, `open_credentials` and hardware loot retrieval otherwise use
 the slot/serial stored in their envelope. Selecting another serial permits an
 explicitly provisioned recovery key with the same slot secret; the authentication
@@ -151,10 +153,10 @@ challenge does not accept an authenticator code.
 
 For `pwn_web_cache_deception`, add `--yubikey-account='Example:alice'`, optionally
 `--yubikey-serial=12345678`, and the required `--yubikey-confirm` to the normal
-arguments for a compatible login module. The flag authorizes HOTP counter
-advancement, remembered-key authentication and deletion of invalid cached keys
-during account listing, and upstream `ykman` cleanup that may delete a corrupted
-OATH credential. It is required for TOTP too; PWN never silently supplies consent.
+arguments for a compatible login module. The flag authorizes native OATH
+authentication and HOTP counter advancement. It does not authorize deleting or
+repairing a corrupted credential. It is required for TOTP too; PWN never
+silently supplies consent.
 Confirmation/serial flags without an account are rejected before login.
 
 ## Scope boundaries
@@ -177,7 +179,7 @@ existing evidence-storage behavior and need separate access/at-rest protection.
 harvested loot; metadata-only Vault queries do not unlock a device, but Dispatch's
 separate output-redaction step can still require access to protected secrets.
 
-Verification uses fake device processes and synthetic HMAC responses. Tests
-exercise real Ruby encryption, authentication failures, selector validation,
-subprocess cleanup and persistence entry points, but are not evidence of a
-physical YubiKey, live website authentication or every firmware variant.
+Verification uses synthetic native connections and HMAC responses. Tests
+exercise real Ruby encryption, authentication failures, selector validation
+and persistence entry points. They are not evidence of a physical YubiKey,
+live website authentication or every firmware variant.

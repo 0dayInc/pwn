@@ -50,6 +50,6 @@ digraph PWN_Feedback {
   {rank=same; Retain; Receipt}
 
   Trainer [fillcolor="#1e293b", fontcolor="#cbd5e1", style="rounded,dashed,filled",
-    label="SEPARATE OPTIONAL WEIGHT PATH\nCurriculum export / configured trainer is opt-in\nNot routing-policy promotion or proof of adapter gains\nScheduled curriculum jobs are disabled by default"];
+    label="SEPARATE OPTIONAL WEIGHT PATH\nCurriculum export / configured trainer is opt-in\nNot routing-policy promotion or proof of adapter gains\nCurriculum jobs are not seeded"];
   {rank=same; Reuse; Trainer}
 }

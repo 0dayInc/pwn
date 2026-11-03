@@ -27,13 +27,13 @@ digraph "PWN_Reinforcement_Learning" {
   subgraph cluster_curriculum {
     label="OPTIONAL CURRICULUM  ·  independent invocation"; fontsize=12;
     style="rounded,dashed,filled"; color="#94a3b8"; fillcolor="#1e293b";
-    Schedule [fillcolor="#7dd3fc", label="A  OPT IN / INVOKE EXPLICITLY\nCron seeds disabled by default:\npractice 03:00; offline_judge 03:30 daily\ntrain dry_run 04:00 Sunday\nSeeding jobs does not install system crontab"];
+    Schedule [fillcolor="#7dd3fc", label="A  OPT IN / INVOKE EXPLICITLY\nCurriculum jobs are not seeded\nCreate a CURRICULUM_JOBS template only when wanted\nTemplates stay disabled until explicitly enabled\nSeeding does not install system crontab"];
     Practice [fillcolor="#6ee7b7", label="B  PRACTICE / OFFLINE JUDGING\nPractice: budget-first; real tools may run\nJudge-qualified resolution + winning traces\nOffline judge: backfill, calibrate, warm sentinel\nRecords: curriculum/ + mistakes / preferences"];
     Export [fillcolor="#fcd34d", label="C  EXPORT TRAINING DATA\nLearning.export_finetune + Reward.export_dpo\nEligible sessions / outcomes + preference pairs\nScrub, geometry and source-balance filters\nOutput: finetune/*.jsonl + evaluation set"];
     Train [fillcolor="#fda4af", label="D  train_and_gate\nDry run or no trainer → export_ready only\nOtherwise: configured trainer → LoRA adapter\nollama create → candidate vs baseline gate\nPreference-diet gate also required"];
     Model [fillcolor="#6ee7b7", label="E  RETAIN GATED ADAPTER VERSION\nOn passing gates: update curriculum model state\nOptional local weight path, not routing policy\nExport alone is not training or improvement"];
     Hygiene [fillcolor="#1e293b", fontcolor="#cbd5e1", style="rounded,dashed,filled",
-      label="SEPARATE ENABLED HYGIENE SEED\nLearning.consolidate at 05:00 daily\nMemory maintenance, not model training\nESR = verified_exploit_tools / vulnerable_tools\nASR = successful_attacks / total_attack_attempts"];
+      label="SEPARATE ENABLED HYGIENE SEED\nsession_cleanup at 03:45 daily\nIncludes memory consolidation; not model training\nESR = verified_exploit_tools / vulnerable_tools\nASR = successful_attacks / total_attack_attempts"];
     Schedule -> Practice [label="independent jobs; not a job chain", style=dashed];
     Practice -> Export [label="eligible retained data", style=dashed];
     Export -> Train -> Model;
