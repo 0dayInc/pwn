@@ -54,7 +54,12 @@ module PwnSpecNamespace
     Process.wait(pid)
     status = Process.last_status.exitstatus || 1
     pid = nil
-    exit status
+    # Kernel#exit raises SystemExit. RSpec rescues that while loading a spec
+    # and reports it as a load failure. exit! ends this parent with the child's
+    # status and does not raise. Clean the sync dir first; exit! skips ensure.
+    FileUtils.rm_rf(dir) if dir
+    dir = nil
+    exit! status
   rescue StandardError
     if pid
       Process.kill('KILL', pid)

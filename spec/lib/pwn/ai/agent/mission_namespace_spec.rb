@@ -19,6 +19,8 @@ RSpec.describe 'PWN::AI::Agent::MissionNamespace compiler-free process ownership
     expect(source).not_to include('--map-users=0:0:65536')
     expect(source).to include("/proc/#{pid_token}/uid_map")
     expect(source.index('Process.groups = []')).to be < source.index("/proc/#{pid_token}/setgroups")
+    expect(source).to include('exit! status')
+    expect(source).not_to match(/^\s*exit status\b/)
   end
 
   it 'loads through root and direct requires without suppressing sibling autoloads' do
