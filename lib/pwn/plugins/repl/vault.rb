@@ -23,14 +23,12 @@ module PWN
               # Prefer driver_opts (set by Config.refresh_env); fall back to the
               # canonical sidecar path Config uses: <pwn.yaml>.decryptor
               pwn_dec_path = PWN::Env[:driver_opts][:pwn_dec_path] ||= "#{pwn_env_path}.decryptor"
-              unless File.exist?(pwn_dec_path)
+              unless PWN::Plugins::Vault.hardware_encrypted?(file: pwn_env_path) || File.exist?(pwn_dec_path)
                 puts "ERROR: pwn decryptor file not found: #{pwn_dec_path}"
                 return
               end
 
-              decryptor = YAML.load_file(pwn_dec_path, symbolize_names: true)
-              key = decryptor[:key]
-              iv = decryptor[:iv]
+              access = PWN::Plugins::Vault.access_options(file: pwn_env_path, decryptor_file: pwn_dec_path)
 
               # Vault.edit decrypts -> opens editor -> encrypts and only sets
               # Pry.config.refresh_pwn_env = true. PWN::Config.refresh_env (which
@@ -40,19 +38,10 @@ module PWN
               # prompt "Press Enter to Resolve", wait on $stdin.gets, then re-open
               # the editor until the vault loads cleanly.
               loop do
-                PWN::Plugins::Vault.edit(
-                  file: pwn_env_path,
-                  key: key,
-                  iv: iv
-                )
+                PWN::Plugins::Vault.edit(access.merge(file: pwn_env_path))
 
                 begin
-                  PWN::Config.refresh_env(
-                    pwn_env_path: pwn_env_path,
-                    pwn_dec_path: pwn_dec_path,
-                    key: key,
-                    iv: iv
-                  )
+                  PWN::Config.refresh_env(access.merge(pwn_env_path: pwn_env_path, pwn_dec_path: pwn_dec_path))
                   break
                 rescue RuntimeError => e
                   # Keep the prior in-memory Env usable if the operator aborts

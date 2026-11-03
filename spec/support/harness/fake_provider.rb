@@ -3,10 +3,11 @@
 # Test-only preload: never selected by the production CLI or configuration.
 require 'json'
 require 'pwn'
+PWN::AI::Agent::MissionNamespace.bootstrap_requires = [File.expand_path(__FILE__)]
 require 'net/http'
 require 'socket'
 
-raise 'isolated HOME required' unless Dir.home.start_with?('/tmp/')
+raise 'isolated HOME required' unless ['/tmp/', "#{ENV.fetch('TMPDIR', '/tmp')}/"].any? { |root| Dir.home.start_with?(root) }
 raise 'fixture required' unless ENV['PWN_HARNESS_FIXTURE']
 
 # Defense in depth: no provider HTTP/socket work in this offline lane.
@@ -43,9 +44,17 @@ PWN::AI::Agent::Dispatch.singleton_class.prepend(Module.new do
   end
 end)
 provider = PWN::AI::OpenAI
-calls = 0
+cursor = "#{ENV.fetch('PWN_HARNESS_EVENTS')}.cursor-#{Process.pid}"
 provider.define_singleton_method(:chat_with_tools) do |opts = {}|
-  calls += 1
+  # Worker isolation must not replay the parent's in-memory fixture cursor.
+  calls = File.open(cursor, File::RDWR | File::CREAT, 0o600) do |io|
+    io.flock(File::LOCK_EX)
+    value = io.read.to_i + 1
+    io.rewind
+    io.truncate(0)
+    io.write(value.to_s)
+    value
+  end
   row = fixture.fetch(:responses)[calls - 1]
   raise "fixture exhausted at provider call #{calls}" unless row
 
@@ -75,8 +84,15 @@ provider.define_singleton_method(:chat_with_tools) do |opts = {}|
   { choices: [{ message: row }] }
 end
 provider.define_singleton_method(:chat) { |*_args| raise 'unexpected text-only provider path' }
+# Capture actual loaded components before crash/kill stimuli can bypass at_exit.
+# Refresh on normal exit to include modules loaded during execution.
+fingerprint = lambda do
+  path = ENV.fetch('PWN_HARNESS_FINGERPRINT')
+  stage = "#{path}.#{Process.pid}.tmp"
+  File.write(stage, JSON.pretty_generate(PWN::RuntimeFingerprint.report))
+  File.rename(stage, path)
+end
+fingerprint.call
+at_exit { fingerprint.call }
 ready = ENV['PWN_HARNESS_READY'].to_s
 File.write(ready, 'ready') unless ready.empty?
-at_exit do
-  File.write(ENV.fetch('PWN_HARNESS_FINGERPRINT'), JSON.pretty_generate(PWN::RuntimeFingerprint.report))
-end

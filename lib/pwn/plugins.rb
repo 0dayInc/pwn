@@ -111,6 +111,7 @@ module PWN
     autoload :Volatility, 'pwn/plugins/volatility'
     autoload :Vsphere, 'pwn/plugins/vsphere'
     autoload :XXD, 'pwn/plugins/xxd'
+    autoload :YubiKey, 'pwn/plugins/yubikey'
     autoload :Zaproxy, 'pwn/plugins/zaproxy'
 
     # Display a List of Every PWN::Plugins Module

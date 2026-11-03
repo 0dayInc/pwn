@@ -18,13 +18,14 @@ $ pwn setup --migrate --fix   # after `gem update pwn`: verify + autofix ~/.pwn 
 ```
 
 See [Installation](Installation.md) for every flag and the
-`PWN::Setup` / `PWN::Migrate` API.
+`PWN::Setup` / `PWN::Migrate` API. Unspecified `pwn-ai` writes use
+`~/.pwn/workspaces/runtime`; see [Operability](Operability.md).
 
 ## Inside the REPL
 
 ```ruby
 PWN.help                            # top-level help
-PWN::Plugins.constants.sort         # list all 107 plugins
+PWN::Plugins.constants.sort         # list all 108 plugins
 PWN::Plugins::NmapIt.help           # per-plugin usage
 PWN::Setup.check                    # capability doctor from inside the REPL
 PWN::Migrate.status                 # ~/.pwn state-file compatibility rows
@@ -40,7 +41,7 @@ history                             # what you've typed → copy into a driver
 | `pwn-ai` | Enter the agent TUI (SHIFT+ENTER = newline, ENTER = submit) |
 | `pwn-asm` | Multi-line assembly ↔ opcode workbench |
 | `pwn-mesh` | Meshtastic serial / bluetooth / TCP / MQTT client (Ruby ≥ 4.0) |
-| `pwn-vault` | Decrypt → edit `~/.pwn/pwn.yaml` in `$EDITOR` → re-encrypt |
+| `pwn-vault` | Edit a private temporary copy, then replace `~/.pwn/pwn.yaml` only after encryption succeeds (legacy or YubiKey) |
 | `pwn-ai-memory` | Inspect / edit `~/.pwn/memory.json` |
 | `pwn-ai-sessions` | List / view / delete transcripts |
 | `pwn-ai-cron` | List / run scheduled jobs |

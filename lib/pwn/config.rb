@@ -364,13 +364,20 @@ module PWN
 
     # Supported Method Parameters::
     # env = PWN::Config.default_env(
-    #   pwn_env_path: 'optional - Path to pwn.yaml file.  Defaults to ~/.pwn/pwn.yaml'
+    #   pwn_env_path: 'optional - Path to pwn.yaml file. Defaults to ~/.pwn/pwn.yaml',
+    #   pwn_dec_path: 'optional - Legacy decryptor path; defaults to the vault path plus .decryptor',
+    #   yubikey: 'optional - Explicit hardware opt-in with slot, serial, reader, device_path, connection, timeout selector'
     # )
     public_class_method def self.default_env(opts = {})
-      pwn_env_path = opts[:pwn_env_path]
-      pwn_dec_path = "#{pwn_env_path}.decryptor"
+      pwn_env_path = opts[:pwn_env_path] || File.join(Dir.home, '.pwn', 'pwn.yaml')
+      pwn_dec_path = opts[:pwn_dec_path] || "#{pwn_env_path}.decryptor"
+      yubikey = opts[:yubikey]
+      raise ArgumentError, 'yubikey must be a selector Hash' unless yubikey.nil? || yubikey.is_a?(Hash)
 
-      puts "
+      if yubikey
+        puts "[*] Writing YubiKey-protected PWN::Env to #{pwn_env_path}; no software decryptor is created."
+      else
+        puts "
         [*] NOTICE:
         1. Writing minimal PWN::Env to:
            #{pwn_env_path}
@@ -381,15 +388,22 @@ module PWN
         4. For optimal security, it's recommended to move:
            #{pwn_dec_path}
            to a secure location and use the --pwn-dec parameter for PWN drivers.
-      "
+        "
+      end
       env = env_template
 
-      # Remove beginning colon from key names
-
-      yaml_env = YAML.dump(env).gsub(/^(\s*):/, '\1')
-      File.write(pwn_env_path, yaml_env)
-      # Change file permission to 600
-      File.chmod(0o600, pwn_env_path)
+      # YAML tags preserve symbol keys without rewriting multiline scalar bytes.
+      yaml_env = YAML.dump(env)
+      FileUtils.mkdir_p(File.dirname(pwn_env_path), mode: 0o700)
+      if yubikey
+        encrypted = PWN::Plugins::Vault.encrypt_data(data: yaml_env, yubikey: yubikey)
+        File.open(pwn_env_path, File::WRONLY | File::CREAT | File::EXCL, 0o600) { |file| file.write(encrypted) }
+      else
+        File.write(pwn_env_path, yaml_env)
+        # Change file permission to 600
+        File.chmod(0o600, pwn_env_path)
+        PWN::Plugins::Vault.create(file: pwn_env_path, decryptor_file: pwn_dec_path)
+      end
 
       # Ensure skills dir for pwn-ai agent (in parent of pwn_env_path)
       pwn_env_root = File.dirname(pwn_env_path)
@@ -400,11 +414,6 @@ module PWN
         pwn_env_path: pwn_env_path,
         pwn_dec_path: pwn_dec_path
       }
-
-      PWN::Plugins::Vault.create(
-        file: pwn_env_path,
-        decryptor_file: pwn_dec_path
-      )
 
       Pry.config.refresh_pwn_env = false if defined?(Pry)
       env[:pwn_skills_path] = pwn_skills_path
@@ -430,6 +439,7 @@ module PWN
     # )
     public_class_method def self.redact_sensitive_artifacts(opts = {})
       config = opts[:config] ||= PWN::Env
+      return config.map { |value| value.is_a?(Hash) || value.is_a?(Array) ? redact_sensitive_artifacts(config: value) : value } if config.is_a?(Array)
 
       sensitive_keys = %i[
         admin_key
@@ -445,14 +455,38 @@ module PWN
         refresh_token
         secret_key
         token
+        pin
+        new_pin
+        admin_pin
+        puk
+        new_puk
+        management_key
+        new_management_key
+        management_password
+        access_code
+        new_access_code
+        oath_secret
+        oath_password
+        unlock_code
+        unlock_password
+        lock_code
+        new_lock_code
+        reset_code
+        scp
+        scp_key
+        scp_keys
+        scp03_key
+        scp11_key
+        static_password
+        hmac_secret
       ]
 
       # Transform values at the current level: redact sensitive keys
       config.transform_values.with_index do |v, k|
-        if sensitive_keys.include?(config.keys[k])
+        if sensitive_keys.include?(config.keys[k].to_s.downcase.tr('-', '_').to_sym)
           '>>> REDACTED >>> USE `pwn-vault` FOR ADMINISTRATION <<< REDACTED <<<'
         else
-          v.is_a?(Hash) ? redact_sensitive_artifacts(config: v) : v
+          v.is_a?(Hash) || v.is_a?(Array) ? redact_sensitive_artifacts(config: v) : v
         end
       end
     rescue StandardError => e
@@ -477,7 +511,8 @@ module PWN
     # Supported Method Parameters::
     # PWN::Config.refresh_env(
     #   pwn_env_path: 'optional - Path to pwn.yaml file.  Defaults to ~/.pwn/pwn.yaml',
-    #   pwn_dec_path: 'optional - Path to pwn.yaml.decryptor file.  Defaults to ~/.pwn/pwn.yaml.decryptor'
+    #   pwn_dec_path: 'optional - Legacy decryptor path; not needed for hardware vaults',
+    #   yubikey: 'optional - Hardware selector override or explicit opt-in for a new vault'
     # )
 
     # Deep-fill missing Hash keys from defaults into target (mutates target).
@@ -541,27 +576,20 @@ module PWN
       pwn_skills_path = File.join(pwn_env_root, 'skills')
       FileUtils.mkdir_p(pwn_skills_path)
 
-      return default_env(pwn_env_path: pwn_env_path) unless File.exist?(pwn_env_path)
+      return default_env(pwn_env_path: pwn_env_path, pwn_dec_path: opts[:pwn_dec_path], yubikey: opts[:yubikey]) unless File.exist?(pwn_env_path)
 
       is_encrypted = PWN::Plugins::Vault.file_encrypted?(file: pwn_env_path)
       raise "PWN Environment (#{pwn_env_path}) is not encrypted!  Use PWN::Vault.create(file: '#{pwn_env_path}', decryptor_file: '#{pwn_env_path}.decryptor') to encrypt it." unless is_encrypted
 
       pwn_dec_path = opts[:pwn_dec_path] ||= "#{pwn_env_path}.decryptor"
-      raise "PWN Decryptor (#{pwn_dec_path}) does not exist!" unless File.exist?(pwn_dec_path)
-
-      pwn_decryptor = YAML.load_file(pwn_dec_path, symbolize_names: true)
-
-      key = opts[:key] ||= pwn_decryptor[:key] ||= ENV.fetch('PWN_DECRYPTOR_KEY')
-      key = PWN::Plugins::AuthenticationHelper.mask_password(prompt: 'Decryption Key') if key.nil?
-
-      iv = opts[:iv] ||= pwn_decryptor[:iv] ||= ENV.fetch('PWN_DECRYPTOR_IV')
-      iv = PWN::Plugins::AuthenticationHelper.mask_password(prompt: 'Decryption IV') if iv.nil?
-
-      env = PWN::Plugins::Vault.dump(
+      access = PWN::Plugins::Vault.access_options(
         file: pwn_env_path,
-        key: key,
-        iv: iv
+        decryptor_file: pwn_dec_path,
+        key: opts[:key],
+        iv: opts[:iv],
+        yubikey: opts[:yubikey]
       )
+      env = PWN::Plugins::Vault.dump(access.merge(file: pwn_env_path))
 
       valid_ai_engines = PWN::AI.help.reject { |e| e.downcase == :agent }.map(&:downcase)
 
@@ -1142,7 +1170,9 @@ module PWN
 
         # Run default env and return its result
         #{self}.default_env(
-          pwn_env_path: 'optional - Path to pwn.yaml file.  Defaults to ~/.pwn/pwn.yaml'
+          pwn_env_path: 'optional - Path to pwn.yaml file. Defaults to ~/.pwn/pwn.yaml',
+          pwn_dec_path: 'optional - Legacy decryptor path; defaults to the vault path plus .decryptor',
+          yubikey: 'optional - Explicit hardware opt-in with slot, serial, reader, device_path, connection, timeout selector; no sidecar'
         )
 
         # Run redact sensitive artifacts and return its result
@@ -1155,10 +1185,11 @@ module PWN
 
         # Run refresh env and return its result
         #{self}.refresh_env(
-          pwn_env_path: 'required - pwn env path value consumed by #refresh_env',
-          pwn_dec_path: 'required - pwn dec path value consumed by #refresh_env',
-          key: 'optional - key value consumed by #refresh_env',
-          iv: 'optional - iv value consumed by #refresh_env'
+          pwn_env_path: 'optional - Configuration vault path; defaults to ~/.pwn/pwn.yaml',
+          pwn_dec_path: 'optional - Legacy decryptor path; not needed for hardware vaults',
+          key: 'optional - Legacy vault key override',
+          iv: 'optional - Legacy vault IV override',
+          yubikey: 'optional - Hardware selector with slot, serial, reader, device_path, connection, timeout; opts in for new vaults'
         )
 
         # Run pwn skills path and return its result

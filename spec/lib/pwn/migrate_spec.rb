@@ -30,7 +30,7 @@ describe PWN::Migrate, 'exact migration snapshot scope' do
     File.write(File.join(@tmp, 'cron', 'worker.log'), 'new diagnostic')
     File.write(File.join(@tmp, 'cron', 'schedule-backups', 'receipt.json'), '{}')
     result = described_class.prune_backups(dry_run: false, expire_history: true)
-    expect(result[:deleted]).to eq(%w[20260101_000000 20260102_000000])
+    expect(result).to include(deleted: [], keep: 7, scope: 'global')
     expect(File.read(File.join(@tmp, 'cron', 'worker.log'))).to eq('new diagnostic')
   end
 end
@@ -76,57 +76,17 @@ describe PWN::Migrate do
       allow(PWN::Config).to receive(:pwn_skills_path).and_return(File.join(@tmp, 'skills'))
     end
 
-    it 'expires unique old history only after current recovery coverage is established' do
-      File.write(File.join(@tmp, 'memory.json'), '{"current":true}')
-      4.times do |i|
-        path = File.join(PWN::Migrate::BACKUP_ROOT, "2026010#{i + 1}_000000")
-        FileUtils.mkdir_p(path)
-        File.write(File.join(path, 'memory.json'), i == 3 ? '{"current":true}' : "{\"old\":#{i}}")
-      end
-      result = PWN::Migrate.prune_backups(dry_run: false, expire_history: true)
-      expect(result[:deleted]).to eq(['20260101_000000'])
-      expect(result[:retained].length).to eq(3)
-      expect(File).to exist(File.join(PWN::Migrate::BACKUP_ROOT, '.retention-manifest.json.gz'))
-      expect(File.read(File.join(@tmp, 'memory.json'))).to eq('{"current":true}')
-    end
-
-    context 'bounded historical expiry safeguards' do
-      before do
-        File.write(File.join(@tmp, 'memory.json'), '{}')
-        5.times do |i|
-          path = File.join(PWN::Migrate::BACKUP_ROOT, "2026010#{i + 1}_000000")
-          FileUtils.mkdir_p(path)
-          File.write(File.join(path, 'memory.json'), '{}')
-        end
-      end
-
-      it 'pins actual referenced evidence, not quoted inventory prose' do
-        File.write(File.join(@tmp, 'learning.jsonl'), "#{JSON.generate(evidence_path: "#{PWN::Migrate::BACKUP_ROOT}/20260101_000000/memory.json", prose: "old path #{PWN::Migrate::BACKUP_ROOT}/20260102_000000/memory.json")}\n")
-        FileUtils.cp(File.join(@tmp, 'learning.jsonl'), File.join(PWN::Migrate::BACKUP_ROOT, '20260105_000000', 'learning.jsonl'))
-        result = PWN::Migrate.prune_backups(dry_run: false, expire_history: true)
-        expect(result[:deleted]).to eq(['20260102_000000'])
-        expect(result[:pins]).to eq(['20260101_000000'])
-      end
-
-      it 'refuses expiry without current coverage or matching credential recovery' do
-        File.write(File.join(@tmp, 'pwn.yaml'), 'encrypted-current-fixture')
-        result = PWN::Migrate.prune_backups(dry_run: false, expire_history: true)
-        expect(result[:incomplete]).to be true
-        expect(result[:deleted]).to be_empty
-        File.write(File.join(PWN::Migrate::BACKUP_ROOT, '20260105_000000', 'pwn.yaml'), 'encrypted-old-fixture')
-        expect(PWN::Migrate.prune_backups(dry_run: false, expire_history: true)[:error]).to match(/encrypted configuration/)
-      end
-
-      it 'refuses symlinks and held producer locks and exhausted admission' do
-        File.symlink(File.join(@tmp, 'memory.json'), File.join(PWN::Migrate::BACKUP_ROOT, '20260101_000000', 'unsafe'))
-        expect(PWN::Migrate.prune_backups(dry_run: false, expire_history: true)[:deleted]).to be_empty
-        File.unlink(File.join(PWN::Migrate::BACKUP_ROOT, '20260101_000000', 'unsafe'))
-        File.open(File.join(PWN::Migrate::BACKUP_ROOT, '.retention.lock'), 'w') do |lock|
-          lock.flock(File::LOCK_EX)
-          expect(PWN::Migrate.prune_backups(dry_run: false, expire_history: true)[:error]).to eq('Backup maintenance active')
-        end
-        expect(PWN::Migrate.prune_backups(dry_run: false, expire_history: true, admission: ->(_bytes) { false })[:deleted]).to be_empty
-      end
+    it 'upgrades the existing three-folder policy to seven without pruning legacy data' do
+      FileUtils.mkdir_p(described_class::BACKUP_ROOT, mode: 0o700)
+      policy = File.join(described_class::BACKUP_ROOT, '.retention-policy.json')
+      File.write(policy, JSON.generate(version: 1, keep: 3, pins: [], expire_history: true))
+      File.write(described_class::SCHEMA_FILE, JSON.generate(schema: 11))
+      result = described_class.run(backup: false, io: io)
+      expect(result[:applied_migrations]).to eq([12])
+      expect(JSON.parse(File.read(policy))).to include('keep' => 7, 'scope' => 'global')
+      bytes = File.binread(policy)
+      expect(described_class.run(backup: false, io: io)[:applied_migrations]).to eq([])
+      expect(File.binread(policy)).to eq(bytes)
     end
 
     it '.needed? / .status on a fresh (empty) root' do
@@ -166,7 +126,7 @@ describe PWN::Migrate do
       File.write(File.join(@tmp, '.schema'), JSON.generate(schema: 2))
       expect(described_class.needed?).to be(true)
       result = described_class.run(fix: false, backup: false, io: io)
-      expect(result[:applied_migrations]).to eq([3, 4, 5, 6, 7, 8, 9, 10, 11])
+      expect(result[:applied_migrations]).to eq([3, 4, 5, 6, 7, 8, 9, 10, 11, 12])
       expected = Marshal.load(Marshal.dump(original))
       expected['custom']['model'] = nil
       expect(YAML.safe_load_file(path)).to eq(expected)
@@ -275,7 +235,7 @@ describe PWN::Migrate do
       File.write(File.join(@tmp, '.schema'), JSON.generate(schema: 3))
       expect(described_class.needed?).to be(true)
       result = described_class.run(fix: true, backup: false, io: io)
-      expect(result[:applied_migrations]).to eq([4, 5, 6, 7, 8, 9, 10, 11])
+      expect(result[:applied_migrations]).to eq([4, 5, 6, 7, 8, 9, 10, 11, 12])
       creds = YAML.safe_load_file(dec, symbolize_names: true)
       user = PWN::Plugins::Vault.dump(file: yaml, key: creds[:key], iv: creds[:iv])
       expect(user[:ai][:active]).to eq('grok')
@@ -301,7 +261,7 @@ describe PWN::Migrate do
       PWN::Plugins::Vault.create(file: yaml, decryptor_file: dec)
       File.write(File.join(@tmp, '.schema'), JSON.generate(schema: 4))
       result = described_class.run(fix: true, backup: false, io: io)
-      expect(result[:applied_migrations]).to eq([5, 6, 7, 8, 9, 10, 11])
+      expect(result[:applied_migrations]).to eq([5, 6, 7, 8, 9, 10, 11, 12])
       creds = YAML.safe_load_file(dec, symbolize_names: true)
       user = PWN::Plugins::Vault.dump(file: yaml, key: creds[:key], iv: creds[:iv])
       expect(user.dig(:ai, :agent, :skill_review)).to eq('off')
@@ -326,7 +286,7 @@ describe PWN::Migrate do
       File.write(yaml, YAML.dump(stale).gsub(/^(\s*):/, '\1'))
       PWN::Plugins::Vault.create(file: yaml, decryptor_file: dec)
       File.write(File.join(@tmp, '.schema'), JSON.generate(schema: 5))
-      expect(described_class.run(fix: true, backup: false, io: io)[:applied_migrations]).to eq([6, 7, 8, 9, 10, 11])
+      expect(described_class.run(fix: true, backup: false, io: io)[:applied_migrations]).to eq([6, 7, 8, 9, 10, 11, 12])
       creds = YAML.safe_load_file(dec, symbolize_names: true)
       user = PWN::Plugins::Vault.dump(file: yaml, key: creds[:key], iv: creds[:iv])
       theme = user.dig(:ai, :tui, :theme)
@@ -373,7 +333,7 @@ describe PWN::Migrate do
       File.write(yaml, YAML.dump(stale).gsub(/^(\s*):/, '\1'))
       PWN::Plugins::Vault.create(file: yaml, decryptor_file: dec)
       File.write(File.join(@tmp, '.schema'), JSON.generate(schema: 8))
-      expect(described_class.run(fix: true, backup: false, io: io)[:applied_migrations]).to eq([9, 10, 11])
+      expect(described_class.run(fix: true, backup: false, io: io)[:applied_migrations]).to eq([9, 10, 11, 12])
       creds = YAML.safe_load_file(dec, symbolize_names: true)
       user = PWN::Plugins::Vault.dump(file: yaml, key: creds[:key], iv: creds[:iv])
       long_fast = user.dig(:plugins, :meshtastic, :channel, :LongFast)
@@ -411,20 +371,18 @@ describe PWN::Migrate, 'backup housekeeping' do
     expect(File.binread(File.join(@tmp, '.schema'))).to eq(before)
   end
 
-  it 'retains three recovery points and unique history but prunes verified duplicate snapshots' do
+  it 'leaves legacy snapshots alone instead of running a competing pruner' do
     root = described_class::BACKUP_ROOT
-    5.times do |i|
+    8.times do |i|
       dir = File.join(root, "2026010#{i + 1}_000000")
       FileUtils.mkdir_p(dir)
-      File.write(File.join(dir, 'learning.jsonl'), i.zero? ? 'unique evidence' : 'same evidence')
+      File.write(File.join(dir, 'learning.jsonl'), 'unique evidence')
     end
-    preview = described_class.prune_backups
-    expect(preview[:eligible].length).to eq(1)
-    expect(Dir.children(root).length).to eq(5)
-    applied = described_class.prune_backups(dry_run: false)
-    expect(applied[:deleted].length).to eq(1)
-    expect(File.binread(File.join(root, '20260101_000000', 'learning.jsonl'))).to eq('unique evidence')
-    expect(Dir.children(root).grep(/\A\d/).length).to eq(4)
+    result = described_class.prune_backups(dry_run: false, keep: 3, expire_history: true)
+    expect(result).to include(keep: 7, scope: 'global', deleted: [])
+    expect(Dir.children(root).length).to eq(8)
+    expect { described_class.send(:backup!) }.to raise_error(IOError)
+    expect(Dir.children(root).grep(/\A\d/).length).to eq(8)
   end
 
   it 'publishes a verified scoped snapshot and fails closed on a copy failure' do
@@ -441,21 +399,11 @@ describe PWN::Migrate, 'backup housekeeping' do
     expect { described_class.send(:backup!) }.to raise_error(IOError, 'copy failed')
   end
 
-  it 'rejects symlinked backup trees and exhausted admission without deleting anything' do
+  it 'rejects a symlinked backup root without touching its target' do
     root = described_class::BACKUP_ROOT
-    FileUtils.mkdir_p(root)
-    File.symlink(@tmp, File.join(root, '20260101_000000'))
-    expect(described_class.prune_backups(dry_run: false)[:incomplete]).to be(true)
-    File.unlink(File.join(root, '20260101_000000'))
-    4.times do |i|
-      dir = File.join(root, "2026010#{i + 1}_000000")
-      FileUtils.mkdir_p(dir)
-      File.write(File.join(dir, 'state'), 'same')
-    end
-    result = described_class.prune_backups(dry_run: false, admission: ->(_bytes) { false })
-    expect(result[:incomplete]).to be(true)
-    expect(result[:deleted]).to eq([])
-    expect(Dir.children(root).grep(/\A\d/).length).to eq(4)
+    File.symlink(@tmp, root)
+    expect { described_class.send(:backup!) }.to raise_error(IOError, /Symlink/)
+    expect(File.symlink?(root)).to be(true)
   end
 
   it 'skips backups for fix mode when schema, files and vault have no drift' do

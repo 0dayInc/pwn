@@ -1079,10 +1079,12 @@ module PWN
               reasons[why] += 1
             end
           end
+          bak = nil
           unless dry
-            bak = "#{path}.bak-p15-#{Time.now.utc.strftime('%Y%m%d%H%M%S')}"
-            FileUtils.cp(path, bak)
-            File.open(path, 'w') { |f| kept.each { |r| f.puts(JSON.generate(r)) } }
+            PWN::Backups.transaction do
+              bak = PWN::Backups.capture(path: path, label: 'preferences')
+              File.open(path, 'w') { |f| kept.each { |r| f.puts(JSON.generate(r)) } }
+            end
           end
           {
             before: raw.length,

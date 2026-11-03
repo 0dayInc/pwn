@@ -81,7 +81,8 @@ begin
       warn result.to_s[0, 700]
     end
 
-    final = PWN::AI::Agent::Loop.run(
+    require 'pwn/plugins/repl/ai'
+    final = PWN::Plugins::REPL.pwn_ai_run_steerable(
       request: prompt,
       session_id: sess[:id],
       enabled_toolsets: PWN::Env.dig(:ai, :agent, :toolsets),

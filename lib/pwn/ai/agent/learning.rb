@@ -261,7 +261,7 @@ module PWN
           root = File.join(File.dirname(LEARNING_FILE), 'learning', 'migrations')
           path = File.join(root, "#{id}.json")
           record = JSON.parse(evidence_read(path: path), symbolize_names: true)
-          backup = evidence_read(path: File.join(root, "#{id}.backup.jsonl"))
+          backup = evidence_read(path: record[:backup] || File.join(root, "#{id}.backup.jsonl"))
           raise IOError, 'Invalid migration backup' unless record[:before_sha256] == id && Digest::SHA256.hexdigest(backup) == id
 
           current = evidence_read(path: LEARNING_FILE)
@@ -320,11 +320,12 @@ module PWN
         end
 
         private_class_method def self.evidence_commit(opts = {})
+          return PWN::Backups.transaction { evidence_commit(opts) } unless PWN::Backups.active?
+
           rows, original, snapshots, report = opts.values_at(:rows, :original, :snapshots, :report)
           root = File.join(File.dirname(LEARNING_FILE), 'learning')
           before_hash = Digest::SHA256.hexdigest(original)
-          backup = File.join(root, 'migrations', "#{before_hash}.backup.jsonl")
-          evidence_write(path: backup, body: original) unless File.exist?(backup)
+          backup = PWN::Backups.capture(path: LEARNING_FILE, label: 'learning-migration')
           raise IOError, 'Invalid migration backup' unless evidence_read(path: backup) == original
 
           rows.each do |row|
@@ -340,7 +341,7 @@ module PWN
           end
           updated = rows.map { |row| "#{JSON.generate(row)}\n" }.join
           ledger = File.join(root, 'migrations', "#{before_hash}.json")
-          record = { version: 1, state: 'prepared', before_sha256: before_hash,
+          record = { version: 1, state: 'prepared', backup: backup, before_sha256: before_hash,
                      after_sha256: Digest::SHA256.hexdigest(updated), migrated_rows: report[:migrated_rows] }
           evidence_write(path: ledger, body: JSON.generate(record))
           raise IOError, 'Learning changed during migration' unless evidence_read(path: LEARNING_FILE) == original
@@ -366,6 +367,7 @@ module PWN
           key = :pwn_learning_write_lock
           owner = Thread.current[key]
           return nil if owner.is_a?(Hash) && owner[:pid] == Process.pid && owner[:thread] == Thread.current && !owner[:file].closed?
+          raise IOError, 'Acquire the learning writer lock before the backup transaction' if PWN::Backups.active?
 
           root = File.dirname(LEARNING_FILE)
           FileUtils.mkdir_p(root, mode: 0o700)
@@ -2232,12 +2234,13 @@ module PWN
         end
 
         private_class_method def self.atomic_jsonl_write(opts = {})
+          return PWN::Backups.transaction { atomic_jsonl_write(opts) } unless PWN::Backups.active?
+
           path = opts[:path]
           rows = Array(opts[:rows])
           dir = File.dirname(path)
           FileUtils.mkdir_p(dir)
-          bak = "#{path}.bak-lean-#{Time.now.utc.strftime('%Y%m%d')}"
-          FileUtils.cp(path, bak) if File.exist?(path) && !File.exist?(bak)
+          PWN::Backups.capture(path: path, label: 'learning') if File.exist?(path)
           tmp = File.join(dir, ".#{File.basename(path)}.#{Process.pid}.tmp")
           File.open(tmp, File::WRONLY | File::CREAT | File::TRUNC, 0o644) do |f|
             f.flock(File::LOCK_EX)
@@ -2398,16 +2401,9 @@ module PWN
         end
 
         public_class_method def self.compact!(opts = {})
-          max_baks = (opts[:max_baks] || learning_max_baks).to_i
-          max_baks = 5 if max_baks <= 0
-          dir = File.dirname(LEARNING_FILE)
-          baks = Dir[File.join(dir, '*.bak*')].sort_by { |p| File.mtime(p) }.reverse
-          pruned = 0
-          baks.drop(max_baks).each do |path|
-            File.delete(path)
-            pruned += 1
-          end
-          { pruned: pruned, kept: [baks.length, max_baks].min, max_baks: max_baks }
+          # Compatibility option cannot override the shared total retention cap.
+          opts[:max_baks]
+          { pruned: 0, max_baks: PWN::Backups::LIMIT, scope: 'global', legacy: 'explicit migration required' }
         end
 
         # Author(s):: 0day Inc. <support@0dayinc.com>
@@ -2479,9 +2475,9 @@ module PWN
               dry_run: 'optional - true to count without writing'
             )
 
-            # Prune excess *.bak siblings under the learning directory.
+            # Report the shared global seven-generation retention policy.
             #{self}.compact!(
-              max_baks: 'optional - newest bak files to keep (defaults to 5)'
+              max_baks: 'optional - legacy compatibility value; cannot override global seven-folder limit'
             )
 
             # Export an inert regression contract from a persisted verified failure.

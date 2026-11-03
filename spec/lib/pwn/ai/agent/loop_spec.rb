@@ -5,15 +5,74 @@ require 'tmpdir'
 require 'fileutils'
 
 describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
+  around do |example|
+    Dir.mktmpdir('loop-controller-') do |control|
+      @runtime_control = control
+      example.run
+    end
+  end
+
+  before do
+    FileUtils.mkdir_p(File.join(@runtime_control, 'sessions'))
+    allow(PWN::Sessions).to receive(:sessions_dir).and_return(File.join(@runtime_control, 'sessions'))
+  end
+
   describe 'runtime execution boundaries' do
     include_context 'pwn tmp sandbox'
 
     before do
       allow(Dir).to receive(:home).and_return(@tmp)
+      @work = File.join(@tmp, 'work')
+      FileUtils.mkdir_p(@work)
       stub_const('PWN::AI::Agent::OpenGoal::GOAL_FILE', File.join(@tmp, 'open_goal.json'))
       allow(PWN::AI::Agent::TaskSummarizer).to receive(:enabled?).and_return(false)
       allow(described_class).to receive(:should_auto_introspect?).and_return(false)
       @agent_cfg[:plan_first] = false
+    end
+
+    it 'finishes the offline PDF flow after cumulative combined and separate host observations' do
+      FileUtils.mkdir_p(File.join(@tmp, 'output'))
+      pdf = File.join(@tmp, 'output', 'container_pentest-PWN.pdf')
+      note = File.join(@tmp, 'output', 'notes.txt')
+      request = "Generate a report, i.e. a PDF; save #{pdf} and #{note}"
+      runtime = PWN::AI::Agent::RequestRuntime.new(request: request, session_id: 'pdf-replay', engine: :openai, artifact_root: @runtime_control, trace: false)
+      code = "PWN::Reports::PDF.generate(path: #{pdf.inspect}, title: 'Offline pentest fixture', findings: []); File.read(#{pdf.inspect}, 8)"
+      turns = [
+        { role: 'assistant', tool_calls: [{ id: 'pdf-write', type: 'function', function: { name: 'pwn_eval', arguments: { code: code }.to_json } }] },
+        { role: 'assistant', tool_calls: [{ id: 'note-write', type: 'function', function: { name: 'shell', arguments: { command: "printf verified > #{note}", timeout: 10 }.to_json } }] },
+        { role: 'assistant', tool_calls: [{ id: 'readback', type: 'function', function: { name: 'shell', arguments: { command: "stat #{pdf}; sha256sum #{pdf}; cat #{note}", timeout: 10 }.to_json } }] },
+        { role: 'assistant', content: 'The PDF and notes are written and verified.' }
+      ]
+      hops = 0
+      allow(PWN::AI::OpenAI).to receive(:chat_with_tools) do
+        hops += 1
+        raise 'unexpected completion bounce' if turns.empty?
+
+        { choices: [{ message: turns.shift }] }
+      end
+      tool_results = []
+      result = described_class.run(request: request, session_id: 'pdf-replay', runtime: runtime, system_role_content: 'offline fixture', on_tool: ->(*row) { tool_results << row })
+      expect(result).to eq('The PDF and notes are written and verified.'), tool_results.inspect
+      expect(hops).to eq(4)
+      expect(runtime.contract[:required_artifacts]).to contain_exactly(pdf, note)
+      expect(runtime.outcome[:status]).to eq('complete')
+      expect(runtime.observations.keys).to contain_exactly(pdf, note)
+      expect(File.binread(pdf)).to start_with('%PDF-1.4')
+      expect(File.binread(pdf)).to include('%%EOF')
+      expect(runtime.observations[pdf][:sha256]).to eq(Digest::SHA256.file(pdf).hexdigest)
+    end
+
+    it 'returns a precise blocked outcome instead of bouncing uncertain effects forever' do
+      runtime = PWN::AI::Agent::RequestRuntime.new(request: 'Perform the fixture mutation', session_id: 'uncertain-replay', engine: :openai, artifact_root: @runtime_control, trace: false)
+      expect do
+        runtime.execute_tool(name: 'fixture_write', args: { target: 'exact-target' }, effect: :write, action_id: 'uncertain-call') { raise Timeout::Error }
+      end.to raise_error(Timeout::Error)
+      allow(PWN::AI::OpenAI).to receive(:chat_with_tools).and_return(choices: [{ message: { role: 'assistant', content: 'Done.' } }])
+      result = described_class.run(request: runtime.request, session_id: runtime.session_id, runtime: runtime, system_role_content: 'offline fixture')
+      expect(result).to include('blocked:', 'uncertain-call', 'operator-approved reconciliation')
+      expect(runtime.outcome[:status]).to eq('blocked')
+      expect(runtime.unmet).to eq(['uncertain_side_effect'])
+      expect(PWN::AI::OpenAI).to have_received(:chat_with_tools).once
     end
 
     it 'verifies an exact HTTP target at the actual Loop finalization boundary' do
@@ -30,7 +89,7 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
         client.close
       end
       sid = PWN::Sessions.create(title: 'http verifier fixture')[:id]
-      runtime = PWN::AI::Agent::RequestRuntime.new(request: request, session_id: sid, engine: :openai, artifact_root: @tmp, trace: false)
+      runtime = PWN::AI::Agent::RequestRuntime.new(request: request, session_id: sid, engine: :openai, artifact_root: @runtime_control, trace: false)
       allow(PWN::AI::OpenAI).to receive(:chat_with_tools).and_return(choices: [{ message: { role: 'assistant', content: 'Checked.' } }])
       contract = { root: @tmp, requirements: [request], allowed_urls: [url], checks: [{ requirement: request, kind: :http, url: url, expected: 'ok' }] }
       result = described_class.run(request: request, session_id: sid, runtime: runtime, verification_contract: contract, enabled_toolsets: [], system_role_content: 'fixture')
@@ -113,16 +172,17 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
     end
 
     it 'cancels a real mutation in Loop and denies its replay after checkpoint restore' do
-      counter = File.join(@tmp, 'cancel-counter')
+      counter = File.join(@work, 'cancel-counter.txt')
       cancelled = false
-      options = { request: 'Run the fixture mutation', session_id: 'tool-cancel', request_id: 'same', engine: :openai,
-                  artifact_root: @tmp, trace: false, cancel: -> { cancelled } }
+      options = { request: "Run the fixture mutation and write #{counter}", session_id: 'tool-cancel', request_id: 'same', engine: :openai,
+                  artifact_root: @runtime_control, trace: false, cancel: -> { cancelled } }
       runtime = PWN::AI::Agent::RequestRuntime.new(options)
       args = { command: "printf 'once\\n' >> #{counter}; sleep 30", timeout: 180 }
       reply = { role: 'assistant', tool_calls: [{ id: 'mutation', type: 'function', function: { name: 'shell', arguments: args.to_json } }] }
       allow(PWN::AI::OpenAI).to receive(:chat_with_tools).and_return(choices: [{ message: reply }])
       canceller = Thread.new do
-        deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 5
+        # Wait for the actual mutation, including cold kernel-policy inventory.
+        deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 60
         sleep 0.01 until File.exist?(counter) || Process.clock_gettime(Process::CLOCK_MONOTONIC) >= deadline
         cancelled = true
       end
@@ -163,18 +223,30 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
     end
 
     it 'overlaps independent reads while preserving real write barriers and start/end order' do
-      left = File.join(@tmp, 'left.txt')
-      right = File.join(@tmp, 'right.txt')
-      output = File.join(@tmp, 'out.txt')
+      left = File.join(@work, 'left.txt')
+      right = File.join(@work, 'right.txt')
+      output = File.join(@work, 'out.txt')
       File.write(left, 'left')
       File.write(right, 'right')
-      timings = []
-      lock = Mutex.new
+      timing_path = File.join(@work, 'timings.jsonl')
       allow(PWN::Plugins::ArtifactRegistry).to receive(:read_page).and_wrap_original do |original, options|
         start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-        sleep 0.05
+        rendezvous = "#{timing_path}.#{File.exist?(output) ? 'after' : 'before'}"
+        File.open(rendezvous, 'a') do |file|
+          file.flock(File::LOCK_EX)
+          file.puts('started')
+        end
+        deadline = start + 10
+        until File.readlines(rendezvous).length == 2
+          raise 'parallel reads did not rendezvous' if Process.clock_gettime(Process::CLOCK_MONOTONIC) >= deadline
+
+          sleep 0.005
+        end
         value = original.call(options)
-        lock.synchronize { timings << [start, Process.clock_gettime(Process::CLOCK_MONOTONIC)] }
+        File.open(timing_path, 'a') do |file|
+          file.flock(File::LOCK_EX)
+          file.puts(JSON.generate([start, Process.clock_gettime(Process::CLOCK_MONOTONIC)]))
+        end
         value
       end
       calls = [left, right].each_with_index.map { |path, index| { id: "read#{index}", type: 'function', function: { name: 'artifact_read', arguments: { path: path }.to_json } } }
@@ -183,8 +255,9 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
       calls.concat([left, right].each_with_index.map { |path, index| { id: "after#{index}", type: 'function', function: { name: 'artifact_read', arguments: { path: path }.to_json } } })
       replies = [{ role: 'assistant', tool_calls: calls }, { role: 'assistant', content: 'Verified.' }]
       allow(PWN::AI::OpenAI).to receive(:chat_with_tools) { { choices: [{ message: replies.shift || raise('unexpected provider call') }] } }
-      runtime = PWN::AI::Agent::RequestRuntime.new(request: "Write #{output}", session_id: 'parallel', engine: :openai, trace: false, artifact_root: @tmp)
+      runtime = PWN::AI::Agent::RequestRuntime.new(request: "Write #{output}", session_id: 'parallel', engine: :openai, trace: false, artifact_root: @runtime_control)
       expect(described_class.run(request: runtime.request, runtime: runtime, session_id: 'parallel', system_role_content: 'fixture')).to eq('Verified.')
+      timings = File.readlines(timing_path).map { |line| JSON.parse(line) }
       expect(timings.length).to eq(4)
       expect(timings[0][0]).to be < timings[1][1]
       expect(timings[1][0]).to be < timings[0][1]
@@ -205,6 +278,8 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
 
     before do
       allow(Dir).to receive(:home).and_return(@tmp)
+      @work = File.join(@tmp, 'work')
+      FileUtils.mkdir_p(@work)
       stub_const('PWN::AI::Agent::OpenGoal::GOAL_FILE', File.join(@tmp, 'open_goal.json'))
       allow(PWN::AI::Agent::TaskSummarizer).to receive(:enabled?).and_return(false)
       allow(described_class).to receive(:should_auto_introspect?).and_return(false)
@@ -212,7 +287,7 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
     end
 
     it 'accepts Verification complete after an actual write without wording-dependent retries' do
-      path = File.join(@tmp, 'answer.txt')
+      path = File.join(@work, 'answer.txt')
       replies = [
         { role: 'assistant', tool_calls: [{ id: 'write', type: 'function', function: { name: 'shell', arguments: { command: "printf verified > #{path}" }.to_json } }] },
         { role: 'assistant', content: 'Verification complete.' }
@@ -240,7 +315,7 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
     end
 
     it 'automatically restores the session checkpoint identity for continue' do
-      runtime = PWN::AI::Agent::RequestRuntime.new(request: "Write #{@tmp}/resume.txt", session_id: 'resume', request_id: 'original', artifact_root: @tmp, trace: false)
+      runtime = PWN::AI::Agent::RequestRuntime.new(request: "Write #{@tmp}/resume.txt", session_id: 'resume', request_id: 'original', artifact_root: @runtime_control, trace: false)
       Thread.current[:pwn_request_runtime] = runtime
       PWN::AI::Agent::OpenGoal.begin!(request: runtime.request, session_id: 'resume')
       runtime.finish!(status: 'incomplete')
@@ -259,7 +334,7 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
 
     it 'drives the actual runtime/provider adapter boundary and harmless Dispatch write' do
       PWN::Env[:ai][:active] = :openai
-      path = File.join(@tmp, 'provider.txt')
+      path = File.join(@work, 'provider.txt')
       replies = [
         { role: 'assistant', tool_calls: [{ id: 'write', type: 'function', function: { name: 'shell', arguments: { command: "printf provider > #{path}" }.to_json } }] },
         { role: 'assistant', content: 'Verification complete.' }
@@ -274,8 +349,8 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
     end
 
     it 'retains completion evidence after all tool messages are evicted' do
-      path = File.join(@tmp, 'compacted.txt')
-      runtime = PWN::AI::Agent::RequestRuntime.new(request: "Write #{path}", session_id: 'compact', artifact_root: @tmp, trace: false)
+      path = File.join(@work, 'compacted.txt')
+      runtime = PWN::AI::Agent::RequestRuntime.new(request: "Write #{path}", session_id: 'compact', artifact_root: @runtime_control, trace: false)
       replies = [
         { role: 'assistant', tool_calls: [{ id: 'write', type: 'function', function: { name: 'shell', arguments: { command: "printf compacted > #{path}" }.to_json } }] },
         { role: 'assistant', content: 'Verification complete.' }
@@ -354,7 +429,7 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
 
     it 'terminates checker errors with a durable verification_error outcome, not a success' do
       request = "Write #{File.join(@tmp, 'error.txt')}"
-      runtime = PWN::AI::Agent::RequestRuntime.new(request: request, session_id: 'error', artifact_root: @tmp, trace: false)
+      runtime = PWN::AI::Agent::RequestRuntime.new(request: request, session_id: 'error', artifact_root: @runtime_control, trace: false)
       allow(PWN::AI::Agent::TurnFinalizer).to receive(:arbitrate).and_raise(IOError, 'checker unavailable')
       allow(described_class).to receive(:call_engine).and_return(role: 'assistant', content: 'Done.')
       expect(described_class).to receive(:call_engine).once
@@ -363,10 +438,10 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
     end
 
     it 'rejects a failed explicit content check before publishing a successful final' do
-      path = File.join(@tmp, 'checked.txt')
+      path = File.join(@work, 'checked.txt')
       request = "Write #{path} containing correct"
       sid = PWN::Sessions.create(title: 'verification fixture')[:id]
-      runtime = PWN::AI::Agent::RequestRuntime.new(request: request, session_id: sid, artifact_root: @tmp, trace: false)
+      runtime = PWN::AI::Agent::RequestRuntime.new(request: request, session_id: sid, artifact_root: @runtime_control, trace: false)
       replies = [
         { role: 'assistant', tool_calls: [{ id: 'write', type: 'function', function: { name: 'shell', arguments: { command: "printf wrong > #{path}" }.to_json } }] },
         { role: 'assistant', content: 'Done.' }
@@ -379,13 +454,13 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
     end
 
     it 'keeps completed evidence and original destinations through additive steering at the real entry' do
-      first = File.join(@tmp, 'first.txt')
-      second = File.join(@tmp, 'second.txt')
+      first = File.join(@work, 'first.txt')
+      second = File.join(@work, 'second.txt')
       input, writer = IO.pipe
       control = described_class::Steering.new(input: input, output: StringIO.new)
       request = "Write #{first}"
       sid = PWN::Sessions.create(title: 'amendment verification')[:id]
-      runtime = PWN::AI::Agent::RequestRuntime.new(request: request, session_id: sid, artifact_root: @tmp, trace: false)
+      runtime = PWN::AI::Agent::RequestRuntime.new(request: request, session_id: sid, artifact_root: @runtime_control, trace: false)
       count = 0
       allow(described_class).to receive(:call_engine) do
         count += 1
@@ -418,7 +493,7 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
     it 'persists cancellation and restores the runtime binding without a provider restart' do
       input, writer = IO.pipe
       control = described_class::Steering.new(input: input, output: StringIO.new)
-      runtime = PWN::AI::Agent::RequestRuntime.new(request: 'What color is a lemon?', session_id: 'cancel', artifact_root: @tmp, trace: false)
+      runtime = PWN::AI::Agent::RequestRuntime.new(request: 'What color is a lemon?', session_id: 'cancel', artifact_root: @runtime_control, trace: false)
       control.submit('cancel')
       expect(described_class).not_to receive(:call_engine)
       result = described_class.run(request: runtime.request, runtime: runtime, session_id: 'cancel', steering: control,
@@ -451,7 +526,7 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
 
     it 'does not reuse a previous terminal success when the resumed provider returns nothing' do
       request = 'What color is a lemon?'
-      runtime = PWN::AI::Agent::RequestRuntime.new(request: request, session_id: 'resume', artifact_root: @tmp, trace: false)
+      runtime = PWN::AI::Agent::RequestRuntime.new(request: request, session_id: 'resume', artifact_root: @runtime_control, trace: false)
       runtime.finish!(status: 'complete')
       allow(described_class).to receive(:call_engine).and_return(nil)
       described_class.run(request: request, runtime: runtime, session_id: 'resume', enabled_toolsets: [], system_role_content: 'fixture')
@@ -516,7 +591,7 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
         described_class.send(:wait_trace_step!, label: 'engine')
         'done'
       end
-      expect(PWN::Plugins::REPL.pwn_ai_run_steerable(input: input, output: StringIO.new, request: 'test')).to eq('done')
+      expect(PWN::Plugins::REPL.pwn_ai_run_steerable_child(input: input, output: StringIO.new, request: 'test')).to eq('done')
       expect(Thread.current[:pwn_steering_input]).to be_nil
     ensure
       input&.close
@@ -659,7 +734,7 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
         queued.pop
         writer.puts('tool answer')
       end
-      result = PWN::Plugins::REPL.pwn_ai_run_steerable(
+      result = PWN::Plugins::REPL.pwn_ai_run_steerable_child(
         input: input, output: output, request: old_request,
         session_id: sid, system_role_content: 'test system', enabled_toolsets: [], on_tool: on_tool
       )
@@ -701,7 +776,7 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
         entered.pop
         writer.puts('/steer what color is a lemon?')
       end
-      result = PWN::Plugins::REPL.pwn_ai_run_steerable(
+      result = PWN::Plugins::REPL.pwn_ai_run_steerable_child(
         input: input, output: output, request: 'what color is a passion fruit?',
         session_id: sid, system_role_content: 'test system', enabled_toolsets: []
       )

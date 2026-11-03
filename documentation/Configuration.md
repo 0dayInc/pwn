@@ -5,18 +5,22 @@ Provider and plugin configuration lives in **one encrypted YAML file**, loaded b
 constant **`PWN::Env`** (whose nested settings are mutable) (a redacted copy is available as
 `PWN::EnvRedacted`).
 
-The file is **AES-encrypted at rest** by `PWN::Plugins::Vault`. Its key/IV
-live in a sibling **`~/.pwn/pwn.yaml.decryptor`** file (or in
-`PWN_DECRYPTOR_KEY` / `PWN_DECRYPTOR_IV` env vars). Never edit `pwn.yaml`
-by hand - use the **`pwn-vault`** REPL command, which decrypts, opens
-`$EDITOR`, re-encrypts, and reloads `PWN::Env`. If `PWN::Config` rejects the
+The file is **AES-encrypted at rest** by `PWN::Plugins::Vault`. Legacy CBC key/IV
+values live in a sibling **`~/.pwn/pwn.yaml.decryptor`** file (or in
+`PWN_DECRYPTOR_KEY` / `PWN_DECRYPTOR_IV` env vars). Explicitly selected
+[YubiKey vaults](YubiKey-Vaults.md) instead use an authenticated hardware-derived
+AES-GCM envelope and need no software decryptor. Never edit ciphertext by hand;
+use the **`pwn-vault`** REPL command, which edits a private temporary copy,
+re-encrypts before replacing the original, and reloads `PWN::Env`. If `PWN::Config` rejects the
 edited file, the editor reopens until the vault loads cleanly, so you do not
 leave the REPL stuck on a decrypt / re-edit / encrypt loop.
 
 If `~/.pwn/pwn.yaml` does not exist on first run, `PWN::Config.default_env`
 writes a fully-commented template with every key below (values set to
 `'optional - ...'` / `'required - ...'` placeholder strings), encrypts it, and
-generates the decryptor.
+generates the legacy decryptor. `default_env(yubikey: { slot: 2 })` explicitly
+selects hardware protection for a new vault and omits that sidecar; it does not
+provision the device slot or silently convert an existing file.
 
 > **Before configuring**, run `pwn setup` - the
 > [doctor](Installation.md#pwn-setup--the-post-install-doctor--provisioner)

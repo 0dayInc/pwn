@@ -72,11 +72,14 @@ module PWN
           violation = JSONSchemer.schema(JSON.parse(JSON.generate(type_schema))).validate(JSON.parse(JSON.generate(args))).first
           return schema_denial(violation.transform_keys(&:to_sym)) if violation
 
-          blob = args.inspect
           if defined?(PWN::Plugins::Vault)
-            blob = PWN::Plugins::Vault.expand(text: blob)
-            args = expand_vault_args(args: args)
+            begin
+              args = expand_vault_args(args: args)
+            rescue StandardError
+              return JSON.generate(success: false, code: 'VAULT_EXPANSION_FAILED', error: 'Vault access failed; check the selected device and retry. The tool was not executed.')
+            end
           end
+          blob = args.inspect
           denied = Manifest.check(opts.merge(name: entry.name, args: args))
           return JSON.generate(denied) if denied
 
@@ -129,7 +132,11 @@ module PWN
           begin
             runtime = Thread.current[:pwn_request_runtime]
             result = if runtime
-                       runtime.execute_tool(name: entry.name, args: args, effect: effect(name: entry.name, args: args), action_id: tool_call[:id] || tool_call['id']) { entry.handler.call(args) }
+                       runtime.execute_tool(name: entry.name, args: args, effect: effect(name: entry.name, args: args), action_id: tool_call[:id] || tool_call['id']) do
+                         PWN::Plugins::AISandbox.protect_call(handler: { name: entry.name, args: args }, runtime: runtime, workspace: runtime.contract[:cwd], write_roots: runtime.contract[:required_artifacts]) do
+                           entry.handler.call(args)
+                         end
+                       end
                      else
                        entry.handler.call(args)
                      end
@@ -141,13 +148,18 @@ module PWN
           result = Result.page(value: result, entry: entry, session_id: opts[:session_id])
           result = ToolGuard.quarantine_output(text: result) if defined?(ToolGuard) && result.is_a?(String) && ToolGuard.respond_to?(:quarantine_output)
           note_taint(text: result)
-          if defined?(PWN::Plugins::Vault) && result.is_a?(String)
-            result = PWN::Plugins::Vault.redact(text: result)
-          elsif defined?(PWN::Plugins::Vault) && result.is_a?(Hash)
-            result = JSON.parse(PWN::Plugins::Vault.redact(text: JSON.generate(Result.utf8_value(value: result))))
+          begin
+            if defined?(PWN::Plugins::Vault) && result.is_a?(String)
+              result = PWN::Plugins::Vault.redact(text: result)
+            elsif defined?(PWN::Plugins::Vault) && (result.is_a?(Hash) || result.is_a?(Array))
+              result = JSON.parse(PWN::Plugins::Vault.redact(text: JSON.generate(Result.utf8_value(value: result))))
+            end
+          rescue StandardError
+            return JSON.generate(success: false, code: 'VAULT_REDACTION_FAILED', handler_executed: true,
+                                 error: 'Vault redaction failed; result withheld. The tool already executed; verify its effects before retrying.')
           end
           response = { success: true, result: result, effect: effect(name: entry.name, args: args) }
-          response[:success] = false if result.is_a?(Hash) && (result[:error] || result['error'] || result[:success] == false || result['success'] == false)
+          response[:success] = false if result.is_a?(Hash) && (result[:error] || result['error'] || result[:success] == false || result['success'] == false || result[:ok] == false || result['ok'] == false || (result.key?(:exit) && result[:exit] != 0) || (result.key?('exit') && result['exit'] != 0))
           response[:budget] = telemetry if telemetry
           if telemetry && telemetry[:remaining_s].zero?
             response[:success] = false
@@ -591,13 +603,12 @@ module PWN
 
         private_class_method def self.expand_vault_args(opts = {})
           args = opts[:args]
-          return args unless args.is_a?(Hash)
-
-          args.transform_values do |v|
-            v.is_a?(String) ? PWN::Plugins::Vault.expand(text: v) : v
+          case args
+          when Hash then args.transform_values { |value| expand_vault_args(args: value) }
+          when Array then args.map { |value| expand_vault_args(args: value) }
+          when String then PWN::Plugins::Vault.expand(text: args)
+          else args
           end
-        rescue StandardError
-          opts[:args]
         end
 
         private_class_method def self.note_taint(opts = {})

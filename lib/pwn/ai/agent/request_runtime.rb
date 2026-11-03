@@ -24,7 +24,7 @@ module PWN
           @request_id = (opts[:request_id] || SecureRandom.uuid).to_s.freeze
           @original_request = PWN::AI::Agent::Result.utf8_text(text: opts[:request]).freeze
           @request = @original_request
-          @cwd = Dir.pwd
+          @cwd = Thread.current[:pwn_solve_workspace] || PWN::Plugins::AISandbox.task_directory
           @amendments = [].freeze
           @observations = {}
           @events = []
@@ -87,10 +87,50 @@ module PWN
           mode == 'cancel' ? finish!(status: 'cancelled') : checkpoint!
         end
 
+        # Private in-memory exec handoff. Locks and cancellation callbacks belong
+        # to the caller; the enclosing namespace is the child's cancellation owner.
+        def mission_snapshot
+          @mutex.synchronize do
+            state = instance_variables.reject { |key| %i[@mutex @cancel @memory @router].include?(key) }.to_h { |key| [key, instance_variable_get(key)] }
+            state[:memory] = @memory.instance_variables.to_h { |key| [key, @memory.instance_variable_get(key)] }
+            state[:router] = @router.instance_variables.to_h { |key| [key, @router.instance_variable_get(key)] }
+            state
+          end
+        end
+
+        private_class_method def self.from_mission_snapshot(opts = {})
+          state = opts.fetch(:state).dup
+          runtime = allocate
+          { memory: EngagementMemory, router: Profiles }.each do |key, klass|
+            object = klass.allocate
+            state.delete(key).each { |name, value| object.instance_variable_set(name, value) }
+            runtime.instance_variable_set(:"@#{key}", object)
+          end
+          state.each { |name, value| runtime.instance_variable_set(name, value) }
+          runtime.instance_variable_set(:@mutex, Mutex.new)
+          runtime.worker_view!
+          runtime
+        end
+
+        # A fork gets routing and child-loop ownership, but must never persist
+        # the parent's checkpoint generation. The parent owns final receipts.
+        def worker_view!
+          @worker_copy = true
+          @trace = false
+        end
+
+        def worker_provenance!(opts = {})
+          @worker_provenance = opts.fetch(:rows).to_h.transform_keys(&:to_s)
+        end
+
         # Only host observations enter this store, never parsed tool stdout.
         def observe!(opts = {})
           @mutex.synchronize do
-            opts.fetch(:observations).each { |path, row| @observations[path.to_s] = row }
+            opts.fetch(:observations).each do |path, row|
+              child = @worker_provenance&.dig(path.to_s)
+              row = row.merge(child.slice(:child_request_id, :child_turn_id, :child_provenance)) if child && child[:artifact_turn_id] == @contract[:id] && child[:sha256] == row[:sha256] && child[:stat] == row[:stat] && child[:child_request_id]
+              @observations[path.to_s] = row
+            end
             checkpoint!
           end
         end
@@ -295,8 +335,38 @@ module PWN
             observed >= @started_at && observed <= Time.now && (!row[:max_age] || Time.now - observed <= row[:max_age].to_f)
         end
 
+        # Uncertainty is a recovery state, not another instruction to rewrite
+        # artifacts forever. Retain the replay fence and return actionable IDs.
+        def blocker
+          last = events.reverse.find { |row| row[:phase] == 'end' }
+          return "Tool execution blocked before handler start: #{last[:diagnostic]}. Enable the required kernel protection or choose a supported host; no unsafe fallback was used." if last && last[:state] == 'rejected'
+
+          rows = blocking_effects
+          return nil if rows.empty?
+
+          details = rows.map { |row| "#{row[:tool]} action=#{row[:action_id]} payload_sha256=#{row[:payload_sha256]}" }
+          "Uncertain side effect: #{details.join('; ')}. Do not replay or rewrite blindly. " \
+            'Inspect the exact affected target and request operator-approved reconciliation; unrelated reads or new artifacts cannot resolve this action.'
+        end
+
         def unmet
-          @mutex.synchronize { @effects.value?('uncertain') ? ['uncertain_side_effect'] : [] }
+          blocking_effects.any? ? ['uncertain_side_effect'] : []
+        end
+
+        # A finished search is an observation. Only a write, a store, or a
+        # named remote target can block the answer. Replay of an interrupted
+        # command stays denied even when it does not block.
+        def blocking_effects
+          @mutex.synchronize do
+            @effects.select { |_key, state| state == 'uncertain' }.keys.filter_map do |key|
+              row = @events.reverse.find { |item| item[:payload_sha256] == key && item[:phase] == 'start' }
+              row if row && durable_effect?(effect: row[:effect], target: row[:target])
+            end
+          end
+        end
+
+        def durable_effect?(opts = {})
+          %w[write store].include?(opts[:effect].to_s) || !opts[:target].to_s.empty?
         end
 
         # A started mutation stays uncertain across interruption or process death.
@@ -320,15 +390,33 @@ module PWN
           end
           return { success: false, error: 'uncertain_side_effect', hint: 'Inspect the target before any operator-approved recovery; this mutation was not replayed.' } if denied
 
+          before = TurnFinalizer.artifact_snapshot(paths: @contract[:required_artifacts])
           begin
             result = provider_attempt(&)
-            failed = result.is_a?(Hash) && (result[:error] || result['error'] || result[:success] == false || result['success'] == false)
-            state = if failed
+            failed = result.is_a?(Hash) && (result[:error] || result['error'] || result[:success] == false || result['success'] == false || result[:ok] == false || (result.key?(:exit) && result[:exit] != 0))
+            timed_out = result.is_a?(Hash) && (result[:error] || result['error']).to_s.match?(/timeout/i)
+            # A returned timeout still may have applied. Only a finished
+            # command (exit/stdout, no timeout) is an observation.
+            observed = result.is_a?(Hash) && !timed_out && (result.key?(:exit) || result.key?('exit') || result.key?(:stdout) || result.key?('stdout'))
+            unless failed
+              # Classification is only scheduling advice: successful arbitrary
+              # code may write files even when classified eval/read. The host
+              # delta, not payload keywords or stdout, proves the actual write.
+              TurnFinalizer.observe_artifacts(paths: @contract[:required_artifacts], before: before,
+                                              effect: :write, success: true, action_id: opts[:action_id], tool: opts[:name])
+            end
+            state = if !failed
+                      'completed'
+                    elsif timed_out || !observed
                       mutation ? 'uncertain' : 'failed'
                     else
-                      'completed'
+                      'failed'
                     end
             result
+          rescue PWN::Plugins::AISandbox::NotStarted => e
+            state = 'rejected'
+            action[:diagnostic] = e.message
+            { success: false, error: e.message, execution_state: 'not_started' }
           ensure
             @mutex.synchronize do
               state ||= mutation ? 'uncertain' : 'interrupted'
@@ -474,18 +562,35 @@ module PWN
         end
 
         def checkpoint!
-          FileUtils.mkdir_p(File.dirname(@checkpoint_path), mode: 0o700)
-          File.open("#{@checkpoint_path}.lock", File::RDWR | File::CREAT, 0o600) do |lock|
-            lock.flock(File::LOCK_EX)
-            current = File.file?(@checkpoint_path) ? JSON.parse(File.read(@checkpoint_path)).fetch('generation', 0) : 0
-            raise IOError, 'stale request checkpoint: reload before proceeding' unless current == @generation
+          return if @worker_copy
 
-            @generation += 1
-            write_checkpoint!
+          PWN::Plugins::AISandbox.control_directory(path: File.dirname(@checkpoint_path)) do |directory|
+            path = File.join(directory, File.basename(@checkpoint_path))
+            File.open("#{path}.lock", File::RDWR | File::CREAT | File::NOFOLLOW, 0o600) do |lock|
+              raise IOError, 'checkpoint lock must be a singly linked regular file' unless lock.stat.file? && lock.stat.nlink == 1
+
+              lock.flock(File::LOCK_EX)
+              current = checkpoint_generation(path: path)
+              raise IOError, 'stale request checkpoint: reload before proceeding' unless current == @generation
+
+              @generation += 1
+              write_checkpoint!(path: path)
+            end
           end
         end
 
-        def write_checkpoint!
+        def checkpoint_generation(opts = {})
+          File.open(opts.fetch(:path), File::RDONLY | File::NOFOLLOW | File::NONBLOCK) do |file|
+            raise IOError, 'checkpoint must be a singly linked regular file' unless file.stat.file? && file.stat.nlink == 1
+
+            JSON.parse(file.read).fetch('generation', 0)
+          end
+        rescue Errno::ENOENT
+          0
+        end
+
+        def write_checkpoint!(opts = {})
+          path = opts.fetch(:path)
           rows = @observations.transform_values do |row|
             row.merge(head: Base64.strict_encode64(row[:head]), tail: Base64.strict_encode64(row[:tail]))
           end
@@ -493,14 +598,13 @@ module PWN
                    request: @request, amendments: @amendments, cwd: @cwd, started_at: @started_at.iso8601(9),
                    observations: rows, outcome: @outcome, events: @events, effects: @effects, evidence: @evidence,
                    enabled_toolsets: @enabled_toolsets, verification_contract: @verification_contract }
-          FileUtils.mkdir_p(File.dirname(@checkpoint_path), mode: 0o700)
-          temp = "#{@checkpoint_path}.#{SecureRandom.hex(8)}.tmp"
+          temp = "#{path}.#{SecureRandom.hex(8)}.tmp"
           File.open(temp, File::WRONLY | File::CREAT | File::EXCL, 0o600) do |file|
             file.write(JSON.generate(PWN::AI::Agent::Result.utf8_value(value: data)))
             file.flush
             file.fsync
           end
-          File.rename(temp, @checkpoint_path)
+          File.rename(temp, path)
         ensure
           File.unlink(temp) if temp && File.exist?(temp)
         end

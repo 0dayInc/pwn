@@ -167,27 +167,13 @@ module PWN
         dec_path = dec_path.to_s.strip
         dec_path = "#{env_path}.decryptor" if dec_path.empty?
 
-        unless File.exist?(env_path) && File.exist?(dec_path) && File.readable?(dec_path)
+        unless File.exist?(env_path)
           puts '[*] INFO: Grok OAuth tokens updated in this session only; ' \
-               "persistence to #{env_path} skipped (missing decryption artifacts" \
-               "#{" at #{dec_path}" unless dec_path.empty?})."
+               "persistence to #{env_path} skipped (missing vault)."
           return false
         end
 
-        decryptor = YAML.load_file(dec_path, symbolize_names: true)
-        key = decryptor.is_a?(Hash) ? decryptor[:key] : nil
-        iv  = decryptor.is_a?(Hash) ? decryptor[:iv]  : nil
-        unless real_config_value?(value: key) && real_config_value?(value: iv)
-          puts '[*] INFO: Grok OAuth tokens updated in this session only; ' \
-               "persistence to #{env_path} skipped (decryptor at #{dec_path} " \
-               'has no usable key/iv).'
-          return false
-        end
-
-        PWN::Plugins::Vault.decrypt(file: env_path, key: key, iv: iv)
-        begin
-          cfg = YAML.load_file(env_path, symbolize_names: true)
-          cfg = {} unless cfg.is_a?(Hash)
+        PWN::Plugins::Vault.update(file: env_path, decryptor_file: dec_path) do |cfg|
           cfg[:ai] = {} unless cfg[:ai].is_a?(Hash)
           cfg[:ai][:grok] = {} unless cfg[:ai][:grok].is_a?(Hash)
           vault_oauth = cfg[:ai][:grok][:oauth]
@@ -196,19 +182,11 @@ module PWN
           vault_oauth[:bearer_token] = oauth[:bearer_token]
           vault_oauth[:refresh_token] = oauth[:refresh_token] if real_config_value?(value: oauth[:refresh_token])
           vault_oauth[:expires_at] = oauth[:expires_at] if oauth.key?(:expires_at) && !oauth[:expires_at].nil?
-
-          # Match PWN::Config.default_env YAML style (string keys, no leading ':').
-          yaml_env = YAML.dump(cfg).gsub(/^(\s*):/, '\1')
-          File.write(env_path, yaml_env)
-          File.chmod(0o600, env_path)
-        ensure
-          # Always re-encrypt with the IDENTICAL key + iv — never rotate.
-          PWN::Plugins::Vault.encrypt(file: env_path, key: key, iv: iv)
         end
 
         true
       rescue StandardError => e
-        warn "[!] Grok OAuth vault persistence failed (session tokens still updated): #{e.class}: #{e.message}"
+        warn "[!] Grok OAuth vault persistence failed (session tokens still updated): #{e.class}"
         false
       end
 
@@ -496,7 +474,7 @@ module PWN
           end
           retry if retry_count < max_attempts
 
-          raise e if Thread.current[:pwn_provider_attempt_owner]
+          raise e if Thread.current[:pwn_provider_attempt_owner] || Thread.current[:pwn_session_title]
 
           nil
         end
@@ -552,6 +530,30 @@ module PWN
         raise e if name.empty?
 
         nil
+      end
+
+      private_class_method def self.hosted_responses(opts = {})
+        input = Array(opts[:messages]).filter_map do |msg|
+          next unless msg.is_a?(Hash)
+
+          role = (msg[:role] || msg['role']).to_s
+          content = msg[:content] || msg['content']
+          next if content.to_s.empty?
+
+          { role: role, content: content.to_s }
+        end
+        raw = grok_rest_call(
+          http_method: :post,
+          rest_call: 'responses',
+          http_body: { model: opts[:model], input: input, tools: PWN::AI::ServerTools.wire(engine: :grok, names: opts[:names]), stream: false },
+          timeout: opts[:timeout],
+          spinner: opts[:spinner],
+          quiet: opts[:quiet]
+        )
+        parsed = JSON.parse(raw.to_s, symbolize_names: true)
+        text = parsed[:output_text].to_s
+        message = { role: 'assistant', content: text }
+        { choices: [{ message: message }], assistant_message: message }
       end
 
       # Supported Method Parameters::
@@ -611,6 +613,12 @@ module PWN
         http_body[:tool_choice] = opts[:tool_choice] if opts[:tool_choice]
         effort = opts[:reasoning_effort].to_s
         http_body[:reasoning_effort] = effort unless effort.empty? || effort == 'none'
+        hosted = Array(opts[:server_tools]).map(&:to_s).reject(&:empty?)
+        if hosted.any?
+          raise ArgumentError, 'xAI hosted tools use the Responses API and are not mixed into chat/completions client tools' if opts[:tools] && !opts[:tools].empty?
+
+          return hosted_responses(model: model, messages: messages, names: hosted, timeout: timeout, spinner: spinner, quiet: opts[:quiet])
+        end
 
         response = grok_rest_call(
           http_method: :post,
@@ -690,6 +698,8 @@ module PWN
           temperature: temp,
           stream: false
         }
+        effort = opts[:reasoning_effort].to_s
+        http_body[:reasoning_effort] = effort unless effort.empty?
 
         if response_history[:choices].length > 1
           response_history[:choices][1..-1].each do |message|
@@ -787,7 +797,8 @@ module PWN
             timeout: 'optional - seconds (default 180)',
             spinner: 'optional - display spinner (default false)',
             quiet: 'optional - quiet value consumed by #chat_with_tools',
-            reasoning_effort: 'optional - Grok reasoning effort (default medium; none disables thinking)'
+            reasoning_effort: 'optional - Grok reasoning effort (default medium; none disables thinking)',
+            server_tools: 'optional - hosted tool names such as web_search; sent on the Responses API only when client tools are omitted'
           )
 
           # Run chat and return its result

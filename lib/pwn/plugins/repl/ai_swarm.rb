@@ -49,6 +49,29 @@ module PWN
           end
         end
 
+        # Parent-side typed control pipe for one namespace-owned job.
+        class RemoteControl
+          attr_accessor :observed_pause
+
+          def initialize(io)
+            @io = io
+          end
+
+          def submit(text)
+            send_control('submit', text)
+          end
+
+          def pause(value)
+            send_control('pause', value)
+          end
+
+          private
+
+          def send_control(action, value)
+            @io.write("#{JSON.generate([action, value])}\n")
+          end
+        end
+
         # Session-scoped swarm jobs. Workers never draw the terminal.
         class Controller # rubocop:disable Metrics/ClassLength -- one session-scoped swarm command surface
           MAX_JOBS = 8
@@ -227,23 +250,14 @@ module PWN
             request = tokens.join(' ')
             return { ok: false, error: 'usage: dm NAME REQUEST' } if name.to_s.empty? || request.empty?
 
-            start_job(agent: name, command: 'dm', opts: opts) do |job|
-              PWN::AI::Agent::Swarm.ask(name: name, request: request, swarm_id: ensure_swarm, steering: job[:control], usage_observer: opts[:usage_observer], on_tool: tool_callback(job, opts))
-            end
+            start_job(agent: name, command: 'dm', opts: opts, task: { name: name, request: request })
           end
 
           def solve(tokens, opts)
             request = opts.fetch(:solve_request, tokens.join(' '))
             return { ok: false, error: 'usage: mission REQUEST' } if request.strip.empty?
 
-            start_job(agent: 'team', command: 'mission', opts: opts) do |job|
-              PWN::AI::Agent::Swarm.solve(
-                request: request, swarm_id: ensure_swarm, steering: job[:control],
-                worktree: opts.fetch(:worktree, false), rounds: opts.fetch(:rounds, 3), verification_timeout: opts.fetch(:verification_timeout, 60), role_timeout: opts.fetch(:role_timeout, 300),
-                workspace: opts[:workspace], usage_observer: opts[:usage_observer], on_tool: tool_callback(job, opts),
-                on_state: ->(state) { @mutex.synchronize { job[:team] = state } }
-              )
-            end
+            start_job(agent: 'team', command: 'mission', opts: opts, task: { request: request })
           end
 
           def debate(tokens, opts)
@@ -254,18 +268,7 @@ module PWN
             return { ok: false, error: 'usage: debate NAME,NAME TOPIC [--rounds N]' } if names.length < 2 || topic.empty?
             return { ok: false, error: 'rounds must be between 1 and 10' } unless rounds.between?(1, 10)
 
-            start_job(agent: names.join(','), command: 'debate', opts: opts) do |job|
-              transcript = []
-              rounds.times do
-                names.each do |name|
-                  request = transcript.empty? ? topic : "#{topic}\n\nPrevious speaker: #{transcript.last}\nRespond, critique, or advance the objective."
-                  job[:control].check_stop
-                  result = PWN::AI::Agent::Swarm.ask(name: name, request: request, swarm_id: @swarm_id, steering: job[:control], usage_observer: opts[:usage_observer], on_tool: tool_callback(job, opts))
-                  transcript << "#{name}: #{result[:reply]}"
-                end
-              end
-              { reply: transcript.join("\n") }
-            end
+            start_job(agent: names.join(','), command: 'debate', opts: opts, task: { names: names, topic: topic, rounds: rounds })
           end
 
           def broadcast(tokens, opts)
@@ -274,14 +277,7 @@ module PWN
             names = flags['names']&.split(',') || agents
             return { ok: false, error: 'usage: broadcast REQUEST [--names a,b]' } if request.empty? || names.empty?
 
-            start_job(agent: names.join(','), command: 'broadcast', opts: opts) do |job|
-              replies = names.map do |name|
-                job[:control].check_stop
-                result = PWN::AI::Agent::Swarm.ask(name: name, request: request, swarm_id: ensure_swarm, steering: job[:control], usage_observer: opts[:usage_observer], on_tool: tool_callback(job, opts))
-                "#{name}: #{result[:reply]}"
-              end
-              { reply: replies.join("\n") }
-            end
+            start_job(agent: names.join(','), command: 'broadcast', opts: opts, task: { names: names, request: request })
           end
 
           def steer(tokens, opts)
@@ -315,7 +311,9 @@ module PWN
 
             return { ok: false, error: 'job is no longer active' } unless update_active(job, 'cancelling')
 
-            job[:control].stop
+            job[:mission].close
+            job[:worker]&.join
+            update(job, 'cancelled', error: 'Mission cancelled; all owned processes reaped.')
             { ok: true, job_id: job[:id] }
           end
 
@@ -331,7 +329,92 @@ module PWN
             { ok: true, messages: PWN::AI::Agent::Swarm.bus_tail(swarm_id: @swarm_id, limit: (limit || 8).to_i) }
           end
 
-          def start_job(agent:, command:, opts:)
+          private_class_method def self.mission_entry(opts = {})
+            data = opts[:descriptor]
+            controller = new(session_id: data[:session_id])
+            controller.instance_variable_set(:@swarm_id, data[:swarm_id])
+            controller.send(:mission_child, data[:job], data[:task], data[:options], PWN::AI::Agent::MissionNamespace.io(4), PWN::AI::Agent::MissionNamespace.io(5))
+          end
+
+          def mission_child(job, task, opts, writer, commands)
+            id = job[:id]
+            command = job[:command]
+            @child_events = AIConsole::MissionEvents.new(writer, id)
+            output = AIConsole::EventIO.new(@child_events)
+            $stdout = $stderr = output
+            opts[:on_event] = ->(type, text) { @child_events << [:event, [type, text]] }
+            opts[:usage_observer] = ->(usage) { @child_events << [:usage, usage] }
+            control_class = command == 'mission' ? MissionControl : JobControl
+            job[:control] = control_class.new(input: StringIO.new, output: StringIO.new)
+            Thread.current[:pwn_steering_input] = job[:control]
+            commands_thread = Thread.new do
+              commands.each_line do |line|
+                action, value = JSON.parse(line)
+                job[:control].submit(value) if action == 'submit'
+                job[:control].pause(value) if action == 'pause' && command == 'mission'
+              end
+            end
+            snapshot_thread = Thread.new do
+              loop do
+                @child_events << [:snapshot, { team: job[:team], paused: command == 'mission' && job[:control].observed_pause }]
+                sleep 0.05
+              end
+            end
+            begin
+              result = mission_operation(command, task, job, opts)
+              job[:control].check_stop unless command == 'mission'
+              state = command == 'mission' ? result[:status] : 'completed'
+              @child_events << [:complete, { state: state, result: summarize(result), team: command == 'mission' ? (job[:team] || {}).merge(result) : nil }]
+            rescue JobControl::Stopped, PWN::AI::Agent::Solve::Control::Stopped => e
+              @child_events << [:complete, { state: 'cancelled', error: e.message }]
+            rescue StandardError => e
+              @child_events << [:complete, { state: 'failed', error: "#{e.class}: #{e.message}" }]
+            ensure
+              commands_thread.kill.join
+              snapshot_thread.kill.join
+              output.flush
+              writer.close
+            end
+          end
+
+          def mission_operation(command, task, job, opts)
+            name = task[:name]
+            request = task[:request]
+            names = task[:names]
+            topic = task[:topic]
+            rounds = task[:rounds]
+            case command
+            when 'dm'
+              PWN::AI::Agent::Swarm.ask(name: name, request: request, swarm_id: ensure_swarm, steering: job[:control], usage_observer: opts[:usage_observer], on_tool: tool_callback(job, opts))
+            when 'mission'
+              PWN::AI::Agent::Swarm.solve(
+                request: request, swarm_id: ensure_swarm, steering: job[:control],
+                worktree: opts.fetch(:worktree, false), rounds: opts.fetch(:rounds, 3), verification_timeout: opts.fetch(:verification_timeout, 60), role_timeout: opts.fetch(:role_timeout, 300),
+                workspace: opts[:workspace], usage_observer: opts[:usage_observer], on_tool: tool_callback(job, opts),
+                on_state: ->(state) { @mutex.synchronize { job[:team] = state } }
+              )
+            when 'debate'
+              transcript = []
+              rounds.times do
+                names.each do |name|
+                  request = transcript.empty? ? topic : "#{topic}\n\nPrevious speaker: #{transcript.last}\nRespond, critique, or advance the objective."
+                  job[:control].check_stop
+                  result = PWN::AI::Agent::Swarm.ask(name: name, request: request, swarm_id: @swarm_id, steering: job[:control], usage_observer: opts[:usage_observer], on_tool: tool_callback(job, opts))
+                  transcript << "#{name}: #{result[:reply]}"
+                end
+              end
+              { reply: transcript.join("\n") }
+            when 'broadcast'
+              replies = names.map do |name|
+                job[:control].check_stop
+                result = PWN::AI::Agent::Swarm.ask(name: name, request: request, swarm_id: ensure_swarm, steering: job[:control], usage_observer: opts[:usage_observer], on_tool: tool_callback(job, opts))
+                "#{name}: #{result[:reply]}"
+              end
+              { reply: replies.join("\n") }
+            end
+          end
+
+          def start_job(agent:, command:, opts:, task:)
             return { ok: false, error: 'swarm controller is closed' } if @closed
             return { ok: false, error: 'mission requires exclusive workspace ownership; wait or cancel active jobs' } if (command == 'mission' && busy?) || snapshot[:jobs].any? { |row| row[:command] == 'mission' && ACTIVE.include?(row[:state]) }
 
@@ -339,36 +422,71 @@ module PWN
 
             ensure_swarm
             id = SecureRandom.hex(3)
-            locals = Thread.current.keys.grep(/^pwn_/).to_h { |key| [key, Thread.current[key]] }
-            variables = Thread.current.thread_variables.grep(/^pwn_/).to_h { |key| [key, Thread.current.thread_variable_get(key)] }
-            ready = Queue.new
-            job = { id: id, agent: agent, command: command, state: 'queued' }
+            reader, writer = IO.pipe
+            commands, sender = IO.pipe
+            job = { id: id, agent: agent, command: command, state: 'queued', sender: sender }
             @mutex.synchronize { @jobs[id] = job }
+            on_event = opts[:on_event]
+            on_usage = opts[:usage_observer]
+            job[:mission] = PWN::Plugins::AISandbox::MissionProcess.new(
+              descriptor: { operation: :swarm, session_id: @session_id, swarm_id: @swarm_id, job: job.slice(:id, :agent, :command), task: task, options: opts.except(:on_event, :usage_observer) },
+              fds: { 4 => writer, 5 => commands }
+            )
+            writer.close
+            commands.close
+            job[:control] = RemoteControl.new(sender)
+            update(job, 'running')
             job[:worker] = Thread.new do
-              locals.each { |key, value| Thread.current[key] = value }
-              variables.each { |key, value| Thread.current.thread_variable_set(key, value) }
-              control_class = command == 'mission' ? MissionControl : JobControl
-              job[:control] = control_class.new(input: StringIO.new, output: StringIO.new)
-              Thread.current[:pwn_steering_input] = job[:control]
-              ready << true
-              update(job, 'running')
-              result = yield(job)
-              job[:control].check_stop unless command == 'mission'
-              state = command == 'mission' ? result[:status] : 'completed'
-              @mutex.synchronize { job[:team] = (job[:team] || {}).merge(result) } if command == 'mission'
-              update(job, state, result: summarize(result))
-              opts[:on_event]&.call(:assistant, "#{agent} [#{id}] #{command} #{state}\n#{summarize(result)}")
-              result
-            rescue JobControl::Stopped, PWN::AI::Agent::Solve::Control::Stopped => e
-              update(job, 'cancelled', error: e.message)
-              opts[:on_event]&.call(:warning, "#{agent} [#{id}] #{e.message}")
-            rescue StandardError => e
-              update(job, 'failed', error: "#{e.class}: #{e.message}")
-              opts[:on_event]&.call(:warning, "#{agent} [#{id}] #{e.class}: #{e.message}")
+              result = nil
+              reader.each_line do |line|
+                tag, type, value = JSON.parse(line, symbolize_names: true)
+                next unless tag == id && job[:state] != 'cancelling'
+
+                restore_team_maps(value[:team]) if value.is_a?(Hash) && value[:team].is_a?(Hash)
+                case type
+                when 'complete' then result = value
+                when 'event' then on_event&.call(value[0].to_sym, value[1])
+                when 'notice' then on_event&.call(:notice, value)
+                when 'usage' then on_usage&.call(value)
+                when 'snapshot'
+                  @mutex.synchronize { job[:team] = value[:team] if value[:team] }
+                  job[:control].observed_pause = value[:paused]
+                when 'tool' then update(job, job[:state], last_tool: value)
+                end
+              end
+            ensure
+              job[:mission].close
+              reader.close
+              sender.close
+              unless job[:state] == 'cancelling'
+                result ||= { state: 'failed', error: 'mission process exited without a result' }
+                @mutex.synchronize { job[:team] = (job[:team] || {}).merge(result[:team]) } if result[:team]
+                update(job, result.fetch(:state), **result.slice(:result, :error))
+                on_event&.call(result[:error] ? :warning : :assistant, "#{agent} [#{id}] #{command} #{job[:state]}\n#{result[:result] || result[:error]}")
+              end
             end
             job[:worker].report_on_exception = false
-            ready.pop
             { ok: true, job_id: id, state: 'queued' }
+          rescue StandardError => e
+            [reader, writer, commands, sender].compact.each { |io| io.close unless io.closed? }
+            job&.dig(:mission)&.close
+            update(job, 'failed', error: e.message) if job
+            { ok: false, error: "Mission not started: #{e.message}" }
+          end
+
+          # JSON object member names are strings on wire. Restore data maps whose
+          # keys are identifiers or filenames, rather than protocol field names.
+          def restore_team_maps(value)
+            case value
+            when Hash
+              value.each do |key, child|
+                value[key] = child = child.transform_keys(&:to_s) if %i[roles artifacts dependencies requirements inputs modes].include?(key) && child.is_a?(Hash)
+                restore_team_maps(child)
+              end
+            when Array
+              value.each { |child| restore_team_maps(child) }
+            end
+            value
           end
 
           def tool_callback(job, opts)
@@ -378,6 +496,7 @@ module PWN
                 return
               end
               update(job, job[:state], last_tool: name)
+              @child_events << [:tool, name] if @child_events
               opts[:on_event]&.call(:tool, "#{job[:agent]} [#{job[:id]}] #{name}\n#{args.inspect}")
               opts[:on_event]&.call(:result, result.to_s)
             end

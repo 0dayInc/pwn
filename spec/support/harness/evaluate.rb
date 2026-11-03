@@ -74,6 +74,14 @@ module HarnessEvaluation
     status = nil
     capped = false
     ready_observed = false
+    phase = ready_path ? 'startup' : 'execution'
+    timeout_phase = nil
+    # A restart reuses the workspace, not the previous process's readiness.
+    FileUtils.rm_f(ready_path) if ready_path
+    # Source-tree fixtures need the scratch-built extension. Packaged fixtures
+    # use their isolated GEM_HOME and must load their own installed extension.
+    env = env.merge('TMPDIR' => ENV['TMPDIR']) if ENV['TMPDIR']
+    env = env.merge('RUBYLIB' => ENV['RUBYLIB']) if env['GEM_HOME'] == Gem.dir && ENV['RUBYLIB']
     Open3.popen3(env, *command, chdir: cwd, unsetenv_others: true, pgroup: true) do |input, output, error, waiter|
       input.close
       output.set_encoding(Encoding::UTF_8)
@@ -86,12 +94,14 @@ module HarnessEvaluation
           end
           ready_observed = File.file?(ready_path)
         end
+        phase = 'execution' if !ready_path || ready_observed
         Timeout.timeout(seconds) do
           status = waiter.value
           stdout, stderr = readers.map(&:value)
         end
       rescue Timeout::Error
         capped = true
+        timeout_phase = phase
         begin
           Process.kill('KILL', -waiter.pid)
         rescue Errno::ESRCH
@@ -103,6 +113,7 @@ module HarnessEvaluation
     end
     { stdout: stdout, stderr: stderr, exit_status: status.exitstatus,
       signal: status.termsig, resource_cap: capped, ready_observed: ready_observed,
+      timeout_phase: timeout_phase, startup_bound_seconds: ready_path ? startup_seconds : nil, execution_bound_seconds: seconds,
       latency_seconds: Process.clock_gettime(Process::CLOCK_MONOTONIC) - started }
   end
 
@@ -130,7 +141,7 @@ module HarnessEvaluation
     ruby = RbConfig.ruby
     rows = manifest.fetch('tasks').map do |task|
       root = Dir.mktmpdir("#{task.fetch('id')}-", output_root)
-      home = File.join(root, 'home')
+      home = "#{root}-home"
       FileUtils.mkdir_p(home)
       fixture = File.join(root, 'provider.json')
       File.write(fixture, JSON.generate(responses: task.fetch('responses')))

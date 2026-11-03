@@ -183,8 +183,8 @@ RSpec.describe PWN::SessionCleanup do
       Thread.current[:pwn_steering_input] = nil
     end
 
-    it 'expires only committed verified disposable backups and retains prepared recovery evidence' do
-      file = File.join(Dir.home, '.pwn', 'tmp', 'expired-backup')
+    it 'leaves centralized recovery expiry to shared admission rather than quarantine pruning' do
+      file = File.join(described_class.disposable_directory('tmp'), 'expired-backup')
       FileUtils.mkdir_p(File.dirname(file))
       File.write(file, 'disposable')
       described_class.register_disposable(path: file, category: 'tmp', expires_at: 0)
@@ -192,11 +192,10 @@ RSpec.describe PWN::SessionCleanup do
       backup = result[:records].first['backup']
       old = Time.now - (100 * 86_400)
       File.utime(old, old, result[:ledger])
-      expect(described_class.prune_quarantine(dry_run: true)[:eligible]).to eq([backup])
-      expect(File.file?(backup)).to be(true)
-      expect(described_class.prune_quarantine(dry_run: false)[:deleted]).to eq([backup])
-      expect(File.exist?(backup)).to be(false)
-      expect(JSON.parse(File.read(result[:ledger]))['state']).to eq('expired')
+      expect(described_class.prune_quarantine(dry_run: true)[:eligible]).to eq([])
+      expect(described_class.prune_quarantine(dry_run: false)[:deleted]).to eq([])
+      expect(File.read(backup)).to eq('disposable')
+      expect(JSON.parse(File.read(result[:ledger]))['state']).to eq('committed')
     end
 
     it 'requires explicit continuation retirement and preserves an active association' do
@@ -235,7 +234,7 @@ RSpec.describe PWN::SessionCleanup do
     end
 
     it 'preserves failed writes and exposes interrupted prepared records instead of declaring completion' do
-      file = File.join(Dir.home, '.pwn', 'tmp', 'failure')
+      file = File.join(described_class.disposable_directory('tmp'), 'failure')
       FileUtils.mkdir_p(File.dirname(file))
       File.binwrite(file, "binary\xFF".b)
       described_class.register_disposable(path: file, category: 'tmp', expires_at: 0)
@@ -252,7 +251,7 @@ RSpec.describe PWN::SessionCleanup do
     end
 
     it 'recovers exact disposable backups without overwriting changed destinations' do
-      file = File.join(Dir.home, '.pwn', 'tmp', 'binary')
+      file = File.join(described_class.disposable_directory('tmp'), 'binary')
       FileUtils.mkdir_p(File.dirname(file))
       bytes = "café\xFF\x00".b
       File.binwrite(file, bytes)
@@ -321,8 +320,9 @@ RSpec.describe PWN::SessionCleanup do
 
     it 'reports all storage categories read-only and preserves unknown files' do
       root = File.join(Dir.home, '.pwn')
-      FileUtils.mkdir_p(File.join(root, 'tmp'))
-      unknown = File.join(root, 'tmp', 'unknown.bin')
+      runtime = described_class.disposable_directory('tmp')
+      FileUtils.mkdir_p(runtime)
+      unknown = File.join(runtime, 'unknown.bin')
       File.binwrite(unknown, "\xFF\x00".b)
       before = Dir.glob(File.join(root, '**', '*'), File::FNM_DOTMATCH).sort
       status = described_class.status

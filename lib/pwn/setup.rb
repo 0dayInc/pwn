@@ -129,10 +129,44 @@ module PWN
       }
     }.freeze
 
+    # Optional runtime libraries, not executables or Ruby build dependencies.
+    # macOS provides PC/SC as a system framework. Linux PC/SC also needs a
+    # daemon and CCID reader driver for actual I/O; doctor only loads libraries.
+    NATIVE_LIBRARIES = {
+      'hidapi' => {
+        apt: %w[libhidapi-hidraw0], dnf: %w[hidapi], pacman: %w[hidapi],
+        brew: %w[hidapi], port: %w[hidapi],
+        libraries: {
+          unix: %w[libhidapi-hidraw.so.0 libhidapi-hidraw.so libhidapi-libusb.so.0 libhidapi-libusb.so libhidapi.so],
+          macos: %w[libhidapi.dylib /opt/homebrew/lib/libhidapi.dylib /usr/local/lib/libhidapi.dylib /opt/local/lib/libhidapi.dylib],
+          windows: %w[hidapi.dll]
+        },
+        plugins: %w[PWN::Plugins::YubiKey]
+      },
+      'pcsc' => {
+        apt: %w[libpcsclite1 pcscd libccid], dnf: %w[pcsc-lite-libs pcsc-lite pcsc-lite-ccid],
+        pacman: %w[pcsclite ccid], brew: %w[], port: %w[],
+        libraries: {
+          unix: %w[libpcsclite.so.1 libpcsclite.so],
+          macos: %w[/System/Library/Frameworks/PCSC.framework/PCSC],
+          windows: %w[winscard.dll]
+        },
+        plugins: %w[PWN::Plugins::YubiKey]
+      }
+    }.freeze
+
     # External binaries PWN wraps → OS packages that provide them.
     # (Extrospection.probe_toolchain already knows how to *detect* these;
     #  this table knows how to *install* them.)
     TOOLCHAIN = {
+      'setpriv' => {
+        apt: %w[util-linux], dnf: %w[util-linux], pacman: %w[util-linux], brew: %w[], port: %w[],
+        plugins: %w[PWN::SessionTrace]
+      },
+      'unshare' => {
+        apt: %w[util-linux], dnf: %w[util-linux], pacman: %w[util-linux], brew: %w[], port: %w[],
+        plugins: %w[PWN::AI::Agent::MissionNamespace]
+      },
       'nmap' => {
         apt: %w[nmap], dnf: %w[nmap], pacman: %w[nmap], brew: %w[nmap], port: %w[nmap],
         plugins: %w[PWN::Plugins::NmapIt]
@@ -408,7 +442,7 @@ module PWN
       ai: {
         desc: 'verify at least one AI engine key/oauth in ~/.pwn/pwn.yaml',
         gems: %w[],
-        bins: %w[jq]
+        bins: %w[jq unshare setpriv]
       },
       web: {
         desc: 'TransparentBrowser · BurpSuite · Zaproxy · extro_verify · extro_watch',
@@ -446,9 +480,10 @@ module PWN
         bins: %w[msfconsole sqlmap]
       },
       hardware: {
-        desc: 'Serial · BusPirate · Android · BareSIP · extro_serial · extro_telecomm',
+        desc: 'Serial · BusPirate · Android · BareSIP · YubiKey · extro_serial · extro_telecomm',
         gems: %w[libusb],
-        bins: %w[adb baresip]
+        bins: %w[adb baresip],
+        libs: %w[hidapi pcsc]
       },
       re: {
         desc: 'Radare2 · GDB · ExploitDev · Frida · Android RE tier',
@@ -458,7 +493,8 @@ module PWN
       full: {
         desc: 'everything above',
         gems: NATIVE_GEMS.keys,
-        bins: TOOLCHAIN.keys
+        bins: TOOLCHAIN.keys,
+        libs: NATIVE_LIBRARIES.keys
       }
     }.freeze
 
@@ -572,15 +608,23 @@ module PWN
       io.puts
 
       # ~/.pwn -----------------------------------------------------------
-      pwn_root  = File.join(Dir.home, '.pwn')
-      pwn_yaml  = File.join(pwn_root, 'pwn.yaml')
-      pwn_dec   = File.join(pwn_root, 'pwn.yaml.decryptor')
+      pwn_root = File.join(Dir.home, '.pwn')
+      driver = defined?(PWN::Env) && PWN::Env.is_a?(Hash) ? PWN::Env[:driver_opts] : nil
+      driver = {} unless driver.is_a?(Hash)
+      pwn_yaml  = driver[:pwn_env_path] || File.join(pwn_root, 'pwn.yaml')
+      pwn_dec   = driver[:pwn_dec_path] || "#{pwn_yaml}.decryptor"
       root_ok   = File.directory?(pwn_root)
       root_note = root_ok ? "(#{Dir.children(pwn_root).length} entries)" : '(will be created on first `pwn` launch)'
       io.puts "#{'~/.pwn/'.ljust(26)} #{root_ok ? OK : MISS}   #{root_note}"
       yaml_ok   = File.file?(pwn_yaml)
       dec_state = File.file?(pwn_dec) ? 'present' : 'MISSING'
-      yaml_note = yaml_ok ? "(encrypted, decryptor #{dec_state})" : '(run `pwn` once, then `pwn-vault` to configure)'
+      yaml_note = if !yaml_ok
+                    '(run `pwn` once, then `pwn-vault` to configure)'
+                  elsif PWN::Plugins::Vault.hardware_encrypted?(file: pwn_yaml)
+                    '(YubiKey encrypted; no software decryptor required)'
+                  else
+                    "(encrypted, decryptor #{dec_state})"
+                  end
       io.puts "#{'~/.pwn/pwn.yaml'.ljust(26)} #{yaml_ok ? OK : MISS}   #{yaml_note}"
       engine = ai_active_engine
       key_ok = ai_key_configured?(engine: engine)
@@ -603,6 +647,20 @@ module PWN
       end
       io.puts
 
+      # Runtime libraries ------------------------------------------------
+      io.puts 'Native libraries (host loading only; no device discovery)'
+      lib_missing = []
+      NATIVE_LIBRARIES.each do |name, meta|
+        ok = native_library_available?(name: name, os: os)
+        lib_missing << name unless ok
+        packages = Array(meta[pm[:key]])
+        hint = packages.empty? ? 'native OS library; see hardware profile' : packages.join(' ')
+        need = ok ? '' : "(needs: #{hint})"
+        io.puts "  #{name.ljust(14)} #{ok ? OK : MISS}  #{need} → #{Array(meta[:plugins]).join(', ')}"
+      end
+      io.puts '  Library presence does not verify device permissions, PC/SC service, reader or token readiness.'
+      io.puts
+
       # Toolchain --------------------------------------------------------
       io.puts "#{'External toolchain'.ljust(46)} used by"
       bin_missing = []
@@ -621,36 +679,41 @@ module PWN
         io.puts
       end
 
-      total   = NATIVE_GEMS.size + TOOLCHAIN.size
-      missing = gem_missing.size + bin_missing.size
+      total   = NATIVE_GEMS.size + TOOLCHAIN.size + NATIVE_LIBRARIES.size
+      missing = gem_missing.size + bin_missing.size + lib_missing.size
       io.puts "#{total - missing} / #{total} capabilities usable · #{missing} degraded"
       io.puts
       unless missing.zero?
-        io.puts 'Run `pwn setup --deps` to install missing OS headers/tools, or'
+        io.puts 'Run `pwn setup --deps` to install missing OS headers/tools/libraries, or'
         io.puts '    `pwn setup --profile <name>` for a subset. See `pwn setup --list-profiles`.'
       end
 
       # When a profile is given (`pwn setup --check --profile core`), :ok is
-      # gated ONLY on that profile's gems/bins so a partially-provisioned host
+      # gated ONLY on that profile's gems/bins/libs so a partially-provisioned host
       # can still pass its own doctor gate. `packer/provisioners/pwn.sh` and
       # spec/integration/fresh_install_spec.rb rely on this — a `core` leg of
       # install-matrix must not fail because gqrx/burpsuite/etc. are absent.
       gate_gems = gem_missing
       gate_bins = bin_missing
+      gate_libs = lib_missing
       if profile && PROFILES.key?(profile)
         prof      = PROFILES[profile]
         gate_gems = gem_missing & Array(prof[:gems])
         gate_bins = bin_missing & Array(prof[:bins])
+        gate_libs = lib_missing & Array(prof[:libs])
         io.puts
+        library_note = ", libs: #{gate_libs.empty? ? '—' : gate_libs.join(' ')}" unless Array(prof[:libs]).empty?
         io.puts "Profile '#{profile}' gate: " \
-                "#{gate_gems.empty? && gate_bins.empty? ? OK : MISS} " \
+                "#{gate_gems.empty? && gate_bins.empty? && gate_libs.empty? ? OK : MISS} " \
                 "(gems: #{gate_gems.empty? ? '—' : gate_gems.join(' ')}, " \
-                "bins: #{gate_bins.empty? ? '—' : gate_bins.join(' ')})"
+                "bins: #{gate_bins.empty? ? '—' : gate_bins.join(' ')}" \
+                "#{library_note})"
       end
 
-      { ok: gate_gems.empty? && gate_bins.empty? && Array(migrate && migrate[:incompatible]).empty?,
+      { ok: gate_gems.empty? && gate_bins.empty? && gate_libs.empty? && Array(migrate && migrate[:incompatible]).empty?,
         native_gems_missing: gem_missing, toolchain_missing: bin_missing,
-        state: migrate, pkg_manager: pm[:key], os: os, arch: arch }
+        state: migrate, pkg_manager: pm[:key], os: os, arch: arch,
+        native_libraries_missing: lib_missing }
     rescue StandardError => e
       raise e
     end
@@ -690,6 +753,7 @@ module PWN
       bins     = Array(prof[:bins])
       os_pkgs  = []
       gems.each { |g| os_pkgs.concat(Array(NATIVE_GEMS.dig(g, pm[:key]))) }
+      Array(prof[:libs]).each { |lib| os_pkgs.concat(Array(NATIVE_LIBRARIES.dig(lib, pm[:key]))) }
       bins.each { |b| os_pkgs.concat(packages_for(bin: b, distro: distro, version: version, pm_key: pm[:key])) }
       os_pkgs = os_pkgs.reject(&:empty?).uniq
       alts = alt_install_cmds(bins: bins, pm_key: pm[:key], distro: distro, version: version)
@@ -765,7 +829,7 @@ module PWN
     #      third_party/terminator/pwn_shift_enter.py to
     #      ~/.config/terminator/plugins/ and enables the PWNShiftEnter
     #      plugin in ~/.config/terminator/config — WITH confirmation and
-    #      a .pwnbak backup. This is the only VTE emulator we can fix at
+    #      a shared recovery backup. This is the only VTE emulator we can fix at
     #      the GTK layer without patching libvte itself.
     #
     # Everything here is host-config mutation, which is why it lives in
@@ -831,7 +895,7 @@ module PWN
       io.puts
       io.puts "    write   #{plugin_dst}"
       io.puts "    edit    #{cfg_path}   (add PWNShiftEnter to enabled_plugins)"
-      io.puts "    backup  #{cfg_path}.pwnbak"
+      io.puts '    backup  ~/.pwn/backup (shared seven-generation store)'
       io.puts
 
       unless yes
@@ -858,7 +922,7 @@ module PWN
         if cfg.include?('PWNShiftEnter')
           io.puts "  #{OK} PWNShiftEnter already enabled in #{cfg_path}"
         else
-          FileUtils.cp(cfg_path, "#{cfg_path}.pwnbak") unless File.exist?("#{cfg_path}.pwnbak")
+
           new_cfg =
             if cfg =~ /^\s*enabled_plugins\s*=\s*(.*)$/
               cfg.sub(/^(\s*enabled_plugins\s*=\s*)(.*)$/) do
@@ -871,8 +935,11 @@ module PWN
             else
               "[global_config]\n  enabled_plugins = PWNShiftEnter\n#{cfg}"
             end
-          File.write(cfg_path, new_cfg)
-          io.puts "  #{OK} enabled PWNShiftEnter in #{cfg_path} (backup: config.pwnbak)"
+          PWN::Backups.transaction do
+            backup = PWN::Backups.capture(path: cfg_path, label: 'terminator')
+            File.write(cfg_path, new_cfg)
+            io.puts "  #{OK} enabled PWNShiftEnter in #{cfg_path} (backup: #{backup})"
+          end
         end
       else
         FileUtils.mkdir_p(File.dirname(cfg_path))
@@ -900,6 +967,7 @@ module PWN
         io.puts "  #{name.to_s.ljust(10)} #{meta[:desc]}"
         io.puts "  #{''.ljust(10)}   gems: #{meta[:gems].join(' ')}" unless meta[:gems].empty?
         io.puts "  #{''.ljust(10)}   bins: #{meta[:bins].join(' ')}" unless meta[:bins].empty?
+        io.puts "  #{''.ljust(10)}   libs: #{meta[:libs].join(' ')}" unless Array(meta[:libs]).empty?
         io.puts
       end
       PROFILES.keys
@@ -996,6 +1064,28 @@ module PWN
         return path if File.executable?(path) && !File.directory?(path)
       end
       ''
+    end
+
+    private_class_method def self.native_library_available?(opts = {})
+      require 'ffi'
+      os = opts[:os].to_s
+      platform = if os.match?(/darwin|osx|macos/i)
+                   :macos
+                 elsif os.match?(/mswin|mingw|cygwin|windows/i)
+                   :windows
+                 else
+                   :unix
+                 end
+      libraries = NATIVE_LIBRARIES.fetch(opts[:name]).fetch(:libraries).fetch(platform)
+      flags = ::FFI::DynamicLibrary::RTLD_LAZY | ::FFI::DynamicLibrary::RTLD_LOCAL
+      libraries.any? do |library|
+        ::FFI::DynamicLibrary.open(library, flags)
+        true
+      rescue LoadError
+        false
+      end
+    rescue LoadError
+      false
     end
 
     private_class_method def self.gem_loadable?(opts = {})
@@ -1137,13 +1227,13 @@ module PWN
           pm_key: 'optional - package-manager family (:apt :dnf :pacman :brew :port :pkg)'
         )
 
-        # Run check and return its result
+        # Check gems, binaries and native host libraries; native_libraries_missing reports HIDAPI/PCSC without device discovery.
         #{self}.check(
           io: 'optional - IO to write the report to (default $stdout)',
-          profile: 'optional - profile value consumed by #check'
+          profile: 'optional - gate only this profile; core never requires hardware libraries'
         )
 
-        # Install OS packages + native gems for a capability profile.
+        # Install OS packages and gems; hardware/full add HIDAPI and PC/SC, not a Python or executable YubiKey backend.
         #{self}.deps(
           profile: 'optional - one of PROFILES.keys (default :full)',
           yes: 'optional - non-interactive; assume yes to prompts (default false)',

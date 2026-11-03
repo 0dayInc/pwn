@@ -52,5 +52,16 @@ All four honor `proxy:` (Burp / `tor`) so attribution stays controlled, reuse
 **one** browser handle across anchors, and `close` in an `ensure`. See
 [Extrospection](Extrospection.md) for the full loop.
 
+## Jev action loop
+
+`act` and `browser_act` run only when Open WebUI is configured and its model
+list contains a Jev model. Jev receives the visible control table and returns
+one operation plus one index: `CLICK`, `TYPE_TEXT`, `SELECT`, `SCROLL_UP`,
+`SCROLL_DOWN`, `WAIT`, `DONE`, or `BLOCKED`. It does not receive screenshots
+and it does not emit selectors. If the active pwn-ai model is not Jev, that
+model still writes the field text for `TYPE_TEXT`. Other pwn-ai work stays on
+the active model. This is the indexed-action idea from
+[jev-ultrafast](https://github.com/browser-use/jev-ultrafast), not TypeSafe's
+multi-head API and not a claim of its measured latency.
 
 [← Home](Home.md) · [BurpSuite](BurpSuite.md) · [WWW](WWW.md) · [Extrospection](Extrospection.md)

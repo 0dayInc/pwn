@@ -498,6 +498,7 @@
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.task_summary_flush! Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.task_summary_flush!`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.task_summary_plan! Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.task_summary_plan!`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.task_summary_record! Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.task_summary_record!`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.terminal_effect_blocker Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.terminal_effect_blocker`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.thinking_effort Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.thinking_effort`: Supported Method Parameters\n\nmsg = PWN::AI::Agent::Loop.call_engine(\n\nmessages: 'required - OpenAI-format messages array',\ntools: 'optional - OpenAI tools array'\n\n)\n\nReturns a normalised assistant message hash:\n\n{ role: 'assistant', content: String|nil,\n  tool_calls: [ {id:, type:'function', function:{name:, arguments:}} ],\n  _native_content: <provider raw>  (when adapter needs round-trip) }\n"}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.timeout_task Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.timeout_task`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.tool_arg_paths Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.tool_arg_paths`: "}]}
@@ -596,6 +597,19 @@
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Mission.resume_run Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Mission.resume_run`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Mission.write_active Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Mission.write_active`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Mission.write_row Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Mission.write_row`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::MissionNamespace.authors Usage"},{"role":"assistant","content":"`PWN::AI::Agent::MissionNamespace.authors`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::MissionNamespace.checked Usage"},{"role":"assistant","content":"`PWN::AI::Agent::MissionNamespace.checked`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::MissionNamespace.decode Usage"},{"role":"assistant","content":"`PWN::AI::Agent::MissionNamespace.decode`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::MissionNamespace.encode Usage"},{"role":"assistant","content":"`PWN::AI::Agent::MissionNamespace.encode`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::MissionNamespace.execute Usage"},{"role":"assistant","content":"`PWN::AI::Agent::MissionNamespace.execute`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::MissionNamespace.help Usage"},{"role":"assistant","content":"`PWN::AI::Agent::MissionNamespace.help`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::MissionNamespace.io Usage"},{"role":"assistant","content":"`PWN::AI::Agent::MissionNamespace.io`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::MissionNamespace.native Usage"},{"role":"assistant","content":"`PWN::AI::Agent::MissionNamespace.native`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::MissionNamespace.new Usage"},{"role":"assistant","content":"`PWN::AI::Agent::MissionNamespace.new`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::MissionNamespace.prepared? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::MissionNamespace.prepared?`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::MissionNamespace.supervise Usage"},{"role":"assistant","content":"`PWN::AI::Agent::MissionNamespace.supervise`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::MissionNamespace.close Usage"},{"role":"assistant","content":"`PWN::AI::Agent::MissionNamespace.close`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::MissionNamespace.wait Usage"},{"role":"assistant","content":"`PWN::AI::Agent::MissionNamespace.wait`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Mistakes.applicable_fix? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Mistakes.applicable_fix?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Mistakes.atomic_write Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Mistakes.atomic_write`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Mistakes.authors Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Mistakes.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
@@ -736,6 +750,7 @@
 {"messages":[{"role":"user","content":"PWN::AI::Agent::PromptBuilder.pwn_version Usage"},{"role":"assistant","content":"`PWN::AI::Agent::PromptBuilder.pwn_version`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::PromptBuilder.recent_turns_block Usage"},{"role":"assistant","content":"`PWN::AI::Agent::PromptBuilder.recent_turns_block`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::PromptBuilder.skills_block Usage"},{"role":"assistant","content":"`PWN::AI::Agent::PromptBuilder.skills_block`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::PromptBuilder.workspace_prompt Usage"},{"role":"assistant","content":"`PWN::AI::Agent::PromptBuilder.workspace_prompt`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::PromptCache.active_engine Usage"},{"role":"assistant","content":"`PWN::AI::Agent::PromptCache.active_engine`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::PromptCache.agent_flag Usage"},{"role":"assistant","content":"`PWN::AI::Agent::PromptCache.agent_flag`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::PromptCache.anthropic_system_blocks Usage"},{"role":"assistant","content":"`PWN::AI::Agent::PromptCache.anthropic_system_blocks`: Supported Method Parameters\n\nblocks = PWN::AI::Agent::PromptCache.anthropic_system_blocks(text: system_prompt)\n\n→ [ {type:‘text’, text: static, cache_control:{type:‘ephemeral’}},\n\n{type:'text', text: dynamic} ]  (empty blocks omitted)\n"}]}
@@ -776,14 +791,18 @@
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Registry.selftest Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Registry.selftest`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Registry.toolsets Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Registry.toolsets`: Supported Method Parameters\n\nnames = PWN::AI::Agent::Registry.toolsets\n"}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::RequestRuntime.authors Usage"},{"role":"assistant","content":"`PWN::AI::Agent::RequestRuntime.authors`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::RequestRuntime.from_mission_snapshot Usage"},{"role":"assistant","content":"`PWN::AI::Agent::RequestRuntime.from_mission_snapshot`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::RequestRuntime.help Usage"},{"role":"assistant","content":"`PWN::AI::Agent::RequestRuntime.help`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::RequestRuntime.new Usage"},{"role":"assistant","content":"`PWN::AI::Agent::RequestRuntime.new`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::RequestRuntime.accept_child! Usage"},{"role":"assistant","content":"`PWN::AI::Agent::RequestRuntime.accept_child!`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::RequestRuntime.amend! Usage"},{"role":"assistant","content":"`PWN::AI::Agent::RequestRuntime.amend!`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::RequestRuntime.bind_verification! Usage"},{"role":"assistant","content":"`PWN::AI::Agent::RequestRuntime.bind_verification!`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::RequestRuntime.blocker Usage"},{"role":"assistant","content":"`PWN::AI::Agent::RequestRuntime.blocker`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::RequestRuntime.blocking_effects Usage"},{"role":"assistant","content":"`PWN::AI::Agent::RequestRuntime.blocking_effects`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::RequestRuntime.call Usage"},{"role":"assistant","content":"`PWN::AI::Agent::RequestRuntime.call`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::RequestRuntime.check_cancelled! Usage"},{"role":"assistant","content":"`PWN::AI::Agent::RequestRuntime.check_cancelled!`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::RequestRuntime.dispatch_reads Usage"},{"role":"assistant","content":"`PWN::AI::Agent::RequestRuntime.dispatch_reads`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::RequestRuntime.durable_effect? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::RequestRuntime.durable_effect?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::RequestRuntime.each_tool_batch Usage"},{"role":"assistant","content":"`PWN::AI::Agent::RequestRuntime.each_tool_batch`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::RequestRuntime.events Usage"},{"role":"assistant","content":"`PWN::AI::Agent::RequestRuntime.events`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::RequestRuntime.evidence Usage"},{"role":"assistant","content":"`PWN::AI::Agent::RequestRuntime.evidence`: "}]}
@@ -791,6 +810,7 @@
 {"messages":[{"role":"user","content":"PWN::AI::Agent::RequestRuntime.finish! Usage"},{"role":"assistant","content":"`PWN::AI::Agent::RequestRuntime.finish!`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::RequestRuntime.fresh_evidence? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::RequestRuntime.fresh_evidence?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::RequestRuntime.host_evidenced? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::RequestRuntime.host_evidenced?`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::RequestRuntime.mission_snapshot Usage"},{"role":"assistant","content":"`PWN::AI::Agent::RequestRuntime.mission_snapshot`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::RequestRuntime.observations Usage"},{"role":"assistant","content":"`PWN::AI::Agent::RequestRuntime.observations`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::RequestRuntime.observe! Usage"},{"role":"assistant","content":"`PWN::AI::Agent::RequestRuntime.observe!`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::RequestRuntime.observe_evidence! Usage"},{"role":"assistant","content":"`PWN::AI::Agent::RequestRuntime.observe_evidence!`: "}]}
@@ -807,6 +827,8 @@
 {"messages":[{"role":"user","content":"PWN::AI::Agent::RequestRuntime.update_provider_oauth Usage"},{"role":"assistant","content":"`PWN::AI::Agent::RequestRuntime.update_provider_oauth`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::RequestRuntime.verification! Usage"},{"role":"assistant","content":"`PWN::AI::Agent::RequestRuntime.verification!`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::RequestRuntime.verification_contract Usage"},{"role":"assistant","content":"`PWN::AI::Agent::RequestRuntime.verification_contract`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::RequestRuntime.worker_provenance! Usage"},{"role":"assistant","content":"`PWN::AI::Agent::RequestRuntime.worker_provenance!`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::RequestRuntime.worker_view! Usage"},{"role":"assistant","content":"`PWN::AI::Agent::RequestRuntime.worker_view!`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Result.authors Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Result.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Result.collect Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Result.collect`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Result.condition Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Result.condition`: Supported Method Parameters\n\nsafe = PWN::AI::Agent::Result.condition(\n\ncontent: 'required - String returned by Dispatch.call',\nentry: 'optional - Registry::Entry (used for max_chars; nil → DEFAULT_MAX)'\n\n)\n"}]}
@@ -1180,6 +1202,8 @@
 {"messages":[{"role":"user","content":"PWN::AI::CLI.authors Usage"},{"role":"assistant","content":"`PWN::AI::CLI.authors`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::CLI.bind_mission! Usage"},{"role":"assistant","content":"`PWN::AI::CLI.bind_mission!`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::CLI.help Usage"},{"role":"assistant","content":"`PWN::AI::CLI.help`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::CLI.mission_entry Usage"},{"role":"assistant","content":"`PWN::AI::CLI.mission_entry`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::CLI.mission_request Usage"},{"role":"assistant","content":"`PWN::AI::CLI.mission_request`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::CLI.parse Usage"},{"role":"assistant","content":"`PWN::AI::CLI.parse`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::CLI.request_session Usage"},{"role":"assistant","content":"`PWN::AI::CLI.request_session`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::CLI.run Usage"},{"role":"assistant","content":"`PWN::AI::CLI.run`: "}]}
@@ -1223,6 +1247,7 @@
 {"messages":[{"role":"user","content":"PWN::AI::Grok.get_models Usage"},{"role":"assistant","content":"`PWN::AI::Grok.get_models`: Supported Method Parameters\n\nmodels = PWN::AI::Grok.get_models\n"}]}
 {"messages":[{"role":"user","content":"PWN::AI::Grok.grok_rest_call Usage"},{"role":"assistant","content":"`PWN::AI::Grok.grok_rest_call`: Supported Method Parameters\n\ngrok_ai_rest_call(\n\ntoken: 'required - grok_ai bearer token',\nhttp_method: 'optional HTTP method (defaults to GET)\nbase_uri: 'optional base grok api URI (defaults to https://api.x.ai/v1)',\nrest_call: 'required rest call to make per the schema',\nparams: 'optional params passed in the URI or HTTP Headers',\nhttp_body: 'optional HTTP body sent in HTTP methods that support it e.g. POST',\ntimeout: 'optional timeout in seconds (defaults to 180; 5 attempts)',\nspinner: 'optional - display spinner (defaults to false)'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::AI::Grok.help Usage"},{"role":"assistant","content":"`PWN::AI::Grok.help`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Grok.hosted_responses Usage"},{"role":"assistant","content":"`PWN::AI::Grok.hosted_responses`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Grok.jwt_exp Usage"},{"role":"assistant","content":"`PWN::AI::Grok.jwt_exp`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Grok.oauth_token_expiring? Usage"},{"role":"assistant","content":"`PWN::AI::Grok.oauth_token_expiring?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Grok.obtain_oauth_bearer_token Usage"},{"role":"assistant","content":"`PWN::AI::Grok.obtain_oauth_bearer_token`: Supported Method Parameters\n\nbearer = PWN::AI::Grok.obtain_oauth_bearer_token(\n\nclient_id: 'optional - xAI OAuth Client ID (defaults to public Grok-CLI client)',\nscope:     'optional - space-delimited scopes (defaults to XAI_OAUTH_SCOPE)',\ntimeout:   'optional - seconds to wait for user consent (default 300)'\n\n)\n\nRuns the RFC 8628 OAuth 2.0 Device Authorization Grant against auth.x.ai using xAI’s public Grok-CLI client (no client_secret). This is the same identity path ‘hermes auth add xai-oauth` uses – a SuperGrok / X Premium+ subscription on the account is what grants api:access at consent time.\n\n1. POST /oauth2/device/code    -> device_code, user_code, verification_uri\n2. User opens verification_uri_complete in a browser and approves.\n3. Poll POST /oauth2/token (grant_type=device_code) until access_token.\n\nOn success the access_token + refresh_token are written into the live request runtime (provider_config is a copy) and into the encrypted vault when the decryptor is present. Tokens are not printed.\n"}]}
@@ -1365,11 +1390,13 @@
 {"messages":[{"role":"user","content":"PWN::AI::OpenWebUI.openwebui_rest_call Usage"},{"role":"assistant","content":"`PWN::AI::OpenWebUI.openwebui_rest_call`: Supported Method Parameters\n\nopenwebui_rest_call(\n\nhttp_method: 'optional HTTP method (defaults to GET)',\nrest_call: 'required rest call path relative to base_uri',\nparams: 'optional params passed in the URI or HTTP Headers',\nhttp_body: 'optional HTTP body sent in HTTP methods that support it e.g. POST',\ntimeout: 'optional timeout in seconds (defaults to 900)',\nspinner: 'optional - display spinner (defaults to false)'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::AI::OpenWebUI.parse_tool_arguments_object Usage"},{"role":"assistant","content":"`PWN::AI::OpenWebUI.parse_tool_arguments_object`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::OpenWebUI.real_config_value? Usage"},{"role":"assistant","content":"`PWN::AI::OpenWebUI.real_config_value?`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::OpenWebUI.server_tool_ids Usage"},{"role":"assistant","content":"`PWN::AI::OpenWebUI.server_tool_ids`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::OpenWebUI.strict_system_template? Usage"},{"role":"assistant","content":"`PWN::AI::OpenWebUI.strict_system_template?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::OpenWebUI.template_rejects_later_system? Usage"},{"role":"assistant","content":"`PWN::AI::OpenWebUI.template_rejects_later_system?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::OpenWebUI.think_wire Usage"},{"role":"assistant","content":"`PWN::AI::OpenWebUI.think_wire`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::OpenWebUI.thinking_controls Usage"},{"role":"assistant","content":"`PWN::AI::OpenWebUI.thinking_controls`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::OpenWebUI.visible_from_thinking Usage"},{"role":"assistant","content":"`PWN::AI::OpenWebUI.visible_from_thinking`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::OpenWebUI.workspace_tools Usage"},{"role":"assistant","content":"`PWN::AI::OpenWebUI.workspace_tools`: Supported Method Parameters\n\nrows = PWN::AI::OpenWebUI.workspace_tools(\n\nrefresh: 'optional - true ignores a cached workspace tool list',\ntimeout: 'optional - seconds for the tool list request (default 30)'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::AI::RedTeam.authors Usage"},{"role":"assistant","content":"`PWN::AI::RedTeam.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
 {"messages":[{"role":"user","content":"PWN::AI::RedTeam.help Usage"},{"role":"assistant","content":"`PWN::AI::RedTeam.help`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::RedTeam::AgentProtocolAbuse.authors Usage"},{"role":"assistant","content":"`PWN::AI::RedTeam::AgentProtocolAbuse.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
@@ -1477,6 +1504,19 @@
 {"messages":[{"role":"user","content":"PWN::AI::Router.summarize Usage"},{"role":"assistant","content":"`PWN::AI::Router.summarize`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Router.try_chat Usage"},{"role":"assistant","content":"`PWN::AI::Router.try_chat`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Router.usage Usage"},{"role":"assistant","content":"`PWN::AI::Router.usage`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::ServerTools.answer_text Usage"},{"role":"assistant","content":"`PWN::AI::ServerTools.answer_text`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::ServerTools.attach Usage"},{"role":"assistant","content":"`PWN::AI::ServerTools.attach`: Supported Method Parameters\n\nbody = PWN::AI::ServerTools.attach(\n\nengine: 'required - provider name',\nhttp_body: 'required - provider request body',\nrequest: 'required - original chat options, including server_tools'\n\n)\n"}]}
+{"messages":[{"role":"user","content":"PWN::AI::ServerTools.authors Usage"},{"role":"assistant","content":"`PWN::AI::ServerTools.authors`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::ServerTools.call Usage"},{"role":"assistant","content":"`PWN::AI::ServerTools.call`: Supported Method Parameters\n\nresult = PWN::AI::ServerTools.call(\n\nname: 'required - workspace tool name or hosted tool name',\nrequest: 'required - question or state to send with that tool',\nengine: 'optional - provider name; Ask Jev uses Open WebUI when that provider is configured',\nmodel: 'optional - overrides the provider model'\n\n)\n"}]}
+{"messages":[{"role":"user","content":"PWN::AI::ServerTools.catalog Usage"},{"role":"assistant","content":"`PWN::AI::ServerTools.catalog`: Supported Method Parameters\n\nrow = PWN::AI::ServerTools.catalog(\n\nengine: 'required - openai, anthropic, gemini, grok, ollama, or openwebui'\n\n)\n"}]}
+{"messages":[{"role":"user","content":"PWN::AI::ServerTools.help Usage"},{"role":"assistant","content":"`PWN::AI::ServerTools.help`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::ServerTools.list Usage"},{"role":"assistant","content":"`PWN::AI::ServerTools.list`: Supported Method Parameters\n\nrows = PWN::AI::ServerTools.list(\n\nengine: 'required - provider name',\nrefresh: 'optional - true re-reads the Open WebUI workspace tool list',\nmodel: 'optional - used to decide whether OpenAI hosted tools share the request'\n\n)\n"}]}
+{"messages":[{"role":"user","content":"PWN::AI::ServerTools.mixable? Usage"},{"role":"assistant","content":"`PWN::AI::ServerTools.mixable?`: Supported Method Parameters\n\nsame = PWN::AI::ServerTools.mixable?(\n\nengine: 'required - provider name',\nmodel: 'optional - OpenAI model id; hosted tools share only a Responses request'\n\n)\n"}]}
+{"messages":[{"role":"user","content":"PWN::AI::ServerTools.openwebui_call Usage"},{"role":"assistant","content":"`PWN::AI::ServerTools.openwebui_call`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::ServerTools.openwebui_ready? Usage"},{"role":"assistant","content":"`PWN::AI::ServerTools.openwebui_ready?`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::ServerTools.route Usage"},{"role":"assistant","content":"`PWN::AI::ServerTools.route`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::ServerTools.selected Usage"},{"role":"assistant","content":"`PWN::AI::ServerTools.selected`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::ServerTools.wire Usage"},{"role":"assistant","content":"`PWN::AI::ServerTools.wire`: Supported Method Parameters\n\nobjects = PWN::AI::ServerTools.wire(\n\nengine: 'required - provider name',\nnames: 'required - hosted tool names such as web_search or google_search'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::AWS.authors Usage"},{"role":"assistant","content":"`PWN::AWS.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
 {"messages":[{"role":"user","content":"PWN::AWS.help Usage"},{"role":"assistant","content":"`PWN::AWS.help`: "}]}
 {"messages":[{"role":"user","content":"PWN::AWS::ACM.authors Usage"},{"role":"assistant","content":"`PWN::AWS::ACM.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
@@ -1839,6 +1879,20 @@
 {"messages":[{"role":"user","content":"PWN::AWS::XRay.connect Usage"},{"role":"assistant","content":"`PWN::AWS::XRay.connect`: Supported Method Parameters\n\nPWN::AWS::XRay.connect(\n\nregion: 'required - region name to connect (eu-west-1, ap-southeast-1, ap-southeast-2, eu-central-1, ap-northeast-2, ap-northeast-1, us-east-1, sa-east-1, us-west-1, us-west-2)',\naccess_key_id: 'required - Use AWS STS for best privacy (i.e. temporary access key id)',\nsecret_access_key: 'required - Use AWS STS for best privacy (i.e. temporary secret access key',\nsts_session_token: 'optional - Temporary token returned by STS client for best privacy'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::AWS::XRay.disconnect Usage"},{"role":"assistant","content":"`PWN::AWS::XRay.disconnect`: Supported Method Parameters\n\nPWN::AWS::XRay.disconnect(\n\nx_ray_obj: 'required - x_ray_obj returned from #connect method'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::AWS::XRay.help Usage"},{"role":"assistant","content":"`PWN::AWS::XRay.help`: "}]}
+{"messages":[{"role":"user","content":"PWN::Backups.active? Usage"},{"role":"assistant","content":"`PWN::Backups.active?`: Supported Method Parameters\n\nPWN::Backups.active?\n"}]}
+{"messages":[{"role":"user","content":"PWN::Backups.authors Usage"},{"role":"assistant","content":"`PWN::Backups.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
+{"messages":[{"role":"user","content":"PWN::Backups.capture Usage"},{"role":"assistant","content":"`PWN::Backups.capture`: Supported Method Parameters\n\nPWN::Backups.capture(path: ‘/path/to/source’, label: ‘learning’)\n"}]}
+{"messages":[{"role":"user","content":"PWN::Backups.configure Usage"},{"role":"assistant","content":"`PWN::Backups.configure`: Supported Method Parameters\n\nPWN::Backups.configure(root: nil)\n"}]}
+{"messages":[{"role":"user","content":"PWN::Backups.directory Usage"},{"role":"assistant","content":"`PWN::Backups.directory`: Supported Method Parameters\n\nPWN::Backups.directory(label: ‘maintenance’) Caller must hold transaction through the final source mutation and ledger.\n"}]}
+{"messages":[{"role":"user","content":"PWN::Backups.help Usage"},{"role":"assistant","content":"`PWN::Backups.help`: "}]}
+{"messages":[{"role":"user","content":"PWN::Backups.legacy_inventory Usage"},{"role":"assistant","content":"`PWN::Backups.legacy_inventory`: "}]}
+{"messages":[{"role":"user","content":"PWN::Backups.legacy_unreferenced Usage"},{"role":"assistant","content":"`PWN::Backups.legacy_unreferenced`: "}]}
+{"messages":[{"role":"user","content":"PWN::Backups.reconcile Usage"},{"role":"assistant","content":"`PWN::Backups.reconcile`: Supported Method Parameters\n\nPWN::Backups.reconcile(generation: ‘name’, expected_sha256: ‘digest’, confirmed: true)\n"}]}
+{"messages":[{"role":"user","content":"PWN::Backups.reference_pins Usage"},{"role":"assistant","content":"`PWN::Backups.reference_pins`: "}]}
+{"messages":[{"role":"user","content":"PWN::Backups.relocate_legacy Usage"},{"role":"assistant","content":"`PWN::Backups.relocate_legacy`: Supported Method Parameters\n\nPWN::Backups.relocate_legacy(paths: [], dry_run: true, writers_stopped: false)\n"}]}
+{"messages":[{"role":"user","content":"PWN::Backups.safe_directory Usage"},{"role":"assistant","content":"`PWN::Backups.safe_directory`: "}]}
+{"messages":[{"role":"user","content":"PWN::Backups.transaction Usage"},{"role":"assistant","content":"`PWN::Backups.transaction`: Supported Method Parameters\n\nPWN::Backups.transaction(root: nil) { … }\n"}]}
+{"messages":[{"role":"user","content":"PWN::Backups.write_state Usage"},{"role":"assistant","content":"`PWN::Backups.write_state`: "}]}
 {"messages":[{"role":"user","content":"PWN::Banner.authors Usage"},{"role":"assistant","content":"`PWN::Banner.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
 {"messages":[{"role":"user","content":"PWN::Banner.get Usage"},{"role":"assistant","content":"`PWN::Banner.get`: Supported Method Parameters\n\nPWN::Banner.get(\n\nindex: 'optional - defaults to random banner index'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::Banner.help Usage"},{"role":"assistant","content":"`PWN::Banner.help`: "}]}
@@ -2018,7 +2072,7 @@
 {"messages":[{"role":"user","content":"PWN::Config.authors Usage"},{"role":"assistant","content":"`PWN::Config.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
 {"messages":[{"role":"user","content":"PWN::Config.copy_missing_references Usage"},{"role":"assistant","content":"`PWN::Config.copy_missing_references`: "}]}
 {"messages":[{"role":"user","content":"PWN::Config.deep_fill! Usage"},{"role":"assistant","content":"`PWN::Config.deep_fill!`: "}]}
-{"messages":[{"role":"user","content":"PWN::Config.default_env Usage"},{"role":"assistant","content":"`PWN::Config.default_env`: Supported Method Parameters\n\nenv = PWN::Config.default_env(\n\npwn_env_path: 'optional - Path to pwn.yaml file.  Defaults to ~/.pwn/pwn.yaml'\n\n)\n"}]}
+{"messages":[{"role":"user","content":"PWN::Config.default_env Usage"},{"role":"assistant","content":"`PWN::Config.default_env`: Supported Method Parameters\n\nenv = PWN::Config.default_env(\n\npwn_env_path: 'optional - Path to pwn.yaml file. Defaults to ~/.pwn/pwn.yaml',\npwn_dec_path: 'optional - Legacy decryptor path; defaults to the vault path plus .decryptor',\nyubikey: 'optional - Explicit hardware opt-in with slot, serial, reader, device_path, connection, timeout selector'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::Config.default_skill_names Usage"},{"role":"assistant","content":"`PWN::Config.default_skill_names`: "}]}
 {"messages":[{"role":"user","content":"PWN::Config.default_skills_dir Usage"},{"role":"assistant","content":"`PWN::Config.default_skills_dir`: "}]}
 {"messages":[{"role":"user","content":"PWN::Config.each_skill_md Usage"},{"role":"assistant","content":"`PWN::Config.each_skill_md`: "}]}
@@ -2319,32 +2373,28 @@
 {"messages":[{"role":"user","content":"PWN::MemoryIndex.to_context Usage"},{"role":"assistant","content":"`PWN::MemoryIndex.to_context`: Supported Method Parameters\n\nctx = PWN::MemoryIndex.to_context(query:, limit: 6)\n"}]}
 {"messages":[{"role":"user","content":"PWN::Migrate.apply_fix Usage"},{"role":"assistant","content":"`PWN::Migrate.apply_fix`: "}]}
 {"messages":[{"role":"user","content":"PWN::Migrate.authors Usage"},{"role":"assistant","content":"`PWN::Migrate.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
-{"messages":[{"role":"user","content":"PWN::Migrate.backfill_vault Usage"},{"role":"assistant","content":"`PWN::Migrate.backfill_vault`: Supported Method Parameters\n\nr = PWN::Migrate.backfill_vault(\n\nkey: 'optional', iv: 'optional', dry_run: false, io: $stdout\n\n)\n\nDecrypt → deep-merge template UNDER user (never overwrites) →re-encrypt with the SAME key/iv.  This is the fix for the #1 upgrade break: ‘NoMethodError: undefined method ’[]‘ for nil` when a release added `env[:new_engine]` and the user’s vault predates it.\n"}]}
+{"messages":[{"role":"user","content":"PWN::Migrate.backfill_vault Usage"},{"role":"assistant","content":"`PWN::Migrate.backfill_vault`: Supported Method Parameters\n\nr = PWN::Migrate.backfill_vault(\n\nkey: 'optional', iv: 'optional', dry_run: false, io: $stdout\n\n)\n\nDecrypt → deep-merge template UNDER user (never overwrites) →re-encrypt with the SAME legacy key/iv or hardware selector. This fixes the upgrade break: ‘NoMethodError: undefined method ’[]‘ for nil` when a release added `env[:new_engine]` and the user’s vault predates it.\n"}]}
 {"messages":[{"role":"user","content":"PWN::Migrate.backup! Usage"},{"role":"assistant","content":"`PWN::Migrate.backup!`: "}]}
 {"messages":[{"role":"user","content":"PWN::Migrate.backup_input_names Usage"},{"role":"assistant","content":"`PWN::Migrate.backup_input_names`: "}]}
 {"messages":[{"role":"user","content":"PWN::Migrate.backup_inventory Usage"},{"role":"assistant","content":"`PWN::Migrate.backup_inventory`: "}]}
-{"messages":[{"role":"user","content":"PWN::Migrate.backup_reference_pins Usage"},{"role":"assistant","content":"`PWN::Migrate.backup_reference_pins`: "}]}
-{"messages":[{"role":"user","content":"PWN::Migrate.backup_retention_policy Usage"},{"role":"assistant","content":"`PWN::Migrate.backup_retention_policy`: "}]}
 {"messages":[{"role":"user","content":"PWN::Migrate.check Usage"},{"role":"assistant","content":"`PWN::Migrate.check`: Supported Method Parameters\n\nPWN::Migrate.check(\n\nio: 'optional - IO to write the report to (default $stdout)'\n\n)\n\nHuman-readable ~/.pwn state doctor.  Read-only.  Called from PWN::Setup.check so ‘pwn setup` shows this alongside the native-gem / toolchain report.\n"}]}
-{"messages":[{"role":"user","content":"PWN::Migrate.decryptor Usage"},{"role":"assistant","content":"`PWN::Migrate.decryptor`: "}]}
 {"messages":[{"role":"user","content":"PWN::Migrate.deep_defaults Usage"},{"role":"assistant","content":"`PWN::Migrate.deep_defaults`: "}]}
 {"messages":[{"role":"user","content":"PWN::Migrate.env_template Usage"},{"role":"assistant","content":"`PWN::Migrate.env_template`: Supported Method Parameters\n\ntmpl = PWN::Migrate.env_template\n\nThe canonical current-release pwn.yaml shape, WITHOUT the I/O side-effects of PWN::Config.default_env.  Prefers PWN::Config.env_template when that refactor is present.\n"}]}
-{"messages":[{"role":"user","content":"PWN::Migrate.expire_backup_generations Usage"},{"role":"assistant","content":"`PWN::Migrate.expire_backup_generations`: "}]}
 {"messages":[{"role":"user","content":"PWN::Migrate.help Usage"},{"role":"assistant","content":"`PWN::Migrate.help`: "}]}
 {"messages":[{"role":"user","content":"PWN::Migrate.human_size Usage"},{"role":"assistant","content":"`PWN::Migrate.human_size`: "}]}
 {"messages":[{"role":"user","content":"PWN::Migrate.installed_schema Usage"},{"role":"assistant","content":"`PWN::Migrate.installed_schema`: Supported Method Parameters\n\nschema = PWN::Migrate.installed_schema\n\n→ Integer schema number stamped in ~/.pwn/.schema (0 when absent).\n"}]}
 {"messages":[{"role":"user","content":"PWN::Migrate.jsonl_verify Usage"},{"role":"assistant","content":"`PWN::Migrate.jsonl_verify`: "}]}
 {"messages":[{"role":"user","content":"PWN::Migrate.missing_paths Usage"},{"role":"assistant","content":"`PWN::Migrate.missing_paths`: "}]}
 {"messages":[{"role":"user","content":"PWN::Migrate.needed? Usage"},{"role":"assistant","content":"`PWN::Migrate.needed?`: Supported Method Parameters\n\nbool = PWN::Migrate.needed?\n\nCheap predicate for PWN::Config.refresh_env — schema stamp only, no per-file probes, so it adds ~0 to launch time.\n"}]}
-{"messages":[{"role":"user","content":"PWN::Migrate.prune_backups Usage"},{"role":"assistant","content":"`PWN::Migrate.prune_backups`: Supported Method Parameters\n\nPWN::Migrate.prune_backups(dry_run: true, keep: 3, limit: 10, admission: nil) Default duplicate-only pruning is nondestructive to unique history. Explicit expire_history policy bounds recovery generations instead.\n"}]}
-{"messages":[{"role":"user","content":"PWN::Migrate.publish_backup_retention Usage"},{"role":"assistant","content":"`PWN::Migrate.publish_backup_retention`: "}]}
+{"messages":[{"role":"user","content":"PWN::Migrate.prune_backups Usage"},{"role":"assistant","content":"`PWN::Migrate.prune_backups`: Supported Method Parameters\n\nPWN::Migrate.prune_backups(dry_run: true) Retention now runs only at shared producer admission, never separately.\n"}]}
 {"messages":[{"role":"user","content":"PWN::Migrate.quarantine! Usage"},{"role":"assistant","content":"`PWN::Migrate.quarantine!`: "}]}
 {"messages":[{"role":"user","content":"PWN::Migrate.run Usage"},{"role":"assistant","content":"`PWN::Migrate.run`: Supported Method Parameters\n\nreport = PWN::Migrate.run(\n\nfix:     'optional - also autofix incompatible files (default: schema-migrations only)',\nbackup:  'optional - take timestamped backup of ~/.pwn first (default true)',\ndry_run: 'optional - report what WOULD happen, write nothing (default false)',\nkey:     'optional - vault key   (default: read ~/.pwn/pwn.yaml.decryptor)',\niv:      'optional - vault iv    (default: read ~/.pwn/pwn.yaml.decryptor)',\nio:      'optional - IO to write to (default $stdout)'\n\n)\n\nbackup  2. schema migrations installed→current  3. per-file\n\n\nautofix (when fix:true)  4. pwn.yaml key backfill (when fix:true and decryptor available)  5. stamp .schema.\n"}]}
 {"messages":[{"role":"user","content":"PWN::Migrate.safe_read Usage"},{"role":"assistant","content":"`PWN::Migrate.safe_read`: "}]}
 {"messages":[{"role":"user","content":"PWN::Migrate.stamp! Usage"},{"role":"assistant","content":"`PWN::Migrate.stamp!`: "}]}
-{"messages":[{"role":"user","content":"PWN::Migrate.status Usage"},{"role":"assistant","content":"`PWN::Migrate.status`: Supported Method Parameters\n\nrows = PWN::Migrate.status\n\nPer-file compatibility report — the machine-readable half of ‘.check`.  Never writes.  Never raises (each verifier is rescued).\n"}]}
+{"messages":[{"role":"user","content":"PWN::Migrate.status Usage"},{"role":"assistant","content":"`PWN::Migrate.status`: Supported Method Parameters\n\nrows = PWN::Migrate.status(pwn_env_path: ‘optional - Selected configuration vault path’)\n\nPer-file compatibility report — the machine-readable half of ‘.check`.  Never writes.  Never raises (each verifier is rescued).\n"}]}
 {"messages":[{"role":"user","content":"PWN::Migrate.strip_bad_jsonl! Usage"},{"role":"assistant","content":"`PWN::Migrate.strip_bad_jsonl!`: "}]}
-{"messages":[{"role":"user","content":"PWN::Migrate.vault_drift Usage"},{"role":"assistant","content":"`PWN::Migrate.vault_drift`: Supported Method Parameters\n\ndrift = PWN::Migrate.vault_drift(\n\nkey: 'optional - vault key', iv: 'optional - vault iv'\n\n)\n\nDeep-diff the user’s decrypted pwn.yaml against the current PWN::Config.env_template.  → { missing: [dotted.paths], user: {…} } Returns nil when the decryptor is unavailable (never prompts).\n"}]}
+{"messages":[{"role":"user","content":"PWN::Migrate.vault_drift Usage"},{"role":"assistant","content":"`PWN::Migrate.vault_drift`: Supported Method Parameters\n\ndrift = PWN::Migrate.vault_drift(\n\nkey: 'optional - vault key', iv: 'optional - vault iv'\n\n)\n\nDeep-diff the user’s decrypted pwn.yaml against the current PWN::Config.env_template.  → { missing: [dotted.paths], user: {…} } Returns nil when vault access is unavailable (never prompts).\n"}]}
+{"messages":[{"role":"user","content":"PWN::Migrate.vault_paths Usage"},{"role":"assistant","content":"`PWN::Migrate.vault_paths`: "}]}
 {"messages":[{"role":"user","content":"PWN::Migrate.verify_one Usage"},{"role":"assistant","content":"`PWN::Migrate.verify_one`: "}]}
 {"messages":[{"role":"user","content":"PWN::ModuleSkills.authors Usage"},{"role":"assistant","content":"`PWN::ModuleSkills.authors`: "}]}
 {"messages":[{"role":"user","content":"PWN::ModuleSkills.camel Usage"},{"role":"assistant","content":"`PWN::ModuleSkills.camel`: "}]}
@@ -2394,19 +2444,39 @@
 {"messages":[{"role":"user","content":"PWN::Plugins::AISandbox.artifacts_root Usage"},{"role":"assistant","content":"`PWN::Plugins::AISandbox.artifacts_root`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::AISandbox.authors Usage"},{"role":"assistant","content":"`PWN::Plugins::AISandbox.authors`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::AISandbox.classify Usage"},{"role":"assistant","content":"`PWN::Plugins::AISandbox.classify`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::AISandbox.collect_worker Usage"},{"role":"assistant","content":"`PWN::Plugins::AISandbox.collect_worker`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::AISandbox.control_directory Usage"},{"role":"assistant","content":"`PWN::Plugins::AISandbox.control_directory`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::AISandbox.controller_state_roots Usage"},{"role":"assistant","content":"`PWN::Plugins::AISandbox.controller_state_roots`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::AISandbox.env_mode Usage"},{"role":"assistant","content":"`PWN::Plugins::AISandbox.env_mode`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::AISandbox.eval_ruby Usage"},{"role":"assistant","content":"`PWN::Plugins::AISandbox.eval_ruby`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::AISandbox.exec Usage"},{"role":"assistant","content":"`PWN::Plugins::AISandbox.exec`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::AISandbox.help Usage"},{"role":"assistant","content":"`PWN::Plugins::AISandbox.help`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::AISandbox.landlock_restrict! Usage"},{"role":"assistant","content":"`PWN::Plugins::AISandbox.landlock_restrict!`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::AISandbox.mission_entry Usage"},{"role":"assistant","content":"`PWN::Plugins::AISandbox.mission_entry`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::AISandbox.mode Usage"},{"role":"assistant","content":"`PWN::Plugins::AISandbox.mode`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::AISandbox.payload_paths Usage"},{"role":"assistant","content":"`PWN::Plugins::AISandbox.payload_paths`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::AISandbox.preflight Usage"},{"role":"assistant","content":"`PWN::Plugins::AISandbox.preflight`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::AISandbox.prepare_write_roots Usage"},{"role":"assistant","content":"`PWN::Plugins::AISandbox.prepare_write_roots`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::AISandbox.protect_call Usage"},{"role":"assistant","content":"`PWN::Plugins::AISandbox.protect_call`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::AISandbox.protect_descriptor Usage"},{"role":"assistant","content":"`PWN::Plugins::AISandbox.protect_descriptor`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::AISandbox.protected_path? Usage"},{"role":"assistant","content":"`PWN::Plugins::AISandbox.protected_path?`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::AISandbox.protected_roots Usage"},{"role":"assistant","content":"`PWN::Plugins::AISandbox.protected_roots`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::AISandbox.provision_swarm_state Usage"},{"role":"assistant","content":"`PWN::Plugins::AISandbox.provision_swarm_state`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::AISandbox.repository_aliases Usage"},{"role":"assistant","content":"`PWN::Plugins::AISandbox.repository_aliases`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::AISandbox.repository_allow! Usage"},{"role":"assistant","content":"`PWN::Plugins::AISandbox.repository_allow!`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::AISandbox.repository_metadata_restrict! Usage"},{"role":"assistant","content":"`PWN::Plugins::AISandbox.repository_metadata_restrict!`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::AISandbox.repository_restrict! Usage"},{"role":"assistant","content":"`PWN::Plugins::AISandbox.repository_restrict!`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::AISandbox.repository_scan_aliases Usage"},{"role":"assistant","content":"`PWN::Plugins::AISandbox.repository_scan_aliases`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::AISandbox.required_bins Usage"},{"role":"assistant","content":"`PWN::Plugins::AISandbox.required_bins`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::AISandbox.run_shell Usage"},{"role":"assistant","content":"`PWN::Plugins::AISandbox.run_shell`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::AISandbox.run_worker Usage"},{"role":"assistant","content":"`PWN::Plugins::AISandbox.run_worker`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::AISandbox.seccomp_restrict! Usage"},{"role":"assistant","content":"`PWN::Plugins::AISandbox.seccomp_restrict!`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::AISandbox.state_write_roots Usage"},{"role":"assistant","content":"`PWN::Plugins::AISandbox.state_write_roots`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::AISandbox.swarm_control Usage"},{"role":"assistant","content":"`PWN::Plugins::AISandbox.swarm_control`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::AISandbox.swarm_control_reply Usage"},{"role":"assistant","content":"`PWN::Plugins::AISandbox.swarm_control_reply`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::AISandbox.task_directory Usage"},{"role":"assistant","content":"`PWN::Plugins::AISandbox.task_directory`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::AISandbox.violation Usage"},{"role":"assistant","content":"`PWN::Plugins::AISandbox.violation`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::AISandbox.workspace Usage"},{"role":"assistant","content":"`PWN::Plugins::AISandbox.workspace`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::AISandbox.wrap_ruby Usage"},{"role":"assistant","content":"`PWN::Plugins::AISandbox.wrap_ruby`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::AISandbox.wrap_shell Usage"},{"role":"assistant","content":"`PWN::Plugins::AISandbox.wrap_shell`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Android.adb_net_connect Usage"},{"role":"assistant","content":"`PWN::Plugins::Android.adb_net_connect`: Supported Method Parameters\n\nPWN::Plugins::Android.adb_net_connect(\n\nadb_path: 'required - path to adb binary',\ntarget: 'required - target host or IP to connect',\nport: 'optional - defaults to tcp 5555'\n\n)\n"}]}
@@ -2454,8 +2524,10 @@
 {"messages":[{"role":"user","content":"PWN::Plugins::AuthenticationHelper.authors Usage"},{"role":"assistant","content":"`PWN::Plugins::AuthenticationHelper.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::AuthenticationHelper.help Usage"},{"role":"assistant","content":"`PWN::Plugins::AuthenticationHelper.help`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::AuthenticationHelper.mask_password Usage"},{"role":"assistant","content":"`PWN::Plugins::AuthenticationHelper.mask_password`: Supported Method Parameters\n\nPWN::Plugins::AuthenticationHelper.mask_password(\n\nprompt: 'optional - string to display at prompt (Default: Password)'\n\n)\n"}]}
-{"messages":[{"role":"user","content":"PWN::Plugins::AuthenticationHelper.mfa Usage"},{"role":"assistant","content":"`PWN::Plugins::AuthenticationHelper.mfa`: Supported Method Parameters\n\nPWN::Plugins::AuthenticationHelper.mfa(\n\nprompt: 'optional - string to display at prompt (Default: MFA Token)'\n\n)\n"}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::AuthenticationHelper.mfa Usage"},{"role":"assistant","content":"`PWN::Plugins::AuthenticationHelper.mfa`: Supported Method Parameters\n\nPWN::Plugins::AuthenticationHelper.mfa(\n\nprompt: 'optional - string to display at prompt (Default: MFA Token)',\nyubikey: 'optional - Hash selecting an exact OATH account (required :account and literal :confirm true); optional :serial exact decimal String, :reader or :device_path nonempty control-free String, :connection native exchange object, :timeout finite positive seconds (default 30), in-memory :password or callable :secret_provider; serial/reader and reader/device_path are mutually exclusive; no OTP slot; explicit mfa/mfa_token values conflict'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::AuthenticationHelper.username Usage"},{"role":"assistant","content":"`PWN::Plugins::AuthenticationHelper.username`: Supported Method Parameters\n\nPWN::Plugins::AuthenticationHelper.username(\n\nprompt: 'optional - string to display at prompt (Default: Username)'\n\n)\n"}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::AuthenticationHelper.validate_mfa_options Usage"},{"role":"assistant","content":"`PWN::Plugins::AuthenticationHelper.validate_mfa_options`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::AuthenticationHelper.validate_native_yubikey_options Usage"},{"role":"assistant","content":"`PWN::Plugins::AuthenticationHelper.validate_native_yubikey_options`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::BareSIP.apply_src_num_rules Usage"},{"role":"assistant","content":"`PWN::Plugins::BareSIP.apply_src_num_rules`: Supported Method Parameters\n\nPWN::Plugins::BareSIP.apply_src_num_rules(\n\ntarget_num: 'Required - destination number to derive source number',\nsrc_num_rules: 'Optional - Comma-delimited list of rules for src_num format (i.e. XXXXXXXXXX, self, same_country, same_area, and/or same_prefix [Defaults to random src_num w/ same length as target_num])'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::BareSIP.authors Usage"},{"role":"assistant","content":"`PWN::Plugins::BareSIP.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::BareSIP.baresip_exec Usage"},{"role":"assistant","content":"`PWN::Plugins::BareSIP.baresip_exec`: Supported Method Parameters\n\ncmd_resp = PWN::Plugins::BareSIP.baresip_exec(\n\nbaresip_obj: 'Required - baresip obj returned from #start method',\ncmd: 'Required - command to send to baresip HTTP daemon'\n\n)\n"}]}
@@ -3370,6 +3442,7 @@
 {"messages":[{"role":"user","content":"PWN::Plugins::PreflightChecker.help Usage"},{"role":"assistant","content":"`PWN::Plugins::PreflightChecker.help`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::PreflightChecker.host_summary Usage"},{"role":"assistant","content":"`PWN::Plugins::PreflightChecker.host_summary`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::PreflightChecker.manifest Usage"},{"role":"assistant","content":"`PWN::Plugins::PreflightChecker.manifest`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::PreflightChecker.native_available? Usage"},{"role":"assistant","content":"`PWN::Plugins::PreflightChecker.native_available?`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::PreflightChecker.pick Usage"},{"role":"assistant","content":"`PWN::Plugins::PreflightChecker.pick`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::PreflightChecker.require_bin! Usage"},{"role":"assistant","content":"`PWN::Plugins::PreflightChecker.require_bin!`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::PreflightChecker.require_cap_net_raw! Usage"},{"role":"assistant","content":"`PWN::Plugins::PreflightChecker.require_cap_net_raw!`: "}]}
@@ -3433,6 +3506,7 @@
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AI::PWN::Plugins::REPL.pwn_ai_engines Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AI::PWN::Plugins::REPL.pwn_ai_engines`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AI::PWN::Plugins::REPL.pwn_ai_list_llms Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AI::PWN::Plugins::REPL.pwn_ai_list_llms`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AI::PWN::Plugins::REPL.pwn_ai_memory_command Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AI::PWN::Plugins::REPL.pwn_ai_memory_command`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::REPL::AI::PWN::Plugins::REPL.pwn_ai_mission_entry Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AI::PWN::Plugins::REPL.pwn_ai_mission_entry`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AI::PWN::Plugins::REPL.pwn_ai_model_ids Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AI::PWN::Plugins::REPL.pwn_ai_model_ids`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AI::PWN::Plugins::REPL.pwn_ai_print_result Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AI::PWN::Plugins::REPL.pwn_ai_print_result`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AI::PWN::Plugins::REPL.pwn_ai_profile_command Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AI::PWN::Plugins::REPL.pwn_ai_profile_command`: "}]}
@@ -3448,17 +3522,22 @@
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AI::PWN::Plugins::REPL.pwn_ai_result_time Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AI::PWN::Plugins::REPL.pwn_ai_result_time`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AI::PWN::Plugins::REPL.pwn_ai_run_cron Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AI::PWN::Plugins::REPL.pwn_ai_run_cron`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AI::PWN::Plugins::REPL.pwn_ai_run_learning Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AI::PWN::Plugins::REPL.pwn_ai_run_learning`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::REPL::AI::PWN::Plugins::REPL.pwn_ai_run_legacy Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AI::PWN::Plugins::REPL.pwn_ai_run_legacy`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::REPL::AI::PWN::Plugins::REPL.pwn_ai_run_legacy_child Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AI::PWN::Plugins::REPL.pwn_ai_run_legacy_child`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AI::PWN::Plugins::REPL.pwn_ai_run_mcp Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AI::PWN::Plugins::REPL.pwn_ai_run_mcp`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AI::PWN::Plugins::REPL.pwn_ai_run_memory Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AI::PWN::Plugins::REPL.pwn_ai_run_memory`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::REPL::AI::PWN::Plugins::REPL.pwn_ai_run_mission Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AI::PWN::Plugins::REPL.pwn_ai_run_mission`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AI::PWN::Plugins::REPL.pwn_ai_run_model Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AI::PWN::Plugins::REPL.pwn_ai_run_model`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AI::PWN::Plugins::REPL.pwn_ai_run_sessions Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AI::PWN::Plugins::REPL.pwn_ai_run_sessions`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AI::PWN::Plugins::REPL.pwn_ai_run_skills Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AI::PWN::Plugins::REPL.pwn_ai_run_skills`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AI::PWN::Plugins::REPL.pwn_ai_run_steerable Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AI::PWN::Plugins::REPL.pwn_ai_run_steerable`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::REPL::AI::PWN::Plugins::REPL.pwn_ai_run_steerable_child Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AI::PWN::Plugins::REPL.pwn_ai_run_steerable_child`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AI::PWN::Plugins::REPL.restore_pwn_ai_completer! Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AI::PWN::Plugins::REPL.restore_pwn_ai_completer!`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole.authors Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole.authors`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole.help Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole.help`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole.run Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole.run`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole.theme Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole.theme`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Console.mission_entry Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Console.mission_entry`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Console.new Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Console.new`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Console.accept_completion Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Console.accept_completion`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Console.add Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Console.add`: "}]}
@@ -3472,6 +3551,7 @@
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Console.busy? Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Console.busy?`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Console.busy_command Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Console.busy_command`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Console.cancel Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Console.cancel`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Console.cancel_mission Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Console.cancel_mission`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Console.clear_view Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Console.clear_view`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Console.complete Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Console.complete`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Console.completion_layout Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Console.completion_layout`: "}]}
@@ -3517,8 +3597,11 @@
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Console.layout_chrome Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Console.layout_chrome`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Console.learning_inbox_rows Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Console.learning_inbox_rows`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Console.mark_active Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Console.mark_active`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Console.mission_command_child Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Console.mission_command_child`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Console.mission_config Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Console.mission_config`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Console.mission_evidence_rows Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Console.mission_evidence_rows`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Console.mission_options Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Console.mission_options`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Console.mission_request_child Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Console.mission_request_child`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Console.move_role_cursor Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Console.move_role_cursor`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Console.move_vault_cursor Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Console.move_vault_cursor`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Console.open_operator Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Console.open_operator`: "}]}
@@ -3554,6 +3637,7 @@
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Console.send_tool_input Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Console.send_tool_input`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Console.setup_colors Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Console.setup_colors`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Console.solve_rows Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Console.solve_rows`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Console.start_mission_request Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Console.start_mission_request`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Console.start_operator_scan Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Console.start_operator_scan`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Console.start_request Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Console.start_request`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Console.state Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Console.state`: "}]}
@@ -3561,6 +3645,7 @@
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Console.styled_settings Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Console.styled_settings`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Console.submit Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Console.submit`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Console.swarm_content Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Console.swarm_content`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Console.swarm_event_callback Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Console.swarm_event_callback`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Console.swarm_items Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Console.swarm_items`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Console.swarm_put Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Console.swarm_put`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Console.swarm_safe Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Console.swarm_safe`: "}]}
@@ -3598,6 +3683,12 @@
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Keyboard.call Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Keyboard.call`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Keyboard.cursor_key Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Keyboard.cursor_key`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Keyboard.decode_character Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Keyboard.decode_character`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::MissionControl.new Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::MissionControl.new`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::MissionControl.phase Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::MissionControl.phase`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::MissionControl.stop Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::MissionControl.stop`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::MissionControl.submit Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::MissionControl.submit`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::MissionEvents.new Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::MissionEvents.new`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::MissionEvents.<< Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::MissionEvents.<<`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::VaultEdit.new Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::VaultEdit.new`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::VaultEdit.atomic_write Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::VaultEdit.atomic_write`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::VaultEdit.credentials Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::VaultEdit.credentials`: "}]}
@@ -3661,6 +3752,7 @@
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsoleUsage::Tracker.snapshot Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsoleUsage::Tracker.snapshot`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AISwarm.authors Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AISwarm.authors`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AISwarm.help Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AISwarm.help`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::REPL::AISwarm::Controller.mission_entry Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AISwarm::Controller.mission_entry`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AISwarm::Controller.new Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AISwarm::Controller.new`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AISwarm::Controller.busy? Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AISwarm::Controller.busy?`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AISwarm::Controller.cancel_all Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AISwarm::Controller.cancel_all`: "}]}
@@ -3675,6 +3767,9 @@
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AISwarm::JobControl.stop Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AISwarm::JobControl.stop`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AISwarm::MissionControl.check_stop Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AISwarm::MissionControl.check_stop`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AISwarm::MissionControl.pause Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AISwarm::MissionControl.pause`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::REPL::AISwarm::RemoteControl.new Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AISwarm::RemoteControl.new`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::REPL::AISwarm::RemoteControl.pause Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AISwarm::RemoteControl.pause`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::REPL::AISwarm::RemoteControl.submit Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AISwarm::RemoteControl.submit`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::ASM.add_commands Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::ASM.add_commands`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::ASM.authors Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::ASM.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::ASM.help Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::ASM.help`: "}]}
@@ -3853,6 +3948,7 @@
 {"messages":[{"role":"user","content":"PWN::Plugins::Tor.stop Usage"},{"role":"assistant","content":"`PWN::Plugins::Tor.stop`: Supported Method Parameters\n\nPWN::Plugins::Tor.stop(\n\ntor_obj: 'required - tor_obj returned from #start method'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Tor.switch_exit_node Usage"},{"role":"assistant","content":"`PWN::Plugins::Tor.switch_exit_node`: Supported Method Parameters\n\nPWN::Plugins::Tor.switch_exit_node(\n\ntor_obj: 'required - tor_obj returned from #start method',\nresponse_timeout: 'optional - float in seconds to timeout (default: 3.0)'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Tor.tor_control_cmd Usage"},{"role":"assistant","content":"`PWN::Plugins::Tor.tor_control_cmd`: Supported Method Parameters\n\ntor_ctrl_cmd(\n\ntor_obj: 'required - tor_obj returned from #start method'\ncmd: 'required - Tor control command to execute',\nresponse_timeout: 'optional - float in seconds to timeout (default: 3.0)'\n\n)\n"}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::TransparentBrowser.act Usage"},{"role":"assistant","content":"`PWN::Plugins::TransparentBrowser.act`: Supported Method Parameters\n\nresult = PWN::Plugins::TransparentBrowser.act(\n\nbrowser_obj: 'required - browser_obj returned from #open',\ngoal: 'required - natural-language goal for this page',\nurl: 'optional - navigate here before the first observation',\nsteps: 'optional - maximum decision cycles, 1 to 60 (defaults to 12)'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::TransparentBrowser.apply_driver_timeouts! Usage"},{"role":"assistant","content":"`PWN::Plugins::TransparentBrowser.apply_driver_timeouts!`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::TransparentBrowser.authors Usage"},{"role":"assistant","content":"`PWN::Plugins::TransparentBrowser.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::TransparentBrowser.breakpoint_locations Usage"},{"role":"assistant","content":"`PWN::Plugins::TransparentBrowser.breakpoint_locations`: Supported Method Parameters\n\npage_state_arr = PWN::Plugins::TransparentBrowser.breakpoint_locations(\n\nbrowser_obj: 'required - browser_obj returned from #open method)'\n\n)\n"}]}
@@ -3875,6 +3971,18 @@
 {"messages":[{"role":"user","content":"PWN::Plugins::TransparentBrowser.hide_dom_mutations Usage"},{"role":"assistant","content":"`PWN::Plugins::TransparentBrowser.hide_dom_mutations`: Supported Method Parameters\n\nconsole_resp = PWN::Plugins::TransparentBrowser.hide_dom_mutations(\n\nbrowser_obj: browser_obj1,\nindex: 'optional - index of tab to switch to (defaults to active tab)'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::TransparentBrowser.html_body Usage"},{"role":"assistant","content":"`PWN::Plugins::TransparentBrowser.html_body`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::TransparentBrowser.intercept Usage"},{"role":"assistant","content":"`PWN::Plugins::TransparentBrowser.intercept`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::TransparentBrowser.jev_chat Usage"},{"role":"assistant","content":"`PWN::Plugins::TransparentBrowser.jev_chat`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::TransparentBrowser.jev_decide Usage"},{"role":"assistant","content":"`PWN::Plugins::TransparentBrowser.jev_decide`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::TransparentBrowser.jev_execute Usage"},{"role":"assistant","content":"`PWN::Plugins::TransparentBrowser.jev_execute`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::TransparentBrowser.jev_model Usage"},{"role":"assistant","content":"`PWN::Plugins::TransparentBrowser.jev_model`: Supported Method Parameters\n\nmodel = PWN::Plugins::TransparentBrowser.jev_model(\n\nrefresh: 'optional - true ignores a cached Open WebUI Jev id'\n\n)\n"}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::TransparentBrowser.jev_named? Usage"},{"role":"assistant","content":"`PWN::Plugins::TransparentBrowser.jev_named?`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::TransparentBrowser.jev_openwebui_ready? Usage"},{"role":"assistant","content":"`PWN::Plugins::TransparentBrowser.jev_openwebui_ready?`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::TransparentBrowser.jev_parse Usage"},{"role":"assistant","content":"`PWN::Plugins::TransparentBrowser.jev_parse`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::TransparentBrowser.jev_perform Usage"},{"role":"assistant","content":"`PWN::Plugins::TransparentBrowser.jev_perform`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::TransparentBrowser.jev_row_id Usage"},{"role":"assistant","content":"`PWN::Plugins::TransparentBrowser.jev_row_id`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::TransparentBrowser.jev_snapshot Usage"},{"role":"assistant","content":"`PWN::Plugins::TransparentBrowser.jev_snapshot`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::TransparentBrowser.jev_text Usage"},{"role":"assistant","content":"`PWN::Plugins::TransparentBrowser.jev_text`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::TransparentBrowser.jev_text_route Usage"},{"role":"assistant","content":"`PWN::Plugins::TransparentBrowser.jev_text_route`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::TransparentBrowser.jmp_devtools_panel Usage"},{"role":"assistant","content":"`PWN::Plugins::TransparentBrowser.jmp_devtools_panel`: Supported Method Parameters\n\nPWN::Plugins::TransparentBrowser.jmp_devtools_panel(\n\nbrowser_obj: 'required - browser_obj returned from #open method)',\npanel: 'optional - panel to switch to :elements|:inspector|:console|:debugger|:sources|:network\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::TransparentBrowser.jmp_tab Usage"},{"role":"assistant","content":"`PWN::Plugins::TransparentBrowser.jmp_tab`: Supported Method Parameters\n\ntab = PWN::Plugins::TransparentBrowser.jmp_tab(\n\nbrowser_obj: 'required - browser_obj returned from #open method)',\nindex: 'optional - index of tab to switch to (defaults to switching to next tab)',\nkeyword: 'optional - keyword in title or url used to switch tabs (defaults to switching to next tab)'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::TransparentBrowser.list_tabs Usage"},{"role":"assistant","content":"`PWN::Plugins::TransparentBrowser.list_tabs`: Supported Method Parameters\n\ntabs = PWN::Plugins::TransparentBrowser.list_tabs(\n\nbrowser_obj: 'required - browser_obj returned from #open method)'\n\n)\n"}]}
@@ -3914,21 +4022,26 @@
 {"messages":[{"role":"user","content":"PWN::Plugins::VIN.get_year_code Usage"},{"role":"assistant","content":"`PWN::Plugins::VIN.get_year_code`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::VIN.help Usage"},{"role":"assistant","content":"`PWN::Plugins::VIN.help`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::VIN.vin_rest_call Usage"},{"role":"assistant","content":"`PWN::Plugins::VIN.vin_rest_call`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::Vault.access_options Usage"},{"role":"assistant","content":"`PWN::Plugins::Vault.access_options`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Vault.authors Usage"},{"role":"assistant","content":"`PWN::Plugins::Vault.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Vault.box_path Usage"},{"role":"assistant","content":"`PWN::Plugins::Vault.box_path`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Vault.create Usage"},{"role":"assistant","content":"`PWN::Plugins::Vault.create`: Supported Method Parameters\n\nPWN::Plugins::Vault.create(\n\nfile: 'required - encrypted file to create',\ndecryptor_file: 'optional - file to save the key && iv values'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Vault.credential_aad Usage"},{"role":"assistant","content":"`PWN::Plugins::Vault.credential_aad`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Vault.credential_key Usage"},{"role":"assistant","content":"`PWN::Plugins::Vault.credential_key`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Vault.decrypt Usage"},{"role":"assistant","content":"`PWN::Plugins::Vault.decrypt`: Supported Method Parameters\n\nPWN::Plugins::Vault.decrypt(\n\nfile: 'required - file to decrypt',\nkey: 'required - key to decrypt',\niv: 'required - iv to decrypt'\n\n)\n"}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::Vault.decrypt_data Usage"},{"role":"assistant","content":"`PWN::Plugins::Vault.decrypt_data`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Vault.decrypt_secret Usage"},{"role":"assistant","content":"`PWN::Plugins::Vault.decrypt_secret`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Vault.dump Usage"},{"role":"assistant","content":"`PWN::Plugins::Vault.dump`: Supported Method Parameters\n\nvault = PWN::Plugins::Vault.dump(\n\nfile: 'required - file to dump',\nkey: 'required - key to decrypt',\niv: 'required - iv to decrypt',\nyaml: 'optional - dump as parsed yaml hash (default: true)'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Vault.edit Usage"},{"role":"assistant","content":"`PWN::Plugins::Vault.edit`: Supported Method Parameters\n\nPWN::Plugins::Vault.edit(\n\nfile: 'required - file to edit',\nkey: 'required - key to decrypt',\niv: 'required - iv to decrypt',\neditor: 'optional - editor to use (default: \"/usr/bin/vim\")'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Vault.encrypt Usage"},{"role":"assistant","content":"`PWN::Plugins::Vault.encrypt`: Supported Method Parameters\n\nPWN::Plugins::Vault.encrypt(\n\nfile: 'required - file to encrypt',\nkey: 'required - key to decrypt',\niv: 'required - iv to decrypt'\n\n)\n"}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::Vault.encrypt_data Usage"},{"role":"assistant","content":"`PWN::Plugins::Vault.encrypt_data`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Vault.encrypt_secret Usage"},{"role":"assistant","content":"`PWN::Plugins::Vault.encrypt_secret`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Vault.engagement_id Usage"},{"role":"assistant","content":"`PWN::Plugins::Vault.engagement_id`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Vault.expand Usage"},{"role":"assistant","content":"`PWN::Plugins::Vault.expand`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Vault.fetch Usage"},{"role":"assistant","content":"`PWN::Plugins::Vault.fetch`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Vault.file_encrypted? Usage"},{"role":"assistant","content":"`PWN::Plugins::Vault.file_encrypted?`: Supported Method Parameters\n\nPWN::Plugins::Vault.file_encrypted?(\n\nfile: 'required - file to check if encrypted'\n\n)\n"}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::Vault.hardware_encrypted? Usage"},{"role":"assistant","content":"`PWN::Plugins::Vault.hardware_encrypted?`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::Vault.hardware_envelope Usage"},{"role":"assistant","content":"`PWN::Plugins::Vault.hardware_envelope`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Vault.help Usage"},{"role":"assistant","content":"`PWN::Plugins::Vault.help`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Vault.host_match? Usage"},{"role":"assistant","content":"`PWN::Plugins::Vault.host_match?`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Vault.ingest Usage"},{"role":"assistant","content":"`PWN::Plugins::Vault.ingest`: "}]}
@@ -3941,12 +4054,18 @@
 {"messages":[{"role":"user","content":"PWN::Plugins::Vault.offer Usage"},{"role":"assistant","content":"`PWN::Plugins::Vault.offer`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Vault.open_credentials Usage"},{"role":"assistant","content":"`PWN::Plugins::Vault.open_credentials`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Vault.parse_box Usage"},{"role":"assistant","content":"`PWN::Plugins::Vault.parse_box`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::Vault.publish_data Usage"},{"role":"assistant","content":"`PWN::Plugins::Vault.publish_data`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Vault.query Usage"},{"role":"assistant","content":"`PWN::Plugins::Vault.query`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Vault.redact Usage"},{"role":"assistant","content":"`PWN::Plugins::Vault.redact`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Vault.refresh_encryption_secrets Usage"},{"role":"assistant","content":"`PWN::Plugins::Vault.refresh_encryption_secrets`: Supported Method Parameters\n\nPWN::Plugins::Vault.refresh_encryption_secrets(\n\nfile: 'required - file to encrypt with new key and iv',\nkey: 'required - key to decrypt',\niv: 'required - iv to decrypt'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Vault.save_records Usage"},{"role":"assistant","content":"`PWN::Plugins::Vault.save_records`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Vault.seal_credentials Usage"},{"role":"assistant","content":"`PWN::Plugins::Vault.seal_credentials`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Vault.store Usage"},{"role":"assistant","content":"`PWN::Plugins::Vault.store`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::Vault.update Usage"},{"role":"assistant","content":"`PWN::Plugins::Vault.update`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::Vault.valid_loot_secret? Usage"},{"role":"assistant","content":"`PWN::Plugins::Vault.valid_loot_secret?`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::Vault.with_vault_lock Usage"},{"role":"assistant","content":"`PWN::Plugins::Vault.with_vault_lock`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::Vault.yubikey_key Usage"},{"role":"assistant","content":"`PWN::Plugins::Vault.yubikey_key`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::Vault.yubikey_options Usage"},{"role":"assistant","content":"`PWN::Plugins::Vault.yubikey_options`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Voice.authors Usage"},{"role":"assistant","content":"`PWN::Plugins::Voice.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Voice.help Usage"},{"role":"assistant","content":"`PWN::Plugins::Voice.help`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Voice.mutate Usage"},{"role":"assistant","content":"`PWN::Plugins::Voice.mutate`: Supported Method Parameters\n\nresponse = PWN::Plugins::Voice.mutate(\n\nsox_path: 'optional - path to sox application (defaults to /usr/bin/sox)',\npitch: 'optional - integer to alter voice input (defaults to -300)'\n\n)\n"}]}
@@ -3968,6 +4087,454 @@
 {"messages":[{"role":"user","content":"PWN::Plugins::XXD.help Usage"},{"role":"assistant","content":"`PWN::Plugins::XXD.help`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::XXD.reverse_dump Usage"},{"role":"assistant","content":"`PWN::Plugins::XXD.reverse_dump`: Supported Method Parameters\n\nPWN::Plugins::XXD.reverse_dump(\n\nhexdump: 'required - hexdump returned from #dump method',\nfile: 'required - path to binary file to dump',\nbyte_chunks: 'optional - if set, will write n byte chunks of hexdump to multiple files'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::XXD.reverse_hex_string Usage"},{"role":"assistant","content":"`PWN::Plugins::XXD.reverse_hex_string`: Supported Method Parameters\n\nPWN::Plugins::XXD.reverse_dump(\n\nstring: 'required - continuous hex string to reverse (i.e. \"68656c6c6f\")',\nfile: 'required - path to binary file to dump'\n\n)\n"}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey.apdu Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey.apdu`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey.authors Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey.authors`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey.available? Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey.available?`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey.challenge_response Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey.challenge_response`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey.cli_help Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey.cli_help`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey.command Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey.command`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey.compact_apdu Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey.compact_apdu`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey.config Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey.config`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey.devices Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey.devices`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey.family Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey.family`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey.fido Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey.fido`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey.help Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey.help`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey.hsmauth Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey.hsmauth`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey.info Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey.info`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey.interact Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey.interact`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey.oath Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey.oath`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey.oath_code Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey.oath_code`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey.openpgp Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey.openpgp`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey.otp Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey.otp`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey.piv Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey.piv`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey.prepare_apdus Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey.prepare_apdus`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey.provision_challenge_response Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey.provision_challenge_response`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey.read_only? Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey.read_only?`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey.required_bins Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey.required_bins`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey.security_domain Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey.security_domain`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey.validate_apdu_fields Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey.validate_apdu_fields`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey.validate_args Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey.validate_args`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey.validate_command Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey.validate_command`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey.validate_oath_options Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey.validate_oath_options`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey.validate_options Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey.validate_options`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey.validate_secure_channel Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey.validate_secure_channel`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey.validate_selection Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey.validate_selection`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey.validate_slot Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey.validate_slot`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey.validate_terminal Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey.validate_terminal`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey.with_connection Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey.with_connection`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::DeadlineConnection.new Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::DeadlineConnection.new`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::DeadlineConnection.acquire Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::DeadlineConnection.acquire`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::DeadlineConnection.close Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::DeadlineConnection.close`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::DeadlineConnection.descriptor Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::DeadlineConnection.descriptor`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::DeadlineConnection.exchange Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::DeadlineConnection.exchange`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::DeadlineConnection.inspect Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::DeadlineConnection.inspect`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::DeadlineConnection.release Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::DeadlineConnection.release`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::DeadlineConnection.remaining Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::DeadlineConnection.remaining`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::FIDO.authors Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::FIDO.authors`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::FIDO.execute Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::FIDO.execute`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::FIDO.get_assertion Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::FIDO.get_assertion`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::FIDO.help Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::FIDO.help`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::FIDO.make_credential Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::FIDO.make_credential`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::FIDO.operations Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::FIDO.operations`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::FIDO.perform Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::FIDO.perform`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::FIDO.u2f_authenticate Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::FIDO.u2f_authenticate`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::FIDO.u2f_register Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::FIDO.u2f_register`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::FIDO::APDUError.new Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::FIDO::APDUError.new`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::FIDO::CBOR.authors Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::FIDO::CBOR.authors`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::FIDO::CBOR.decode Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::FIDO::CBOR.decode`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::FIDO::CBOR.encode Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::FIDO::CBOR.encode`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::FIDO::CBOR.help Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::FIDO::CBOR.help`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::FIDO::CBOR::Codec.new Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::FIDO::CBOR::Codec.new`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::FIDO::CBOR::Codec.decode Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::FIDO::CBOR::Codec.decode`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::FIDO::CBOR::Codec.encode Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::FIDO::CBOR::Codec.encode`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::FIDO::CTAPError.new Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::FIDO::CTAPError.new`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::FIDO::EnrollmentError.new Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::FIDO::EnrollmentError.new`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::FIDO::PinProtocol.new Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::FIDO::PinProtocol.new`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::FIDO::PinProtocol.authenticate Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::FIDO::PinProtocol.authenticate`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::FIDO::PinProtocol.decrypt Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::FIDO::PinProtocol.decrypt`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::FIDO::PinProtocol.derive Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::FIDO::PinProtocol.derive`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::FIDO::PinProtocol.encapsulate Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::FIDO::PinProtocol.encapsulate`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::FIDO::PinProtocol.encrypt Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::FIDO::PinProtocol.encrypt`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::FIDO::PinProtocol.validate_token Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::FIDO::PinProtocol.validate_token`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::FIDO::Session.new Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::FIDO::Session.new`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::FIDO::Session.add_fingerprint Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::FIDO::Session.add_fingerprint`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::FIDO::Session.bio_sensor_info Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::FIDO::Session.bio_sensor_info`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::FIDO::Session.cancel_enrollment Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::FIDO::Session.cancel_enrollment`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::FIDO::Session.change_pin Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::FIDO::Session.change_pin`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::FIDO::Session.delete_credential Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::FIDO::Session.delete_credential`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::FIDO::Session.delete_fingerprint Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::FIDO::Session.delete_fingerprint`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::FIDO::Session.enable_enterprise_attestation Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::FIDO::Session.enable_enterprise_attestation`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::FIDO::Session.force_change Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::FIDO::Session.force_change`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::FIDO::Session.forget Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::FIDO::Session.forget`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::FIDO::Session.get_assertion Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::FIDO::Session.get_assertion`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::FIDO::Session.info Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::FIDO::Session.info`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::FIDO::Session.inspect Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::FIDO::Session.inspect`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::FIDO::Session.list_credentials Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::FIDO::Session.list_credentials`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::FIDO::Session.list_fingerprints Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::FIDO::Session.list_fingerprints`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::FIDO::Session.make_credential Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::FIDO::Session.make_credential`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::FIDO::Session.pin_retries Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::FIDO::Session.pin_retries`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::FIDO::Session.rename_fingerprint Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::FIDO::Session.rename_fingerprint`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::FIDO::Session.reset Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::FIDO::Session.reset`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::FIDO::Session.run Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::FIDO::Session.run`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::FIDO::Session.set_min_length Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::FIDO::Session.set_min_length`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::FIDO::Session.toggle_always_uv Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::FIDO::Session.toggle_always_uv`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::FIDO::Session.u2f_authenticate Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::FIDO::Session.u2f_authenticate`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::FIDO::Session.u2f_register Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::FIDO::Session.u2f_register`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::FIDO::Session.update_credential Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::FIDO::Session.update_credential`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::FIDO::Session.verify_pin Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::FIDO::Session.verify_pin`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::HSMAuth.authors Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::HSMAuth.authors`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::HSMAuth.bytes Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::HSMAuth.bytes`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::HSMAuth.calculate Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::HSMAuth.calculate`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::HSMAuth.challenge Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::HSMAuth.challenge`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::HSMAuth.change_management Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::HSMAuth.change_management`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::HSMAuth.change_password Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::HSMAuth.change_password`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::HSMAuth.delete Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::HSMAuth.delete`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::HSMAuth.execute Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::HSMAuth.execute`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::HSMAuth.export Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::HSMAuth.export`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::HSMAuth.help Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::HSMAuth.help`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::HSMAuth.label Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::HSMAuth.label`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::HSMAuth.list Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::HSMAuth.list`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::HSMAuth.management_key Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::HSMAuth.management_key`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::HSMAuth.open_session Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::HSMAuth.open_session`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::HSMAuth.operations Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::HSMAuth.operations`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::HSMAuth.password Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::HSMAuth.password`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::HSMAuth.private_scalar Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::HSMAuth.private_scalar`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::HSMAuth.public_point Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::HSMAuth.public_point`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::HSMAuth.put Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::HSMAuth.put`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::HSMAuth.require_version Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::HSMAuth.require_version`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::HSMAuth.reset Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::HSMAuth.reset`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::HSMAuth.retries Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::HSMAuth.retries`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::HSMAuth.send_apdu Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::HSMAuth.send_apdu`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::HSMAuth.session Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::HSMAuth.session`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::HSMAuth.tlv Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::HSMAuth.tlv`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::HSMAuth::Session.new Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::HSMAuth::Session.new`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::HSMAuth::Session.[] Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::HSMAuth::Session.[]`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Management.authors Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Management.authors`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Management.begin_session Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Management.begin_session`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Management.boolean_field Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Management.boolean_field`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Management.capability_mask Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Management.capability_mask`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Management.configure_applications Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Management.configure_applications`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Management.configure_nfc Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Management.configure_nfc`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Management.configure_usb Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Management.configure_usb`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Management.consent Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Management.consent`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Management.decode_information Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Management.decode_information`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Management.execute Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Management.execute`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Management.fips_capabilities Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Management.fips_capabilities`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Management.help Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Management.help`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Management.info Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Management.info`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Management.integer_field Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Management.integer_field`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Management.interfaces Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Management.interfaces`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Management.numeric Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Management.numeric`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Management.observed_interfaces Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Management.observed_interfaces`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Management.operations Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Management.operations`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Management.parse_mode Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Management.parse_mode`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Management.read_information Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Management.read_information`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Management.reboot Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Management.reboot`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Management.request Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Management.request`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Management.require_version Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Management.require_version`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Management.reset Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Management.reset`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Management.secret_value Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Management.secret_value`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Management.set_lock_code Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Management.set_lock_code`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Management.set_mode Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Management.set_mode`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Management.text_field Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Management.text_field`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Management.verify_identity Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Management.verify_identity`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Management.version_field Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Management.version_field`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Management.write_settings Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Management.write_settings`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OATH.authors Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OATH.authors`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OATH.cache Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OATH.cache`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OATH.cache_access Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OATH.cache_access`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OATH.calculate Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OATH.calculate`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OATH.calculate_all Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OATH.calculate_all`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OATH.change_access Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OATH.change_access`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OATH.code Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OATH.code`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OATH.code_record Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OATH.code_record`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OATH.credential Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OATH.credential`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OATH.credential_data Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OATH.credential_data`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OATH.decode_base32 Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OATH.decode_base32`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OATH.execute Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OATH.execute`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OATH.format_code Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OATH.format_code`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OATH.help Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OATH.help`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OATH.identity Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OATH.identity`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OATH.import_credentials Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OATH.import_credentials`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OATH.integer Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OATH.integer`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OATH.list Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OATH.list`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OATH.modify Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OATH.modify`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OATH.operations Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OATH.operations`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OATH.parse_pskc Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OATH.parse_pskc`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OATH.parse_uri Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OATH.parse_uri`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OATH.pskc_crypto Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OATH.pskc_crypto`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OATH.pskc_decrypt Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OATH.pskc_decrypt`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OATH.pskc_hash Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OATH.pskc_hash`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OATH.pskc_number Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OATH.pskc_number`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OATH.pskc_value Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OATH.pskc_value`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OATH.put Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OATH.put`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OATH.remember_key Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OATH.remember_key`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OATH.require_version Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OATH.require_version`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OATH.reset Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OATH.reset`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OATH.send_apdu Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OATH.send_apdu`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OATH.session Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OATH.session`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OATH.store_credential Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OATH.store_credential`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OATH.timestamp Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OATH.timestamp`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OATH.tlv Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OATH.tlv`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OATH.unlock Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OATH.unlock`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OATH.validate_access_options Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OATH.validate_access_options`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OATH.xml_node Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OATH.xml_node`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OATH.xml_text Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OATH.xml_text`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OTP.access_codes Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OTP.access_codes`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OTP.authors Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OTP.authors`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OTP.calculate Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OTP.calculate`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OTP.challenge_response Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OTP.challenge_response`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OTP.configure_ndef Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OTP.configure_ndef`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OTP.consent Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OTP.consent`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OTP.decode_secret Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OTP.decode_secret`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OTP.delete_slot Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OTP.delete_slot`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OTP.execute Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OTP.execute`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OTP.help Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OTP.help`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OTP.hotp_identifier Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OTP.hotp_identifier`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OTP.info Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OTP.info`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OTP.keyboard_flags Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OTP.keyboard_flags`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OTP.modhex_decode Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OTP.modhex_decode`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OTP.obtain_secret Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OTP.obtain_secret`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OTP.open_export Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OTP.open_export`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OTP.operations Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OTP.operations`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OTP.pack_config Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OTP.pack_config`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OTP.parse_arguments Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OTP.parse_arguments`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OTP.program_keyboard Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OTP.program_keyboard`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OTP.provision_challenge_response Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OTP.provision_challenge_response`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OTP.provision_hotp Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OTP.provision_hotp`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OTP.provision_static Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OTP.provision_static`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OTP.provision_yubiotp Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OTP.provision_yubiotp`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OTP.require_version Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OTP.require_version`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OTP.scan_map Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OTP.scan_map`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OTP.secret_value Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OTP.secret_value`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OTP.serial_number Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OTP.serial_number`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OTP.settings Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OTP.settings`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OTP.slot_number Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OTP.slot_number`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OTP.status Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OTP.status`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OTP.strict_integer Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OTP.strict_integer`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OTP.swap Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OTP.swap`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OTP.transfer Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OTP.transfer`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OTP.validate_hmac_transport Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OTP.validate_hmac_transport`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OTP.validate_nfc Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OTP.validate_nfc`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OTP.write_verified Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OTP.write_verified`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OpenPGP.algorithms Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OpenPGP.algorithms`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OpenPGP.authenticate Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OpenPGP.authenticate`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OpenPGP.authors Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OpenPGP.authors`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OpenPGP.decipher Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OpenPGP.decipher`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OpenPGP.decrypt Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OpenPGP.decrypt`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OpenPGP.execute Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OpenPGP.execute`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OpenPGP.generate_key Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OpenPGP.generate_key`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OpenPGP.help Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OpenPGP.help`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OpenPGP.import_key Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OpenPGP.import_key`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OpenPGP.input_bytes Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OpenPGP.input_bytes`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OpenPGP.load_private_key Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OpenPGP.load_private_key`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OpenPGP.operations Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OpenPGP.operations`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OpenPGP.parse_certificate Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OpenPGP.parse_certificate`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OpenPGP.public_key Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OpenPGP.public_key`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OpenPGP.sign Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OpenPGP.sign`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OpenPGP.unverify_pin Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OpenPGP.unverify_pin`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OpenPGP.validate_slot Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OpenPGP.validate_slot`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OpenPGP.verify_pin Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OpenPGP.verify_pin`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OpenPGP::Crypto.import_template Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OpenPGP::Crypto.import_template`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OpenPGP::Crypto.key_algorithm Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OpenPGP::Crypto.key_algorithm`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OpenPGP::Crypto.parse_private Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OpenPGP::Crypto.parse_private`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OpenPGP::Crypto.peer_bytes Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OpenPGP::Crypto.peer_bytes`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OpenPGP::Crypto.prepare_signature Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OpenPGP::Crypto.prepare_signature`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OpenPGP::Crypto.public_from_bytes Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OpenPGP::Crypto.public_from_bytes`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OpenPGP::Crypto.public_key Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OpenPGP::Crypto.public_key`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OpenPGP::Crypto.raw_seed Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OpenPGP::Crypto.raw_seed`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OpenPGP::Crypto.signature Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OpenPGP::Crypto.signature`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OpenPGP::Session.new Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OpenPGP::Session.new`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OpenPGP::Session.algorithm_attributes Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OpenPGP::Session.algorithm_attributes`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OpenPGP::Session.algorithm_information_body Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OpenPGP::Session.algorithm_information_body`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OpenPGP::Session.algorithms Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OpenPGP::Session.algorithms`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OpenPGP::Session.apdu Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OpenPGP::Session.apdu`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OpenPGP::Session.attest_key Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OpenPGP::Session.attest_key`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OpenPGP::Session.attributes Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OpenPGP::Session.attributes`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OpenPGP::Session.bcd Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OpenPGP::Session.bcd`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OpenPGP::Session.block_corrupt_for_reset Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OpenPGP::Session.block_corrupt_for_reset`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OpenPGP::Session.block_for_reset Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OpenPGP::Session.block_for_reset`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OpenPGP::Session.certificate_bytes Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OpenPGP::Session.certificate_bytes`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OpenPGP::Session.certificate_supported Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OpenPGP::Session.certificate_supported`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OpenPGP::Session.change_pin Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OpenPGP::Session.change_pin`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OpenPGP::Session.change_reset_code Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OpenPGP::Session.change_reset_code`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OpenPGP::Session.configure_retries Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OpenPGP::Session.configure_retries`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OpenPGP::Session.decipher Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OpenPGP::Session.decipher`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OpenPGP::Session.export_certificate Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OpenPGP::Session.export_certificate`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OpenPGP::Session.generate_key Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OpenPGP::Session.generate_key`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OpenPGP::Session.get_data Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OpenPGP::Session.get_data`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OpenPGP::Session.import_key Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OpenPGP::Session.import_key`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OpenPGP::Session.info Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OpenPGP::Session.info`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OpenPGP::Session.kdf_enabled? Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OpenPGP::Session.kdf_enabled?`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OpenPGP::Session.key_info Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OpenPGP::Session.key_info`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OpenPGP::Session.load_application Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OpenPGP::Session.load_application`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OpenPGP::Session.pin_bytes Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OpenPGP::Session.pin_bytes`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OpenPGP::Session.pin_status Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OpenPGP::Session.pin_status`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OpenPGP::Session.public_key Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OpenPGP::Session.public_key`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OpenPGP::Session.put_data Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OpenPGP::Session.put_data`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OpenPGP::Session.read_version Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OpenPGP::Session.read_version`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OpenPGP::Session.require_version Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OpenPGP::Session.require_version`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OpenPGP::Session.reset Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OpenPGP::Session.reset`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OpenPGP::Session.secret Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OpenPGP::Session.secret`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OpenPGP::Session.select_certificate Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OpenPGP::Session.select_certificate`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OpenPGP::Session.set_touch Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OpenPGP::Session.set_touch`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OpenPGP::Session.sign Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OpenPGP::Session.sign`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OpenPGP::Session.signature_policy Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OpenPGP::Session.signature_policy`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OpenPGP::Session.unblock_pin Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OpenPGP::Session.unblock_pin`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OpenPGP::Session.unpack Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OpenPGP::Session.unpack`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OpenPGP::Session.unverify_pin Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OpenPGP::Session.unverify_pin`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OpenPGP::Session.validate_key_attributes Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OpenPGP::Session.validate_key_attributes`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OpenPGP::Session.verify_admin Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OpenPGP::Session.verify_admin`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OpenPGP::Session.verify_pin Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OpenPGP::Session.verify_pin`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OpenPGP::Session.verify_user Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OpenPGP::Session.verify_user`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OpenPGP::Session.write_attributes Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OpenPGP::Session.write_attributes`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::OpenPGP::Session.write_certificate Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::OpenPGP::Session.write_certificate`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::PIV.authenticate Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::PIV.authenticate`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::PIV.authors Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::PIV.authors`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::PIV.calculate_secret Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::PIV.calculate_secret`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::PIV.decrypt Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::PIV.decrypt`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::PIV.execute Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::PIV.execute`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::PIV.help Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::PIV.help`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::PIV.operations Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::PIV.operations`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::PIV.sign Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::PIV.sign`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::PIV.verify_pin Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::PIV.verify_pin`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::PIV.verify_temporary_pin Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::PIV.verify_temporary_pin`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::PIV.verify_uv Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::PIV.verify_uv`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::PIV::PinError.new Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::PIV::PinError.new`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::PIV::Session.new Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::PIV::Session.new`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::PIV::Session.attest Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::PIV::Session.attest`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::PIV::Session.authenticate Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::PIV::Session.authenticate`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::PIV::Session.calculate_secret Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::PIV::Session.calculate_secret`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::PIV::Session.certificate_request Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::PIV::Session.certificate_request`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::PIV::Session.change_management_key Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::PIV::Session.change_management_key`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::PIV::Session.change_reference Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::PIV::Session.change_reference`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::PIV::Session.decrypt Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::PIV::Session.decrypt`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::PIV::Session.delete_certificate Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::PIV::Session.delete_certificate`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::PIV::Session.execute Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::PIV::Session.execute`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::PIV::Session.export_key Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::PIV::Session.export_key`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::PIV::Session.generate_certificate Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::PIV::Session.generate_certificate`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::PIV::Session.generate_key Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::PIV::Session.generate_key`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::PIV::Session.generate_object Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::PIV::Session.generate_object`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::PIV::Session.import_certificate Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::PIV::Session.import_certificate`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::PIV::Session.import_key Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::PIV::Session.import_key`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::PIV::Session.import_object Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::PIV::Session.import_object`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::PIV::Session.info Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::PIV::Session.info`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::PIV::Session.metadata Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::PIV::Session.metadata`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::PIV::Session.move_key Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::PIV::Session.move_key`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::PIV::Session.read_certificate Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::PIV::Session.read_certificate`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::PIV::Session.read_object Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::PIV::Session.read_object`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::PIV::Session.reset Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::PIV::Session.reset`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::PIV::Session.set_retries Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::PIV::Session.set_retries`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::PIV::Session.sign Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::PIV::Session.sign`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::PIV::Session.verify_pin Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::PIV::Session.verify_pin`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::PIV::Session.verify_temporary_pin Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::PIV::Session.verify_temporary_pin`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::PIV::Session.verify_uv Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::PIV::Session.verify_uv`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::PIV::Session.version Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::PIV::Session.version`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::PIV::Session.write_object Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::PIV::Session.write_object`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Protocol.apdu Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Protocol.apdu`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Protocol.authors Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Protocol.authors`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Protocol.command_frame Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Protocol.command_frame`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Protocol.exchange_frame Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Protocol.exchange_frame`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Protocol.help Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Protocol.help`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Protocol.parse_args Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Protocol.parse_args`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Protocol.read_tag Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Protocol.read_tag`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Protocol.require_confirm Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Protocol.require_confirm`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Protocol.secret Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Protocol.secret`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Protocol.select Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Protocol.select`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Protocol.tlv Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Protocol.tlv`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Protocol.tlv_map Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Protocol.tlv_map`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Protocol.untlv Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Protocol.untlv`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Protocol.version_at_least? Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Protocol.version_at_least?`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Protocol::APDUError.new Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Protocol::APDUError.new`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::SecurityDomain.authors Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::SecurityDomain.authors`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::SecurityDomain.execute Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::SecurityDomain.execute`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::SecurityDomain.help Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::SecurityDomain.help`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::SecurityDomain.operations Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::SecurityDomain.operations`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::SecurityDomain.secure_connection Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::SecurityDomain.secure_connection`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::SecurityDomain::Request.new Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::SecurityDomain::Request.new`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::SecurityDomain::Request.execute Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::SecurityDomain::Request.execute`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::SecurityDomain::SCP.authors Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::SecurityDomain::SCP.authors`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::SecurityDomain::SCP.help Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::SecurityDomain::SCP.help`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::SecurityDomain::SCP.open Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::SecurityDomain::SCP.open`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::SecurityDomain::SCP::Connection.new Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::SecurityDomain::SCP::Connection.new`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::SecurityDomain::SCP::Connection.authenticated? Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::SecurityDomain::SCP::Connection.authenticated?`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::SecurityDomain::SCP::Connection.close Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::SecurityDomain::SCP::Connection.close`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::SecurityDomain::SCP::Connection.descriptor Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::SecurityDomain::SCP::Connection.descriptor`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::SecurityDomain::SCP::Connection.exchange Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::SecurityDomain::SCP::Connection.exchange`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::SecurityDomain::SCP::Connection.inspect Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::SecurityDomain::SCP::Connection.inspect`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::SecurityDomain::SCP::Connection.wrap_key Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::SecurityDomain::SCP::Connection.wrap_key`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::SecurityDomain::SCP::Crypto.aes Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::SecurityDomain::SCP::Crypto.aes`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::SecurityDomain::SCP::Crypto.certificates Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::SecurityDomain::SCP::Crypto.certificates`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::SecurityDomain::SCP::Crypto.cipher_iv Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::SecurityDomain::SCP::Crypto.cipher_iv`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::SecurityDomain::SCP::Crypto.cmac Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::SecurityDomain::SCP::Crypto.cmac`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::SecurityDomain::SCP::Crypto.derive Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::SecurityDomain::SCP::Crypto.derive`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::SecurityDomain::SCP::Crypto.double Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::SecurityDomain::SCP::Crypto.double`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::SecurityDomain::SCP::Crypto.ec_key Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::SecurityDomain::SCP::Crypto.ec_key`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::SecurityDomain::SCP::Crypto.equal? Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::SecurityDomain::SCP::Crypto.equal?`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::SecurityDomain::SCP::Crypto.pad Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::SecurityDomain::SCP::Crypto.pad`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::SecurityDomain::SCP::Crypto.public_point Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::SecurityDomain::SCP::Crypto.public_point`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::SecurityDomain::SCP::Crypto.unpad Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::SecurityDomain::SCP::Crypto.unpad`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::SecurityDomain::SCP::Crypto.validate_chain Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::SecurityDomain::SCP::Crypto.validate_chain`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::SecurityDomain::SCP::Crypto.xor Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::SecurityDomain::SCP::Crypto.xor`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::SecurityDomain::Session.new Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::SecurityDomain::Session.new`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::SecurityDomain::Session.allowlist Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::SecurityDomain::Session.allowlist`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::SecurityDomain::Session.ca_identifiers Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::SecurityDomain::Session.ca_identifiers`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::SecurityDomain::Session.delete Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::SecurityDomain::Session.delete`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::SecurityDomain::Session.export Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::SecurityDomain::Session.export`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::SecurityDomain::Session.generate Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::SecurityDomain::Session.generate`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::SecurityDomain::Session.import_key Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::SecurityDomain::Session.import_key`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::SecurityDomain::Session.info Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::SecurityDomain::Session.info`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::SecurityDomain::Session.key_information Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::SecurityDomain::Session.key_information`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::SecurityDomain::Session.reset Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::SecurityDomain::Session.reset`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::SecurityDomain::Session.store_ca Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::SecurityDomain::Session.store_ca`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::SecurityDomain::Session.store_certificates Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::SecurityDomain::Session.store_certificates`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Transport.acquire_connection Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Transport.acquire_connection`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Transport.authors Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Transport.authors`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Transport.available? Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Transport.available?`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Transport.devices Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Transport.devices`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Transport.help Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Transport.help`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Transport.native Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Transport.native`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Transport.open Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Transport.open`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Transport.select_serial Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Transport.select_serial`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Transport.validate_selection Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Transport.validate_selection`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Transport::CTAP.new Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Transport::CTAP.new`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Transport::CTAP.exchange Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Transport::CTAP.exchange`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Transport::CTAP.prepare Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Transport::CTAP.prepare`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Transport::Connection.new Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Transport::Connection.new`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Transport::Connection.close Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Transport::Connection.close`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Transport::Connection.descriptor Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Transport::Connection.descriptor`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Transport::Connection.exchange Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Transport::Connection.exchange`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Transport::Connection.identify_serial Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Transport::Connection.identify_serial`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Transport::Deadline.new Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Transport::Deadline.new`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Transport::Deadline.check! Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Transport::Deadline.check!`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Transport::Deadline.milliseconds Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Transport::Deadline.milliseconds`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Transport::Deadline.pause Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Transport::Deadline.pause`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Transport::Deadline.remaining Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Transport::Deadline.remaining`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Transport::Deadline.stop Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Transport::Deadline.stop`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Transport::HIDIO.new Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Transport::HIDIO.new`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Transport::HIDIO.close Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Transport::HIDIO.close`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Transport::HIDIO.read_feature Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Transport::HIDIO.read_feature`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Transport::HIDIO.read_packet Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Transport::HIDIO.read_packet`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Transport::HIDIO.write_feature Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Transport::HIDIO.write_feature`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Transport::HIDIO.write_packet Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Transport::HIDIO.write_packet`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Transport::HIDInventory.new Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Transport::HIDInventory.new`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Transport::HIDInventory.devices Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Transport::HIDInventory.devices`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Transport::NativeLibrary.new Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Transport::NativeLibrary.new`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Transport::NativeLibrary.acquire Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Transport::NativeLibrary.acquire`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Transport::NativeLibrary.devices Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Transport::NativeLibrary.devices`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Transport::NativeLibrary.open Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Transport::NativeLibrary.open`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Transport::NativeLibrary.release Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Transport::NativeLibrary.release`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Transport::NativeTask.new Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Transport::NativeTask.new`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Transport::NativeTask.await Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Transport::NativeTask.await`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Transport::NativeTask.start Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Transport::NativeTask.start`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Transport::OTP.new Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Transport::OTP.new`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Transport::OTP.exchange Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Transport::OTP.exchange`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Transport::PCSCIO.new Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Transport::PCSCIO.new`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Transport::PCSCIO.close Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Transport::PCSCIO.close`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Transport::PCSCIO.metadata Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Transport::PCSCIO.metadata`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Transport::PCSCIO.transmit Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Transport::PCSCIO.transmit`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Transport::PCSCInventory.new Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Transport::PCSCInventory.new`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::Transport::PCSCInventory.devices Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::Transport::PCSCInventory.devices`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Zaproxy.active_scan Usage"},{"role":"assistant","content":"`PWN::Plugins::Zaproxy.active_scan`: Supported Method Parameters\n\nPWN::Plugins::Zaproxy.active_scan(\n\nzap_obj: 'required - zap_obj returned from #open method',\ntarget_url:  'required - url to scan',\nexclude_paths: 'optional - array of paths to exclude from scan (default: [])',\nscan_policy: 'optional - scan policy to use (defaults to Default Policy)'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Zaproxy.add_to_scope Usage"},{"role":"assistant","content":"`PWN::Plugins::Zaproxy.add_to_scope`: Supported Method Parameters\n\nPWN::Plugins::Zaproxy.add_to_scope(\n\nzap_obj: 'required - zap_obj returned from #open method',\ntarget_regex: 'required - url regex to add to scope (e.g. https://test.domain.local.*)',\ncontext_name: 'optional - context name to add target_regex to (defaults to Default Context)'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Zaproxy.authors Usage"},{"role":"assistant","content":"`PWN::Plugins::Zaproxy.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
@@ -3989,6 +4556,8 @@
 {"messages":[{"role":"user","content":"PWN::Redaction.capture_entropy Usage"},{"role":"assistant","content":"`PWN::Redaction.capture_entropy`: "}]}
 {"messages":[{"role":"user","content":"PWN::Redaction.entropy? Usage"},{"role":"assistant","content":"`PWN::Redaction.entropy?`: "}]}
 {"messages":[{"role":"user","content":"PWN::Redaction.help Usage"},{"role":"assistant","content":"`PWN::Redaction.help`: "}]}
+{"messages":[{"role":"user","content":"PWN::Redaction.mask_fields Usage"},{"role":"assistant","content":"`PWN::Redaction.mask_fields`: "}]}
+{"messages":[{"role":"user","content":"PWN::Redaction.masked_value_end Usage"},{"role":"assistant","content":"`PWN::Redaction.masked_value_end`: "}]}
 {"messages":[{"role":"user","content":"PWN::Redaction.redact Usage"},{"role":"assistant","content":"`PWN::Redaction.redact`: "}]}
 {"messages":[{"role":"user","content":"PWN::Redaction.redact_value Usage"},{"role":"assistant","content":"`PWN::Redaction.redact_value`: "}]}
 {"messages":[{"role":"user","content":"PWN::Redaction.token Usage"},{"role":"assistant","content":"`PWN::Redaction.token`: "}]}
@@ -4708,17 +5277,18 @@
 {"messages":[{"role":"user","content":"PWN::Setup.help Usage"},{"role":"assistant","content":"`PWN::Setup.help`: "}]}
 {"messages":[{"role":"user","content":"PWN::Setup.list_profiles Usage"},{"role":"assistant","content":"`PWN::Setup.list_profiles`: Supported Method Parameters\n\nPWN::Setup.list_profiles(\n\nio: 'optional - IO to write to (default $stdout)'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::Setup.migrate Usage"},{"role":"assistant","content":"`PWN::Setup.migrate`: Supported Method Parameters\n\nPWN::Setup.migrate(\n\nfix:     'optional - also autofix incompatible ~/.pwn files (default false)',\ndry_run: 'optional - print what WOULD happen (default false)',\nyes:     'optional - alias for fix:true (CI-friendly)',\nio:      'optional - IO to write to (default $stdout)'\n\n)\n\nDelegate to PWN::Migrate.run — verify every ~/.pwn state file is compatible with THIS pwn release and (optionally) autofix it.  A timestamped backup of ~/.pwn is taken first.  See ‘PWN::Migrate.help`.\n"}]}
+{"messages":[{"role":"user","content":"PWN::Setup.native_library_available? Usage"},{"role":"assistant","content":"`PWN::Setup.native_library_available?`: "}]}
 {"messages":[{"role":"user","content":"PWN::Setup.packages_for Usage"},{"role":"assistant","content":"`PWN::Setup.packages_for`: Supported Method Parameters\n\nPWN::Setup.packages_for(\n\nbin: 'required - TOOLCHAIN key (e.g. nmap or burpsuite)',\ndistro: 'optional - DetectOS.distro symbol (defaults to live detect)',\nversion: 'optional - DetectOS.version string (defaults to live detect)',\npm_key: 'optional - package-manager family (:apt :dnf :pacman :brew :port :pkg …)'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::Setup.pip_install_cmd Usage"},{"role":"assistant","content":"`PWN::Setup.pip_install_cmd`: "}]}
 {"messages":[{"role":"user","content":"PWN::Setup.pkg_manager Usage"},{"role":"assistant","content":"`PWN::Setup.pkg_manager`: Supported Method Parameters\n\nPWN::Setup.pkg_manager\n"}]}
-{"messages":[{"role":"user","content":"PWN::Setup.terminal Usage"},{"role":"assistant","content":"`PWN::Setup.terminal`: Supported Method Parameters\n\nPWN::Setup.terminal(\n\nyes:     'optional - assume yes; non-interactive (default false)',\ndry_run: 'optional - print what WOULD happen (default false)',\nio:      'optional - IO to write to (default $stdout)'\n\n)\n\nOpt-in installer for SHIFT+ENTER multi-line support in the pwn-ai / pwn-asm REPL. Never runs implicitly — the user invokes it with ‘pwn setup –terminal` after PWNMultiLineInput#ensure_vte_shift_enter tells them their emulator can’t distinguish Shift+Enter from Enter.\n\nWhat it does:\n\n1. Prints the two `~/.tmux.conf` lines that persist the runtime\n   `tmux set -s` calls PWNMultiLineInput already makes.\n2. If running under Terminator (a VTE host), copies\n   third_party/terminator/pwn_shift_enter.py to\n   ~/.config/terminator/plugins/ and enables the PWNShiftEnter\n   plugin in ~/.config/terminator/config — WITH confirmation and\n   a .pwnbak backup. This is the only VTE emulator we can fix at\n   the GTK layer without patching libvte itself.\n\nEverything here is host-config mutation, which is why it lives in ‘pwn setup` and NOT in the REPL’s runtime path. See GNOME/vte issues #2601 / #2607 for why VTE can’t be fixed with escape sequences alone.\n"}]}
+{"messages":[{"role":"user","content":"PWN::Setup.terminal Usage"},{"role":"assistant","content":"`PWN::Setup.terminal`: Supported Method Parameters\n\nPWN::Setup.terminal(\n\nyes:     'optional - assume yes; non-interactive (default false)',\ndry_run: 'optional - print what WOULD happen (default false)',\nio:      'optional - IO to write to (default $stdout)'\n\n)\n\nOpt-in installer for SHIFT+ENTER multi-line support in the pwn-ai / pwn-asm REPL. Never runs implicitly — the user invokes it with ‘pwn setup –terminal` after PWNMultiLineInput#ensure_vte_shift_enter tells them their emulator can’t distinguish Shift+Enter from Enter.\n\nWhat it does:\n\n1. Prints the two `~/.tmux.conf` lines that persist the runtime\n   `tmux set -s` calls PWNMultiLineInput already makes.\n2. If running under Terminator (a VTE host), copies\n   third_party/terminator/pwn_shift_enter.py to\n   ~/.config/terminator/plugins/ and enables the PWNShiftEnter\n   plugin in ~/.config/terminator/config — WITH confirmation and\n   a shared recovery backup. This is the only VTE emulator we can fix at\n   the GTK layer without patching libvte itself.\n\nEverything here is host-config mutation, which is why it lives in ‘pwn setup` and NOT in the REPL’s runtime path. See GNOME/vte issues #2601 / #2607 for why VTE can’t be fixed with escape sequences alone.\n"}]}
 {"messages":[{"role":"user","content":"PWN::Setup.which Usage"},{"role":"assistant","content":"`PWN::Setup.which`: "}]}
 {"messages":[{"role":"user","content":"PWN::WWW.authors Usage"},{"role":"assistant","content":"`PWN::WWW.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
 {"messages":[{"role":"user","content":"PWN::WWW.help Usage"},{"role":"assistant","content":"`PWN::WWW.help`: "}]}
 {"messages":[{"role":"user","content":"PWN::WWW::AppCobaltIO.authors Usage"},{"role":"assistant","content":"`PWN::WWW::AppCobaltIO.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
 {"messages":[{"role":"user","content":"PWN::WWW::AppCobaltIO.close Usage"},{"role":"assistant","content":"`PWN::WWW::AppCobaltIO.close`: Supported Method Parameters\n\nbrowser_obj = PWN::WWW::AppCobaltIO.close(\n\nbrowser_obj: 'required - browser_obj returned from #open method'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::WWW::AppCobaltIO.help Usage"},{"role":"assistant","content":"`PWN::WWW::AppCobaltIO.help`: "}]}
-{"messages":[{"role":"user","content":"PWN::WWW::AppCobaltIO.login Usage"},{"role":"assistant","content":"`PWN::WWW::AppCobaltIO.login`: Supported Method Parameters\n\nbrowser_obj = PWN::WWW::AppCobaltIO.login(\n\nbrowser_obj: 'required - browser_obj returned from #open method',\nusername: 'required - username',\npassword: 'optional - passwd (will prompt if blank)',\nmfa: 'optional - if true prompt for mfa token (defaults to false)'\n\n)\n"}]}
+{"messages":[{"role":"user","content":"PWN::WWW::AppCobaltIO.login Usage"},{"role":"assistant","content":"`PWN::WWW::AppCobaltIO.login`: Supported Method Parameters\n\nbrowser_obj = PWN::WWW::AppCobaltIO.login(\n\nbrowser_obj: 'required - browser_obj returned from #open method',\nusername: 'required - username',\npassword: 'optional - passwd (will prompt if blank)',\nmfa: 'optional - if true prompt for mfa token (defaults to false)',\nyubikey: 'optional - Hash selecting an exact OATH account (required :account and literal :confirm true); optional :serial exact decimal String, :reader or :device_path nonempty control-free String, :connection native exchange object, :timeout finite positive seconds (default 30), in-memory :password or callable :secret_provider; serial/reader and reader/device_path are mutually exclusive; no OTP slot; explicit mfa/mfa_token values conflict'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::WWW::AppCobaltIO.logout Usage"},{"role":"assistant","content":"`PWN::WWW::AppCobaltIO.logout`: Supported Method Parameters\n\nbrowser_obj = PWN::WWW::AppCobaltIO.logout(\n\nbrowser_obj: 'required - browser_obj returned from #open method'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::WWW::AppCobaltIO.open Usage"},{"role":"assistant","content":"`PWN::WWW::AppCobaltIO.open`: Supported Method Parameters\n\nbrowser_obj = PWN::WWW::AppCobaltIO.open(\n\nbrowser_type: 'optional - :firefox|:chrome|:ie|:headless (Defaults to :firefox)',\nproxy: 'optional - scheme://proxy_host:port || tor'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::WWW::Bing.authors Usage"},{"role":"assistant","content":"`PWN::WWW::Bing.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
@@ -4729,7 +5299,7 @@
 {"messages":[{"role":"user","content":"PWN::WWW::BugCrowd.authors Usage"},{"role":"assistant","content":"`PWN::WWW::BugCrowd.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
 {"messages":[{"role":"user","content":"PWN::WWW::BugCrowd.close Usage"},{"role":"assistant","content":"`PWN::WWW::BugCrowd.close`: Supported Method Parameters\n\nbrowser_obj = PWN::WWW::BugCrowd.close(\n\nbrowser_obj: 'required - browser_obj returned from #open method'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::WWW::BugCrowd.help Usage"},{"role":"assistant","content":"`PWN::WWW::BugCrowd.help`: "}]}
-{"messages":[{"role":"user","content":"PWN::WWW::BugCrowd.login Usage"},{"role":"assistant","content":"`PWN::WWW::BugCrowd.login`: Supported Method Parameters\n\nbrowser_obj = PWN::WWW::BugCrowd.login(\n\nbrowser_obj: 'required - browser_obj returned from #open method',\nusername: 'required - username',\npassword: 'optional - passwd (will prompt if blank)',\nmfa: 'optional - if true prompt for mfa token (defaults to false)'\n\n)\n"}]}
+{"messages":[{"role":"user","content":"PWN::WWW::BugCrowd.login Usage"},{"role":"assistant","content":"`PWN::WWW::BugCrowd.login`: Supported Method Parameters\n\nbrowser_obj = PWN::WWW::BugCrowd.login(\n\nbrowser_obj: 'required - browser_obj returned from #open method',\nusername: 'required - username',\npassword: 'optional - passwd (will prompt if blank)',\nmfa: 'optional - if true prompt for mfa token (defaults to false)',\nyubikey: 'optional - Hash selecting an exact OATH account (required :account and literal :confirm true); optional :serial exact decimal String, :reader or :device_path nonempty control-free String, :connection native exchange object, :timeout finite positive seconds (default 30), in-memory :password or callable :secret_provider; serial/reader and reader/device_path are mutually exclusive; no OTP slot; explicit mfa/mfa_token values conflict'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::WWW::BugCrowd.logout Usage"},{"role":"assistant","content":"`PWN::WWW::BugCrowd.logout`: Supported Method Parameters\n\nbrowser_obj = PWN::WWW::BugCrowd.logout(\n\nbrowser_obj: 'required - browser_obj returned from #open method'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::WWW::BugCrowd.open Usage"},{"role":"assistant","content":"`PWN::WWW::BugCrowd.open`: Supported Method Parameters\n\nbrowser_obj = PWN::WWW::BugCrowd.open(\n\nbrowser_type: 'optional - :firefox|:chrome|:ie|:headless (Defaults to :firefox)',\nproxy: 'optional - scheme://proxy_host:port || tor'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::WWW::Checkip.authors Usage"},{"role":"assistant","content":"`PWN::WWW::Checkip.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
@@ -4739,7 +5309,7 @@
 {"messages":[{"role":"user","content":"PWN::WWW::CoinbasePro.authors Usage"},{"role":"assistant","content":"`PWN::WWW::CoinbasePro.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
 {"messages":[{"role":"user","content":"PWN::WWW::CoinbasePro.close Usage"},{"role":"assistant","content":"`PWN::WWW::CoinbasePro.close`: Supported Method Parameters\n\nbrowser_obj = PWN::WWW::CoinbasePro.close(\n\nbrowser_obj: 'required - browser_obj returned from #open method'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::WWW::CoinbasePro.help Usage"},{"role":"assistant","content":"`PWN::WWW::CoinbasePro.help`: "}]}
-{"messages":[{"role":"user","content":"PWN::WWW::CoinbasePro.login Usage"},{"role":"assistant","content":"`PWN::WWW::CoinbasePro.login`: Supported Method Parameters\n\nbrowser_obj = PWN::WWW::CoinbasePro.login(\n\nbrowser_obj: 'required - browser_obj returned from #open method',\nusername: 'required - username',\npassword: 'optional - passwd (will prompt if blank)',\nmfa: 'optional - if true prompt for mfa token (defaults to false)'\n\n)\n"}]}
+{"messages":[{"role":"user","content":"PWN::WWW::CoinbasePro.login Usage"},{"role":"assistant","content":"`PWN::WWW::CoinbasePro.login`: Supported Method Parameters\n\nbrowser_obj = PWN::WWW::CoinbasePro.login(\n\nbrowser_obj: 'required - browser_obj returned from #open method',\nusername: 'required - username',\npassword: 'optional - passwd (will prompt if blank)',\nmfa: 'optional - if true prompt for mfa token (defaults to false)',\nyubikey: 'optional - Hash selecting an exact OATH account (required :account and literal :confirm true); optional :serial exact decimal String, :reader or :device_path nonempty control-free String, :connection native exchange object, :timeout finite positive seconds (default 30), in-memory :password or callable :secret_provider; serial/reader and reader/device_path are mutually exclusive; no OTP slot; explicit mfa/mfa_token values conflict'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::WWW::CoinbasePro.logout Usage"},{"role":"assistant","content":"`PWN::WWW::CoinbasePro.logout`: Supported Method Parameters\n\nbrowser_obj = PWN::WWW::CoinbasePro.logout(\n\nbrowser_obj: 'required - browser_obj returned from #open method'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::WWW::CoinbasePro.open Usage"},{"role":"assistant","content":"`PWN::WWW::CoinbasePro.open`: Supported Method Parameters\n\nbrowser_obj = PWN::WWW::CoinbasePro.open(\n\nbrowser_type: 'optional - :firefox|:chrome|:ie|:headless (Defaults to :firefox)',\nproxy: 'optional - scheme://proxy_host:port || tor'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::WWW::Duckduckgo.authors Usage"},{"role":"assistant","content":"`PWN::WWW::Duckduckgo.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
@@ -4757,7 +5327,7 @@
 {"messages":[{"role":"user","content":"PWN::WWW::GitHub.authors Usage"},{"role":"assistant","content":"`PWN::WWW::GitHub.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
 {"messages":[{"role":"user","content":"PWN::WWW::GitHub.close Usage"},{"role":"assistant","content":"`PWN::WWW::GitHub.close`: Supported Method Parameters\n\nbrowser_obj = PWN::WWW::GitHub.close(\n\nbrowser_obj: 'required - browser_obj returned from #open method'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::WWW::GitHub.help Usage"},{"role":"assistant","content":"`PWN::WWW::GitHub.help`: "}]}
-{"messages":[{"role":"user","content":"PWN::WWW::GitHub.login Usage"},{"role":"assistant","content":"`PWN::WWW::GitHub.login`: Supported Method Parameters\n\nbrowser_obj = PWN::WWW::GitHub.login(\n\nbrowser_obj: 'required - browser_obj returned from #open method',\nusername: 'required - username',\npassword: 'optional - passwd (will prompt if blank)',\nmfa: 'optional - MFA / TOTP token string, or true to prompt (defaults to false)',\nmfa_token: 'optional - MFA / TOTP token used to reach a post-authenticated state'\n\n)\n"}]}
+{"messages":[{"role":"user","content":"PWN::WWW::GitHub.login Usage"},{"role":"assistant","content":"`PWN::WWW::GitHub.login`: Supported Method Parameters\n\nbrowser_obj = PWN::WWW::GitHub.login(\n\nbrowser_obj: 'required - browser_obj returned from #open method',\nusername: 'required - username',\npassword: 'optional - passwd (will prompt if blank)',\nmfa: 'optional - MFA / TOTP token string, or true to prompt (defaults to false)',\nmfa_token: 'optional - MFA / TOTP token used to reach a post-authenticated state',\nyubikey: 'optional - Hash selecting an exact OATH account (required :account and literal :confirm true); optional :serial exact decimal String, :reader or :device_path nonempty control-free String, :connection native exchange object, :timeout finite positive seconds (default 30), in-memory :password or callable :secret_provider; serial/reader and reader/device_path are mutually exclusive; no OTP slot; explicit mfa/mfa_token values conflict'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::WWW::GitHub.logout Usage"},{"role":"assistant","content":"`PWN::WWW::GitHub.logout`: Supported Method Parameters\n\nbrowser_obj = PWN::WWW::GitHub.logout(\n\nbrowser_obj: 'required - browser_obj returned from #open method'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::WWW::GitHub.open Usage"},{"role":"assistant","content":"`PWN::WWW::GitHub.open`: Supported Method Parameters\n\nbrowser_obj = PWN::WWW::GitHub.open(\n\nbrowser_type: 'optional - :firefox|:chrome|:ie|:headless (Defaults to :firefox)',\nproxy: 'optional - scheme://proxy_host:port || tor'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::WWW::Google.authors Usage"},{"role":"assistant","content":"`PWN::WWW::Google.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
@@ -4796,14 +5366,14 @@
 {"messages":[{"role":"user","content":"PWN::WWW::Paypal.authors Usage"},{"role":"assistant","content":"`PWN::WWW::Paypal.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
 {"messages":[{"role":"user","content":"PWN::WWW::Paypal.close Usage"},{"role":"assistant","content":"`PWN::WWW::Paypal.close`: Supported Method Parameters\n\nbrowser_obj = PWN::WWW::Paypal.close(\n\nbrowser_obj: 'required - browser_obj returned from #open method'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::WWW::Paypal.help Usage"},{"role":"assistant","content":"`PWN::WWW::Paypal.help`: "}]}
-{"messages":[{"role":"user","content":"PWN::WWW::Paypal.login Usage"},{"role":"assistant","content":"`PWN::WWW::Paypal.login`: Supported Method Parameters\n\nbrowser_obj = PWN::WWW::Paypal.login(\n\nbrowser_obj: 'required - browser_obj returned from #open method',\nusername: 'required - username (email address)',\npassword: 'optional - passwd (will prompt if blank)',\nmfa: 'optional - if true prompt for mfa token (defaults to false)'\n\n)\n"}]}
+{"messages":[{"role":"user","content":"PWN::WWW::Paypal.login Usage"},{"role":"assistant","content":"`PWN::WWW::Paypal.login`: Supported Method Parameters\n\nbrowser_obj = PWN::WWW::Paypal.login(\n\nbrowser_obj: 'required - browser_obj returned from #open method',\nusername: 'required - username (email address)',\npassword: 'optional - passwd (will prompt if blank)',\nmfa: 'optional - if true prompt for mfa token (defaults to false)',\nyubikey: 'optional - rejected: exact OATH account Hash with :serial, :reader, :device_path, :connection, :timeout is unsupported even with confirm: true; this adapter is SMS-only; explicit mfa/mfa_token values conflict; omit to use manual SMS'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::WWW::Paypal.logout Usage"},{"role":"assistant","content":"`PWN::WWW::Paypal.logout`: Supported Method Parameters\n\nbrowser_obj = PWN::WWW::Paypal.logout(\n\nbrowser_obj: 'required - browser_obj returned from #open method'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::WWW::Paypal.open Usage"},{"role":"assistant","content":"`PWN::WWW::Paypal.open`: Supported Method Parameters\n\nbrowser_obj = PWN::WWW::Paypal.open(\n\nbrowser_type: 'optional - :firefox|:chrome|:ie|:headless (Defaults to :firefox)',\nproxy: 'optional - scheme://proxy_host:port || tor'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::WWW::Paypal.signup Usage"},{"role":"assistant","content":"`PWN::WWW::Paypal.signup`: Supported Method Parameters\n\nbrowser_obj = PWN::WWW::Paypal.signup(\n\nbrowser_obj: 'required - browser_obj returned from #open method',\nfirst_name: 'required - first name',\nlast_name: 'required - last name',\naddress: 'required - address',\ncity: 'required - city',\nstate: 'required - state abbreviation',\nzip_code: 'required - zip code',\nmobile_phone: 'required - mobile phone',\nusername: 'required - username (email address)',\npassword: 'optional - passwd (will prompt if blank)',\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::WWW::Synack.authors Usage"},{"role":"assistant","content":"`PWN::WWW::Synack.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
 {"messages":[{"role":"user","content":"PWN::WWW::Synack.close Usage"},{"role":"assistant","content":"`PWN::WWW::Synack.close`: Supported Method Parameters\n\nbrowser_obj = PWN::WWW::Synack.close(\n\nbrowser_obj: 'required - browser_obj returned from #open method'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::WWW::Synack.help Usage"},{"role":"assistant","content":"`PWN::WWW::Synack.help`: "}]}
-{"messages":[{"role":"user","content":"PWN::WWW::Synack.login Usage"},{"role":"assistant","content":"`PWN::WWW::Synack.login`: Supported Method Parameters\n\nbrowser_obj = PWN::WWW::Synack.login(\n\nbrowser_obj: 'required - browser_obj returned from #open method',\nusername: 'required - username',\npassword: 'optional - passwd (will prompt if blank)',\nmfa: 'optional - if true prompt for mfa token (defaults to false)'\n\n)\n"}]}
+{"messages":[{"role":"user","content":"PWN::WWW::Synack.login Usage"},{"role":"assistant","content":"`PWN::WWW::Synack.login`: Supported Method Parameters\n\nbrowser_obj = PWN::WWW::Synack.login(\n\nbrowser_obj: 'required - browser_obj returned from #open method',\nusername: 'required - username',\npassword: 'optional - passwd (will prompt if blank)',\nmfa: 'optional - if true prompt for mfa token (defaults to false)',\nyubikey: 'optional - Hash selecting an exact OATH account (required :account and literal :confirm true); optional :serial exact decimal String, :reader or :device_path nonempty control-free String, :connection native exchange object, :timeout finite positive seconds (default 30), in-memory :password or callable :secret_provider; serial/reader and reader/device_path are mutually exclusive; no OTP slot; explicit mfa/mfa_token values conflict'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::WWW::Synack.logout Usage"},{"role":"assistant","content":"`PWN::WWW::Synack.logout`: Supported Method Parameters\n\nbrowser_obj = PWN::WWW::Synack.logout(\n\nbrowser_obj: 'required - browser_obj returned from #open method'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::WWW::Synack.open Usage"},{"role":"assistant","content":"`PWN::WWW::Synack.open`: Supported Method Parameters\n\nbrowser_obj = PWN::WWW::Synack.open(\n\nbrowser_type: 'optional - :firefox|:chrome|:ie|:headless (Defaults to :firefox)',\nproxy: 'optional - scheme://proxy_host:port || tor'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::WWW::Torch.authors Usage"},{"role":"assistant","content":"`PWN::WWW::Torch.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
@@ -4821,7 +5391,7 @@
 {"messages":[{"role":"user","content":"PWN::WWW::Twitter.authors Usage"},{"role":"assistant","content":"`PWN::WWW::Twitter.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
 {"messages":[{"role":"user","content":"PWN::WWW::Twitter.close Usage"},{"role":"assistant","content":"`PWN::WWW::Twitter.close`: Supported Method Parameters\n\nbrowser_obj = PWN::WWW::Twitter.close(\n\nbrowser_obj: 'required - browser_obj returned from #open method'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::WWW::Twitter.help Usage"},{"role":"assistant","content":"`PWN::WWW::Twitter.help`: "}]}
-{"messages":[{"role":"user","content":"PWN::WWW::Twitter.login Usage"},{"role":"assistant","content":"`PWN::WWW::Twitter.login`: Supported Method Parameters\n\nbrowser_obj = PWN::WWW::Twitter.login(\n\nbrowser_obj: 'required - browser_obj returned from #open method',\nusername: 'required - username',\npassword: 'optional - passwd (will prompt if blank)',\nmfa: 'optional - if true prompt for mfa token (defaults to false)'\n\n)\n"}]}
+{"messages":[{"role":"user","content":"PWN::WWW::Twitter.login Usage"},{"role":"assistant","content":"`PWN::WWW::Twitter.login`: Supported Method Parameters\n\nbrowser_obj = PWN::WWW::Twitter.login(\n\nbrowser_obj: 'required - browser_obj returned from #open method',\nusername: 'required - username',\npassword: 'optional - passwd (will prompt if blank)',\nmfa: 'optional - if true prompt for mfa token (defaults to false)',\nyubikey: 'optional - Hash selecting an exact OATH account (required :account and literal :confirm true); optional :serial exact decimal String, :reader or :device_path nonempty control-free String, :connection native exchange object, :timeout finite positive seconds (default 30), in-memory :password or callable :secret_provider; serial/reader and reader/device_path are mutually exclusive; no OTP slot; explicit mfa/mfa_token values conflict'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::WWW::Twitter.logout Usage"},{"role":"assistant","content":"`PWN::WWW::Twitter.logout`: Supported Method Parameters\n\nbrowser_obj = PWN::WWW::Twitter.logout(\n\nbrowser_obj: 'required - browser_obj returned from #open method'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::WWW::Twitter.open Usage"},{"role":"assistant","content":"`PWN::WWW::Twitter.open`: Supported Method Parameters\n\nbrowser_obj = PWN::WWW::Twitter.open(\n\nbrowser_type: 'optional - :firefox|:chrome|:ie|:headless (Defaults to :firefox)',\nproxy: 'optional - scheme://proxy_host:port || tor'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::WWW::Uber.authors Usage"},{"role":"assistant","content":"`PWN::WWW::Uber.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}

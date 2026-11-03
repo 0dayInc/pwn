@@ -27,7 +27,7 @@ module PWN
         PWN::AI::Agent::Loop
         PWN::AI::Agent::Dispatch
       ].freeze
-      SECRET_KEY_RX = /password|passwd|secret|token|api[_-]?key|authorization|bearer|cookie|session[_-]?id|private[_-]?key|decryptor|credential|ssh[_-]?key|client[_-]?secret|refresh[_-]?token|access[_-]?token|id[_-]?token|vault|csrf/i
+      SECRET_KEY_RX = Regexp.union(PWN::Redaction::MASKED_FIELD, /password|passwd|secret|token|api[_-]?key|authorization|bearer|cookie|session[_-]?id|private[_-]?key|decryptor|credential|ssh[_-]?key|client[_-]?secret|refresh[_-]?token|access[_-]?token|id[_-]?token|vault|csrf/i)
       SECRET_VALUE_RX = %r{
         -----BEGIN\ [A-Z ]*PRIVATE\ KEY----- |
         Bearer\s+[A-Za-z0-9\-._~+/]+=* |
@@ -644,11 +644,13 @@ module PWN
       private_class_method def self.inspect_debug(opts = {})
         val = opts[:value]
         key = opts[:key]
+        return PWN::Redaction::CONSTANT_MASK if key.to_s.match?(PWN::Redaction::MASKED_FIELD)
         return PWN::Redaction.token(kind: 'credential', value: val.to_s) if secret_key?(key: key)
         return PWN::Redaction.token(kind: 'opaque', value: val) if opaque_secret?(key: key, value: val)
         return format_debug_hash(hash: val) if val.is_a?(Hash)
         return sanitize_debug_text(text: val) if val.is_a?(String) && val.match?(SECRET_VALUE_RX)
 
+        val = PWN::Redaction.redact(value: val) if val.is_a?(Array)
         raw = sanitize_debug_text(text: val.inspect)
         raw = "#{raw[0, DEBUG_VALUE_MAX]}…" if raw.length > DEBUG_VALUE_MAX
         raw

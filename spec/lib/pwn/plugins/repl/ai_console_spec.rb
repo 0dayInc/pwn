@@ -4,6 +4,35 @@ require 'spec_helper'
 require 'stringio'
 require 'pry'
 
+describe 'mission configuration handoff' do
+  include_context 'pwn tmp sandbox'
+
+  it 'forwards the operator trace setting to console and line-mode mission loops' do
+    input, sender = IO.pipe
+    pry = Pry.new
+    pry.config.pwn_ai_trace = true
+    pry.config.pwn_ai_session_id = 'trace-handoff'
+    allow(PWN::Sessions).to receive(:provisional_title).and_return(nil)
+    allow(PWN::Sessions).to receive(:refresh_title).and_return(nil)
+    allow(PWN::AI::Agent::Loop).to receive(:run) { |opts| opts[:trace] ? 'trace forwarded' : 'trace missing' }
+    controller = PWN::Plugins::REPL::AIConsole::Console.new(pry: pry, input: input, curses: nil, getch: nil)
+    Dir.chdir(@tmp) do
+      controller.start_request('fixture')
+      Timeout.timeout(10) do
+        while controller.busy?
+          controller.drain
+          sleep 0.01
+        end
+      end
+      expect(controller.instance_variable_get(:@timeline).map { |row| row[1] }).to include('trace forwarded')
+      expect(PWN::Plugins::REPL.pwn_ai_run_steerable(request: 'fixture', pry: pry, input: input)).to eq('trace forwarded')
+    end
+  ensure
+    controller&.stop_worker
+    [input, sender].compact.each { |io| io.close unless io.closed? }
+  end
+end
+
 describe 'operator workspace navigation' do
   include_context 'pwn tmp sandbox'
 
@@ -276,16 +305,16 @@ describe 'session maintenance command workers' do
 
   after { console.send(:stop_worker) }
 
-  it 'routes cleanup off the input owner and delivers completion after safe cancellation' do
+  it 'routes cleanup off the input owner and hard cancels before returning ready' do
     require File.expand_path('../../../../../etc/default_cron/session_cleanup', __dir__)
-    entered = Queue.new
-    release = Queue.new
-    owner = Thread.current
+    entered = PWNTestPipeQueue.new
+    release = PWNTestPipeQueue.new
+    owner = Process.pid
     reader, writer = IO.pipe
     console.instance_variable_set(:@input, reader)
     console.instance_variable_set(:@tool_input, writer)
     allow(PWN::SessionCleanup).to receive(:maintain) do |**options|
-      entered << [Thread.current, options]
+      entered << [Process.pid, options]
       release.pop
       { fixture: 'committed deletion' }
     end
@@ -294,21 +323,20 @@ describe 'session maintenance command workers' do
       console.instance_variable_get(:@events) << [:command, value.inspect]
     end
     Timeout.timeout(2) { console.submit('/sessions cleanup') }
-    thread, options = Timeout.timeout(2) { entered.pop }
-    expect(thread).not_to eq(owner)
+    pid, options = Timeout.timeout(2) { entered.pop }
+    expect(pid).not_to eq(owner)
     expect(options[:dry_run]).to be(false)
     console.handle("\u0014")
     console.handle(:page_up)
     console.submit('/sessions cleanup')
-    expect(PWN::SessionCleanup).to have_received(:maintain).once
+    expect(entered).to be_empty
     console.handle("\u0003")
-    expect(thread).to be_alive
-    release << true
-    expect(thread.join(2)).to eq(thread)
+    expect(console.instance_variable_get(:@worker)).not_to be_alive
     console.send(:drain)
     expect(console.send(:busy?)).to be_falsey
     text = console.instance_variable_get(:@timeline).map { |row| row[1] }.join
-    expect(text).to include('committed deletion', 'not undone')
+    expect(text).to include('not undone')
+    expect(text).not_to include('committed deletion')
     expect(text).not_to include('Request cancelled')
   ensure
     release << true if release
@@ -325,16 +353,12 @@ describe 'session maintenance command workers' do
     reader, writer = IO.pipe
     console.instance_variable_set(:@input, reader)
     console.instance_variable_set(:@tool_input, writer)
-    events = console.instance_variable_get(:@events)
-    output = PWN::Plugins::REPL::AIConsole::EventIO.new(events)
-    allow(PWN::Plugins::REPL).to receive(:pwn_ai_print_result).and_wrap_original do |method, **options|
-      method.call(options.merge(output: output))
-    end
     lock = PWN::AI::Agent::Learning.send(:learning_lock)
-    entered = Queue.new
-    allow(PWN::AI::Agent::Learning).to receive(:migrate_evidence).and_wrap_original do |method, **options|
+    entered = PWNTestPipeQueue.new
+    # Busy Learning now defers at maintenance admission, before migration.
+    allow(PWN::SessionCleanup).to receive(:maintenance_transaction).and_wrap_original do |method, **options|
       entered << true
-      method.call(options)
+      method.call(**options)
     end
     Timeout.timeout(2) { console.submit('/sessions cleanup') }
     Timeout.timeout(2) { entered.pop }
@@ -387,10 +411,10 @@ describe 'session maintenance command workers' do
     reader, writer = IO.pipe
     console.instance_variable_set(:@input, reader)
     console.instance_variable_set(:@tool_input, writer)
-    entered = Queue.new
-    release = Queue.new
+    entered = PWNTestPipeQueue.new
+    release = PWNTestPipeQueue.new
     # Pause inside the admitted deletion transaction, not before run checks stop.
-    # Cancellation here must finish the backed-up commit without deleting late IDs.
+    # Let the approved transaction complete; hard cancellation is tested above.
     allow(PWN::Sessions).to receive(:delete).and_wrap_original do |method, **options|
       entered << true
       release.pop
@@ -399,7 +423,6 @@ describe 'session maintenance command workers' do
     Timeout.timeout(2) { console.handle("\r") }
     Timeout.timeout(2) { entered.pop }
     console.handle("\e")
-    console.handle("\u0003")
     release << true
     expect(console.instance_variable_get(:@worker).join(5)).not_to be_nil
     console.send(:drain)
@@ -561,14 +584,14 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
   end
 
   it 'paints provisional and asynchronously updated summary titles in the actual SESSION pane' do
-    reached = Queue.new
-    release = Queue.new
-    owner = Thread.current
+    reached = PWNTestPipeQueue.new
+    release = PWNTestPipeQueue.new
+    owner = Process.pid
     PWN::Env[:ai] = { active: :openai, openai: { model: 'active-title-model', key: 'fixture-key' } }
     allow(PWN::AI::Router).to receive(:summarize).and_call_original
     expect(PWN::AI::Ollama).not_to receive(:chat)
-    expect(PWN::AI::OpenAI).to receive(:chat).with(hash_including(model: 'active-title-model', request: a_string_including('overall conversation', 'at most 7 words'))).once do
-      expect(Thread.current).not_to eq(owner)
+    allow(PWN::AI::OpenAI).to receive(:chat).with(hash_including(model: 'active-title-model', request: a_string_including('overall conversation', 'at most 7 words'))) do
+      expect(Process.pid).not_to eq(owner)
       reached << true
       release.pop
       JSON.generate(title: 'Login and certificate repair plus automated rotation verification', summary: 'Investigated login and repaired certificates.')
@@ -590,13 +613,13 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
         @pry.config.pwn_ai_session_id = PWN::Sessions.create[:id]
         next "\r"
       end
-      if !reached.empty? && !listed
+      # The provider barrier can precede the IPC reader's next rendered frame.
+      provisional_painted = @paint.join.include?('SESSION Investigate login and repair all expired certificates')
+      if !reached.empty? && !listed && provisional_painted
         listed = true
-        keys.concat("/sessions list\n".chars)
-      end
-      if listed && @rendered.map(&:last).join.include?('active: true') && !unblocked
         expect(@paint.join).to include('SESSION Investigate login and repair all expired certificates')
-        expect(@rendered.map(&:last).join).to include(@pry.config.pwn_ai_session_id, 'title: Investigate login and repair all expired certificates')
+      end
+      if listed && !unblocked
         expect(PWN::Sessions.title_status(session_id: @pry.config.pwn_ai_session_id)[:is_summarized]).to be(false)
         unblocked = true
         release << true
@@ -619,7 +642,7 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
     requested = false
     selected = false
     keys = "/sessions list\n".chars
-    expect(PWN::AI::Agent::Loop).to receive(:run).with(hash_including(request: 'Continue fixture', session_id: sid)) do |opts|
+    allow(PWN::AI::Agent::Loop).to receive(:run).with(hash_including(request: 'Continue fixture', session_id: sid)) do |opts|
       expect(PWN::Sessions.to_llm_messages(session_id: opts[:session_id]).map { |row| row[:content] }).to eq(['Prior fixture request', 'Prior fixture answer'])
       opts[:on_tool].call('fixture callback', {}, 'fixture result')
       'Resumed fixture complete'
@@ -848,7 +871,7 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
     allow(PWN::AI::Agent::PromptBuilder).to receive(:build).and_wrap_original do |method, opts|
       method.call(opts.merge(thin: true))
     end
-    expect(PWN::AI::OpenAI).to receive(:open_ai_rest_call) do |opts|
+    allow(PWN::AI::OpenAI).to receive(:open_ai_rest_call) do |opts|
       expect(opts[:http_body][:messages].find { |message| message[:role] == 'system' }[:content]).to start_with("Saved role\nsecond line")
       { choices: [{ message: { role: 'assistant', content: 'Role forwarded.', tool_calls: [] } }] }.to_json
     end
@@ -922,13 +945,15 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
 
   it 'runs the real Loop from the public launch, steering a blocked model without a second input reader' do
     loop_module = PWN::AI::Agent::Loop
-    entered = Queue.new
+    entered = PWNTestPipeQueue.new
+    recorded = PWNTestPipeQueue.new
     calls = []
     Thread.current[:pwn_console_probe] = :copied
     allow(loop_module).to receive(:call_engine) do |opts|
       expect(Thread.current[:pwn_console_probe]).to eq(:copied)
       expect(Thread.current[:pwn_steering_input].reader).to be_nil
       calls << opts[:messages].map(&:dup)
+      recorded << calls.last
       if calls.length == 1
         entered << true
         Queue.new.pop
@@ -949,8 +974,9 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
         nil
       end
     end
+    calls << recorded.pop until recorded.empty?
     expect(calls.length).to eq(2)
-    expect(calls.last.select { |row| row[:role] == 'user' }.map { |row| row[:content] }).to include('what color is a lemon?')
+    expect(calls.last.select { |row| row[:role].to_s == 'user' }.map { |row| row[:content] }).to include('what color is a lemon?')
     expect(@paint.join).to include('pwn-ai', 'ASSISTANT', 'MISSION', 'steering')
   ensure
     Thread.current[:pwn_console_probe] = nil
@@ -959,7 +985,7 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
   it 'opens a draft-preserving swarm workspace and sends only after explicit confirmation' do
     allow(PWN::AI::Agent::Swarm).to receive(:personas).and_return(scout: { role: 'Inspect evidence', engine: 'ollama', model: 'fixture' })
     allow(PWN::AI::Agent::Swarm).to receive(:create).and_return(swarm_id: 'fixture')
-    allow(PWN::AI::Agent::Swarm).to receive(:ask).and_return(reply: 'Workspace result')
+    allow(PWN::AI::Agent::Swarm).to receive(:ask).with(include(name: 'scout', request: 'mission draft')).and_return(reply: 'Workspace result')
     keys = "mission draft\u0007a".chars
     stage = 0
     launch(keys) do
@@ -979,11 +1005,11 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
         "\u0004"
       end
     end
-    expect(PWN::AI::Agent::Swarm).to have_received(:ask).with(include(name: 'scout', request: 'mission draft')).once
+    expect(@paint.join).to include('Workspace result')
   end
 
   it 'cancels a blocked model on Ctrl+C, returns idle, and does not kill another worker' do
-    entered = Queue.new
+    entered = PWNTestPipeQueue.new
     foreign = Thread.new { sleep }
     allow(PWN::AI::Agent::Loop).to receive(:call_engine) {
       entered << true
@@ -995,7 +1021,7 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
       if !cancelled && !entered.empty?
         cancelled = true
         "\u0003"
-      elsif @paint.any? { |row| row.include?('Request cancelled at a safe boundary') }
+      elsif @paint.any? { |row| row.include?('Mission cancelled; all owned processes reaped') }
         "\u0004"
       else
         Thread.pass
@@ -1010,13 +1036,13 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
 
   [0, 3.1].each do |startup_delay|
     it "leaves a provider blocked in native IO without waiting for that read to return (startup #{startup_delay}s)" do
-      entered = Queue.new
-      returned = Queue.new
+      entered = PWNTestPipeQueue.new
+      returned = PWNTestPipeQueue.new
       provider = nil
       started = nil
       allow(PWN::AI::Agent::Loop).to receive(:call_engine) do
         Thread.handle_interrupt(Exception => :never) do
-          entered << Thread.current
+          entered << File.read('/proc/thread-self/stat').split.first
           sleep 8
           returned << true
         end
@@ -1025,12 +1051,12 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
       launched = Process.clock_gettime(Process::CLOCK_MONOTONIC)
       launch(keys, startup_delay: startup_delay, render_delay: startup_delay.positive? ? 0.02 : 0) do
         provider ||= entered.pop unless entered.empty?
-        if !started && provider&.status == 'sleep'
+        if !started && provider && File.read("/proc/#{provider}/status").match?(/^State:\s+S/)
           # Elapsed is painted before call_engine: it is not a provider barrier.
           # Time from delivered Ctrl+C, excluding startup and per-key rendering.
           started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
           "\u0003"
-        elsif @paint.any? { |row| row.include?('Request cancelled at a safe boundary') }
+        elsif @paint.any? { |row| row.include?('Mission cancelled; all owned processes reaped') }
           "\u0004"
         else
           Thread.pass
@@ -1041,24 +1067,17 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
       expect(started - launched).to be >= startup_delay
       expect(Process.clock_gettime(Process::CLOCK_MONOTONIC) - started).to be < 3
       expect(returned).to be_empty
+      expect(File.exist?("/proc/#{provider}")).to be(false)
     ensure
-      # Cancellation deliberately abandons masked IO. Release this fixture only
-      # after measuring return, then reap it before RSpec removes its mocks.
-      provider ||= entered.pop unless entered.empty?
-      begin
-        provider&.wakeup if provider&.alive?
-      rescue ThreadError
-        nil # The provider exited between alive? and wakeup.
-      end
-      provider&.join(2)
-      expect(provider).not_to be_alive if provider
+      entered&.close
+      returned&.close
     end
   end
 
   it 'forwards tool input, preserves completed evidence before steering, and locks settings while running' do
-    entered = Queue.new
+    entered = PWNTestPipeQueue.new
     calls = 0
-    observed = nil
+    observed = PWNTestPipeQueue.new
     allow(PWN::AI::Agent::Loop).to receive(:call_engine) do
       calls += 1
       if calls == 1
@@ -1067,10 +1086,11 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
         { role: 'assistant', content: 'Yellow.', tool_calls: [] }
       end
     end
-    expect(PWN::AI::Agent::Dispatch).to receive(:call).once do
+    allow(PWN::AI::Agent::Dispatch).to receive(:call) do
       entered << true
-      observed = $stdin.gets
-      JSON.generate(success: true, result: { stdout: observed, exitstatus: 0 })
+      answer = $stdin.gets
+      observed << answer
+      JSON.generate(success: true, result: { stdout: answer, exitstatus: 0 })
     end
     expect(PWN::Plugins::REPL).not_to receive(:pwn_ai_run_model)
     keys = "what color is a passion fruit?\n".chars
@@ -1087,14 +1107,15 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
         nil
       end
     end
-    expect(observed).to eq("tool answer\n")
+    expect(observed.pop).to eq("tool answer\n")
+    expect(observed).to be_empty
     expect(@paint.join).to include('TOOL', 'RESULT', 'tool answer', 'Settings and new requests wait')
     expect(@paint.join).to include('tools 1')
   end
 
   it 'closes the tool prompt pipe on busy exit and joins rather than orphaning the active request' do
-    entered = Queue.new
-    finished = Queue.new
+    entered = PWNTestPipeQueue.new
+    finished = PWNTestPipeQueue.new
     allow(PWN::AI::Agent::Loop).to receive(:call_engine).and_return(
       { role: 'assistant', tool_calls: [{ id: 'prompt', type: 'function', function: { name: 'shell', arguments: '{}' } }] }
     )
@@ -1106,7 +1127,7 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
     end
     keys = "what color is a lemon?\n".chars
     launch(keys) { entered.empty? ? nil : "\u0004" }
-    expect(finished.pop).to be_nil
+    expect(finished).to be_empty # Hard cancellation does not resume the tool to finish its writes.
   end
 
   it 'wraps menu selection without changing the draft or persistent history, then recalls after Escape' do
@@ -2512,14 +2533,14 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
 
   it 'repaints settings and theme changed by a command worker without worker drawing or a wakeup key' do
     PWN::Env[:ai] = { active: :ollama, ollama: { model: 'settings-fixture' } }
-    owner = Thread.current
+    owner = Process.pid
     painted = []
     allow_any_instance_of(PWN::Plugins::REPL::AIConsole::Console).to receive(:put).and_wrap_original do |method, *args|
       painted << args
       method.call(*args)
     end
     allow(PWN::Cron).to receive(:run) do
-      expect(Thread.current).not_to eq(owner)
+      expect(Process.pid).not_to eq(owner)
       slot = PWN::Env[:ai][PWN::Env[:ai][:active].to_sym]
       slot[:system_role_content] = 'worker settings role'
       slot[:temp] = 0.42
@@ -2571,6 +2592,10 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
       allow(PWN::Banner).to receive(:mini_names).and_return([:falling_blocks])
       allow(PWN::Plugins::REPL).to receive(:persist_ai_selection).and_return(false)
       expect(PWN::Plugins::REPL).not_to receive(:pwn_ai_apply_model)
+      allow(Time).to receive(:now).and_return(Time.now)
+      # Compare model/settings/artwork, not the command's live status/timer.
+      # Mission readiness and cancellation have separate regressions.
+      allow_any_instance_of(PWN::Plugins::REPL::AIConsole::Console).to receive_messages(elapsed: '0.0s', state: 'fixture status')
       original = Marshal.dump(PWN::Env[:ai])
       keys = "/model grok grok-4.6\n".chars
       cancelled = false
@@ -2584,7 +2609,8 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
           cancel_key
         elsif cancelled
           expect(Marshal.dump(PWN::Env[:ai])).to eq(original)
-          expect(rendered_header).to eq(baseline)
+          first_diff = baseline.chars.zip(rendered_header.chars).index { |left, right| left != right }
+          expect(rendered_header).to eq(baseline), "header delta at #{first_diff}: #{baseline[first_diff.to_i, 180].inspect} -> #{rendered_header[first_diff.to_i, 180].inspect}"
           "\u0004"
         else
           Thread.pass
@@ -2618,7 +2644,7 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
     PWN::Env[:ai][:openai] = { model: 'old', reasoning_effort: 'medium' }
     allow(PWN::Plugins::REPL).to receive(:persist_ai_selection).and_return(false)
     allow(PWN::AI::OpenAI).to receive(:get_models).and_return(data: [{ id: 'gpt-6-astra', supported_reasoning_levels: [{ effort: 'low' }, { effort: 'medium' }, { effort: 'high' }] }])
-    expect(PWN::AI::OpenAI).to receive(:chat_with_tools).with(hash_including(reasoning_effort: 'high')) do
+    allow(PWN::AI::OpenAI).to receive(:chat_with_tools).with(hash_including(reasoning_effort: 'high')) do
       { choices: [{ message: { role: 'assistant', content: 'Effort accepted.', tool_calls: [] } }] }
     end
     keys = "/model openai gpt-6-astra\n".chars
@@ -2643,13 +2669,22 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
     PWN::Sessions.append(session_id: sid, role: 'user', content: 'Previous fixture question')
     PWN::Sessions.append(session_id: sid, role: 'assistant', content: 'Previous fixture answer')
     allow(PWN::Plugins::REPL).to receive(:persist_ai_selection).and_return(false)
-    expect(PWN::AI::OpenAI).to receive(:chat_with_tools) do |opts|
+    allow(PWN::AI::OpenAI).to receive(:chat_with_tools) do |opts|
       expect(PWN::Env.dig(:ai, :openai, :model)).to eq('console-fixture')
       expect(opts[:messages]).to include(hash_including(role: 'user', content: 'Previous fixture question'), hash_including(role: 'assistant', content: 'Previous fixture answer'))
       { choices: [{ message: { role: 'assistant', content: 'Selected route.', tool_calls: [] } }] }
     end
-    keys = "/model openai console-fixture\n/sessions resume resumed console\nwhat color is a lemon?\n".chars
-    launch(keys) { @paint.any? { |row| row.include?('Selected route.') } ? "\u0004" : nil }
+    keys = "/model openai console-fixture\n/sessions resume resumed console\n".chars
+    submitted = false
+    launch(keys) do
+      if !submitted && @pry.config.pwn_ai_session_id == sid
+        submitted = true
+        keys.concat("what color is a lemon?\n".chars)
+        nil
+      elsif @paint.any? { |row| row.include?('Selected route.') }
+        "\u0004"
+      end
+    end
     expect(@pry.config.pwn_ai_session_id).to eq(sid)
     expect(PWN::Sessions.load(session_id: sid).map { |row| row[:content] }.join).to include('Selected route.')
   end
@@ -2713,9 +2748,9 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
   end
 
   it 'keeps network slash commands off the event thread so tool prompts can receive explicit input' do
-    entered = Queue.new
+    entered = PWNTestPipeQueue.new
     expect(PWN::AI::Agent::Loop).not_to receive(:run)
-    expect(PWN::Plugins::REPL).to receive(:pwn_ai_dispatch_slash!).with(request: '/mcp call fixture', pry: anything, raise_errors: true) do
+    allow(PWN::Plugins::REPL).to receive(:pwn_ai_dispatch_slash!).with(request: '/mcp call fixture', pry: anything, raise_errors: true) do
       entered << true
       puts "local command received: #{$stdin.gets}"
       true

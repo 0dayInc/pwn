@@ -155,6 +155,10 @@ module PWNSandboxDriver
           command = ['bwrap', '--unshare-all', '--die-with-parent', '--new-session', '--cap-drop', 'ALL', '--clearenv', '--setenv', 'PATH', '/usr/bin:/bin', '--ro-bind', '/usr', '/usr']
           %w[/lib /lib64 /bin /sbin].each { |name| command.push('--ro-bind', name, name) if File.exist?(name) }
           command.push('--proc', '/proc', '--dev', '/dev', '--tmpfs', '/tmp', '--ro-bind', artifacts, '/artifacts', '--chdir', '/tmp', File.realpath('/usr/bin/ruby'), '/artifacts/worker.rb', '--inside')
+          # A nonroot caller inside a user namespace may retain capabilities;
+          # bubblewrap rejects those before creating its own namespace.
+          effective = File.read('/proc/self/status')[/^CapEff:\s+(\h+)/, 1].to_i(16)
+          command.unshift('setpriv', '--ambient-caps=-all', '--inh-caps=-all', '--bounding-set=-all', '--') if !Process.uid.zero? && effective.positive?
         end
         begin
           result = bounded(command, (seconds * 3) + 10, JSON.generate(payload))

@@ -7,12 +7,16 @@ require 'json'
 require 'fileutils'
 require 'securerandom'
 require 'time'
+require 'tempfile'
+require 'tmpdir'
 
 module PWN
   module Plugins
     # Used to encrypt/decrypt configuration files leveraging AES256
     module Vault
       CREDENTIAL_KDF_ITERATIONS = 600_000
+      YUBIKEY_KDF = 'yubikey-hmac-sha1-hkdf-sha256'
+      YUBIKEY_HEADER = "PWN-YUBIKEY-VAULT:1\n"
 
       # Returns an authenticated envelope; the caller persists only this value.
       # keyring is an injected OS-keyring reader responding to call(key_id).
@@ -22,6 +26,13 @@ module PWN
                      'key_id' => opts[:key_id] || 'pwn-ai-credentials',
                      'iterations' => CREDENTIAL_KDF_ITERATIONS,
                      'salt' => Base64.strict_encode64(OpenSSL::Random.random_bytes(16)) }
+        unless opts[:yubikey].nil?
+          selector = yubikey_options(value: opts[:yubikey])
+          raise ArgumentError, 'Choose YubiKey, passphrase, or keyring, not a combination' if opts[:passphrase] || opts[:keyring]
+
+          envelope['kdf'] = YUBIKEY_KDF
+          envelope['yubikey'] = selector.slice(:slot, :serial).transform_keys(&:to_s).merge('challenge' => Base64.strict_encode64(OpenSSL::Random.random_bytes(32)))
+        end
         cipher = OpenSSL::Cipher.new('aes-256-gcm')
         cipher.encrypt
         cipher.key = credential_key(opts.merge(envelope: envelope))
@@ -54,6 +65,10 @@ module PWN
 
       private_class_method def self.credential_key(opts = {})
         envelope = opts.fetch(:envelope)
+        return yubikey_key(opts) if envelope['kdf'] == YUBIKEY_KDF
+
+        raise ArgumentError, 'Envelope is not protected by YubiKey' unless opts[:yubikey].nil?
+
         if envelope['kdf'] == 'keyring'
           reader = opts[:keyring]
           raise ArgumentError, 'OS keyring reader required' unless reader.respond_to?(:call)
@@ -75,9 +90,213 @@ module PWN
         OpenSSL::PKCS5.pbkdf2_hmac(passphrase, salt, CREDENTIAL_KDF_ITERATIONS, 32, 'sha256')
       end
 
+      private_class_method def self.yubikey_options(opts = {})
+        value = opts[:value]
+        raise ArgumentError, 'yubikey must be a selector Hash' unless value.is_a?(Hash)
+        raise ArgumentError, 'YubiKey selector keys must be Strings or Symbols' unless value.keys.all? { |key| key.is_a?(String) || key.is_a?(Symbol) }
+
+        selector = value.transform_keys(&:to_sym)
+        raise ArgumentError, 'Unknown YubiKey selector option' unless (selector.keys - %i[slot serial timeout reader device_path connection]).empty?
+
+        selector[:slot] = selector.fetch(:slot, 2)
+        raise ArgumentError, 'YubiKey HMAC slot must be 1 or 2' unless selector[:slot].is_a?(Integer) && [1, 2].include?(selector[:slot])
+
+        serial = selector[:serial]
+        raise ArgumentError, 'YubiKey serial must be a decimal String' unless serial.nil? || (serial.is_a?(String) && serial.match?(/\A[0-9]+\z/))
+
+        timeout = selector[:timeout]
+        raise ArgumentError, 'YubiKey timeout must be finite positive seconds' unless timeout.nil? || ((timeout.is_a?(Integer) || timeout.is_a?(Float)) && timeout.finite? && timeout.positive?)
+
+        %i[reader device_path].each do |field|
+          name = selector[field]
+          raise ArgumentError, "YubiKey #{field} must be a nonempty String without control characters" unless name.nil? || (name.is_a?(String) && name.valid_encoding? && !name.empty? && !name.match?(/[[:cntrl:]]/))
+        end
+        raise ArgumentError, 'YubiKey serial and reader selectors are mutually exclusive' if !serial.nil? && !selector[:reader].nil?
+        raise ArgumentError, 'YubiKey reader and device_path selectors are mutually exclusive' if !selector[:reader].nil? && !selector[:device_path].nil?
+
+        connection = selector[:connection]
+        raise ArgumentError, 'YubiKey connection must respond to exchange' unless connection.nil? || connection.respond_to?(:exchange)
+
+        selector
+      end
+
+      private_class_method def self.yubikey_key(opts = {})
+        raise ArgumentError, 'Hardware envelopes do not accept software credentials' if opts[:passphrase] || opts[:keyring]
+
+        envelope = opts.fetch(:envelope)
+        metadata = envelope.fetch('yubikey')
+        raise ArgumentError, 'Invalid YubiKey envelope metadata' unless metadata.is_a?(Hash) && (metadata.keys - %w[slot serial challenge]).empty?
+
+        selector = yubikey_options(value: metadata.slice('slot', 'serial'))
+        override = opts[:yubikey]
+        unless override.nil?
+          raise ArgumentError, 'yubikey must be a selector Hash' unless override.is_a?(Hash)
+
+          override = yubikey_options(value: selector.merge(override.transform_keys(&:to_sym)))
+          raise ArgumentError, 'YubiKey slot does not match the envelope' unless override[:slot] == selector[:slot]
+
+          selector = selector.merge(override)
+        end
+        challenge = Base64.strict_decode64(metadata.fetch('challenge'))
+        salt = Base64.strict_decode64(envelope.fetch('salt'))
+        raise ArgumentError, 'Invalid YubiKey envelope challenge or salt' unless challenge.bytesize == 32 && salt.bytesize == 16
+
+        response = PWN::Plugins::YubiKey.challenge_response(selector.merge(challenge: challenge))
+        raise IOError, 'Invalid YubiKey HMAC response' unless response.is_a?(String) && response.bytesize == 20
+
+        OpenSSL::KDF.hkdf(response, salt: salt, info: 'pwn-vault-credentials-v1', length: 32, hash: 'SHA256')
+      end
+
       private_class_method def self.credential_aad(opts = {})
         envelope = opts.fetch(:envelope)
         JSON.generate(envelope.except('ct', 'tag').sort.to_h)
+      end
+
+      # Ciphertext-only callers use these primitives without a plaintext file stage.
+      public_class_method def self.encrypt_data(opts = {})
+        data = opts.fetch(:data)
+        raise ArgumentError, 'data must be a String' unless data.is_a?(String)
+
+        unless opts[:yubikey].nil?
+          raise ArgumentError, 'YubiKey encryption does not accept a software key or IV' if opts[:key] || opts[:iv]
+
+          envelope = seal_credentials(credentials: { 'data' => Base64.strict_encode64(data) }, yubikey: opts[:yubikey])
+          return "#{YUBIKEY_HEADER}#{JSON.generate(envelope)}\n"
+        end
+        cipher = OpenSSL::Cipher.new('aes-256-cbc')
+        cipher.encrypt
+        cipher.key = Base64.strict_decode64(opts[:key] || PWN::Plugins::AuthenticationHelper.mask_password(prompt: 'Key'))
+        cipher.iv = Base64.strict_decode64(opts[:iv] || PWN::Plugins::AuthenticationHelper.mask_password(prompt: 'IV'))
+        "#{Base64.strict_encode64((data.empty? ? ''.b : cipher.update(data)) + cipher.final)}\n"
+      end
+
+      public_class_method def self.decrypt_data(opts = {})
+        data = opts.fetch(:data)
+        raise ArgumentError, 'data must be a String' unless data.is_a?(String)
+
+        if data.start_with?('PWN-YUBIKEY-VAULT:')
+          raise ArgumentError, 'Hardware vaults do not accept a software key or IV' if opts[:key] || opts[:iv]
+
+          envelope = hardware_envelope(data: data)
+          return Base64.strict_decode64(open_credentials(envelope: envelope, yubikey: opts[:yubikey]).fetch('data'))
+        end
+        raise ArgumentError, 'Vault is not protected by YubiKey' unless opts[:yubikey].nil?
+
+        cipher = OpenSSL::Cipher.new('aes-256-cbc')
+        cipher.decrypt
+        cipher.key = Base64.strict_decode64(opts[:key] || PWN::Plugins::AuthenticationHelper.mask_password(prompt: 'Key'))
+        cipher.iv = Base64.strict_decode64(opts[:iv] || PWN::Plugins::AuthenticationHelper.mask_password(prompt: 'IV'))
+        cipher.update(Base64.strict_decode64(data.chomp)) + cipher.final
+      end
+
+      public_class_method def self.hardware_encrypted?(opts = {})
+        data = opts[:data] || File.binread(opts.fetch(:file), YUBIKEY_HEADER.bytesize)
+        data.start_with?('PWN-YUBIKEY-VAULT:')
+      end
+
+      # Resolve a self-describing hardware vault or a legacy key/IV sidecar.
+      # Never prompt or read a software decryptor for a hardware envelope.
+      public_class_method def self.access_options(opts = {})
+        file = opts.fetch(:file)
+        if hardware_encrypted?(file: file)
+          raise ArgumentError, 'Hardware vaults do not accept a software key or IV' if opts[:key] || opts[:iv]
+
+          metadata = hardware_envelope(data: File.binread(file)).fetch('yubikey')
+          selector = metadata.slice('slot', 'serial').transform_keys(&:to_sym)
+          unless opts[:yubikey].nil?
+            raise ArgumentError, 'yubikey must be a selector Hash' unless opts[:yubikey].is_a?(Hash)
+
+            selector = selector.merge(opts[:yubikey].transform_keys(&:to_sym))
+          end
+          return { yubikey: yubikey_options(value: selector) }
+        end
+        raise ArgumentError, 'Vault is not protected by YubiKey' unless opts[:yubikey].nil?
+
+        key = opts[:key]
+        iv = opts[:iv]
+        path = opts[:decryptor_file] || "#{file}.decryptor"
+        if (!key || !iv) && File.file?(path)
+          sidecar = YAML.safe_load_file(path, permitted_classes: [Symbol], aliases: false, symbolize_names: true)
+          raise ArgumentError, 'Invalid vault decryptor' unless sidecar.is_a?(Hash)
+
+          key ||= sidecar[:key]
+          iv ||= sidecar[:iv]
+        end
+        key ||= ENV.fetch('PWN_DECRYPTOR_KEY', nil)
+        iv ||= ENV.fetch('PWN_DECRYPTOR_IV', nil)
+        raise ArgumentError, 'Vault key and IV required' unless key.is_a?(String) && iv.is_a?(String) && !key.empty? && !iv.empty?
+
+        { key: key, iv: iv }
+      end
+
+      # Mutate a YAML document in memory and atomically publish only ciphertext.
+      public_class_method def self.update(opts = {})
+        file = File.expand_path(opts.fetch(:file))
+        with_vault_lock(file: file) do
+          bytes = File.binread(file)
+          access = access_options(opts)
+          plaintext = decrypt_data(access.merge(data: bytes)).force_encoding(Encoding::UTF_8)
+          document = YAML.safe_load(plaintext, permitted_classes: [Symbol], aliases: true, symbolize_names: true)
+          raise ArgumentError, 'Vault configuration must be a mapping' unless document.is_a?(Hash)
+
+          yield document
+          ciphertext = encrypt_data(access.merge(data: YAML.dump(document)))
+          publish_data(file: file, data: ciphertext, expected: bytes)
+        end
+        :saved
+      end
+
+      private_class_method def self.hardware_envelope(opts = {})
+        data = opts.fetch(:data)
+        raise ArgumentError, 'Unsupported YubiKey vault format' unless data.start_with?(YUBIKEY_HEADER)
+
+        envelope = JSON.parse(data.delete_prefix(YUBIKEY_HEADER))
+        raise ArgumentError, 'Invalid YubiKey vault envelope' unless envelope.is_a?(Hash) && envelope['kdf'] == YUBIKEY_KDF
+
+        envelope
+      end
+
+      # Share the editor's stable directory lock. Reentrancy is internal, never an
+      # option callers can supply to bypass locking; inode identity covers aliases.
+      private_class_method def self.with_vault_lock(opts = {})
+        path = File.expand_path(opts.fetch(:file))
+        File.open(File.dirname(path), File::RDONLY) do |lock|
+          stat = lock.stat
+          identity = [Process.pid, stat.dev, stat.ino]
+          held = Thread.current[:pwn_vault_locks] ||= {}
+          return yield if held.key?(identity)
+
+          lock.flock(File::LOCK_EX)
+          begin
+            held[identity] = lock
+            yield
+          ensure
+            held.delete(identity)
+            Thread.current[:pwn_vault_locks] = nil if held.empty?
+            lock.flock(File::LOCK_UN)
+          end
+        end
+      end
+
+      private_class_method def self.publish_data(opts = {})
+        path = File.expand_path(opts.fetch(:file))
+        with_vault_lock(file: path) do
+          stat = File.lstat(path)
+          raise IOError, 'Vault must be an owned regular file without links' unless stat.file? && stat.uid == Process.uid && stat.nlink == 1
+
+          Tempfile.create(['.pwn-vault-', '.tmp'], File.dirname(path)) do |temp|
+            temp.binmode
+            temp.chmod(0o600)
+            temp.write(opts.fetch(:data))
+            temp.flush
+            temp.fsync
+            raise IOError, 'Vault changed before replacement' unless File.lstat(path).ino == stat.ino && File.binread(path) == opts.fetch(:expected)
+
+            File.rename(temp.path, path)
+            File.open(File.dirname(path), File::RDONLY, &:fsync)
+          end
+        end
+        opts.fetch(:data).bytesize
       end
 
       # Supported Method Parameters::
@@ -88,7 +307,18 @@ module PWN
       # )
 
       public_class_method def self.refresh_encryption_secrets(opts = {})
+        destination = yubikey_options(value: opts[:new_yubikey]) unless opts[:new_yubikey].nil?
         file = opts[:file].to_s.scrub if File.exist?(opts[:file].to_s.scrub)
+        raise ArgumentError, 'Legacy vault conversion to YubiKey requires new_yubikey, not yubikey' if !opts[:yubikey].nil? && !hardware_encrypted?(file: file)
+
+        if !destination.nil? || hardware_encrypted?(file: file)
+          bytes = File.binread(file)
+          access = access_options(opts.merge(file: file))
+          plaintext = decrypt_data(access.merge(data: bytes))
+          selector = destination || access.fetch(:yubikey)
+          ciphertext = encrypt_data(data: plaintext, yubikey: selector)
+          return publish_data(file: file, data: ciphertext, expected: bytes)
+        end
         key = opts[:key]
         iv = opts[:iv]
 
@@ -101,8 +331,6 @@ module PWN
         create(
           file: file
         )
-      rescue ArgumentError
-        raise 'ERROR: Incorrect Key or IV.'
       rescue StandardError => e
         raise e
       end
@@ -115,6 +343,12 @@ module PWN
 
       public_class_method def self.create(opts = {})
         file = opts[:file].to_s.scrub if File.exist?(opts[:file].to_s.scrub)
+        unless opts[:yubikey].nil?
+          raise ArgumentError, 'A YubiKey vault does not use a decryptor file' if opts[:decryptor_file]
+          raise ArgumentError, 'YubiKey encryption does not accept a software key or IV' if opts[:key] || opts[:iv]
+
+          return encrypt(file: file, yubikey: opts[:yubikey])
+        end
         decryptor_file = opts[:decryptor_file]
 
         cipher = OpenSSL::Cipher.new('aes-256-cbc')
@@ -150,31 +384,10 @@ module PWN
       # )
 
       public_class_method def self.decrypt(opts = {})
-        file = opts[:file].to_s.scrub if File.exist?(opts[:file].to_s.scrub)
-        key = opts[:key] ||= PWN::Plugins::AuthenticationHelper.mask_password(
-          prompt: 'Key'
-        )
-
-        iv = opts[:iv] ||= PWN::Plugins::AuthenticationHelper.mask_password(
-          prompt: 'IV'
-        )
-
-        is_encrypted = file_encrypted?(file: file)
-        raise 'ERROR: File is not encrypted.' unless is_encrypted
-
-        cipher = OpenSSL::Cipher.new('aes-256-cbc')
-        cipher.decrypt
-        cipher.key = Base64.strict_decode64(key)
-        cipher.iv = Base64.strict_decode64(iv)
-
-        b64_decoded_file_contents = Base64.strict_decode64(File.read(file).chomp)
-        plain_text = cipher.update(b64_decoded_file_contents) + cipher.final
-
-        File.write(file, plain_text)
-      rescue ArgumentError
-        raise 'ERROR: Incorrect Key or IV.'
-      rescue StandardError => e
-        raise e
+        file = opts.fetch(:file)
+        bytes = File.binread(file)
+        plaintext = decrypt_data(opts.merge(data: bytes))
+        publish_data(file: file, data: plaintext, expected: bytes)
       end
 
       # Supported Method Parameters::
@@ -186,26 +399,8 @@ module PWN
       # )
 
       public_class_method def self.dump(opts = {})
-        file = opts[:file].to_s.scrub if File.exist?(opts[:file].to_s.scrub)
-        key = opts[:key] ||= PWN::Plugins::AuthenticationHelper.mask_password(
-          prompt: 'Key'
-        )
-
-        iv = opts[:iv] ||= PWN::Plugins::AuthenticationHelper.mask_password(
-          prompt: 'IV'
-        )
-
-        cipher = OpenSSL::Cipher.new('aes-256-cbc')
-        cipher.decrypt
-        cipher.key = Base64.strict_decode64(key)
-        cipher.iv = Base64.strict_decode64(iv)
-        bytes = Base64.strict_decode64(File.read(file).chomp)
-        plaintext = cipher.update(bytes) + cipher.final
-        opts[:yaml] == false ? plaintext : YAML.safe_load(plaintext, permitted_classes: [Symbol], aliases: true, symbolize_names: true)
-      rescue ArgumentError
-        raise 'ERROR: Incorrect Key or IV.'
-      rescue StandardError => e
-        raise e
+        plaintext = decrypt_data(opts.merge(data: File.binread(opts.fetch(:file))))
+        opts[:yaml] == false ? plaintext : YAML.safe_load(plaintext.force_encoding(Encoding::UTF_8), permitted_classes: [Symbol], aliases: true, symbolize_names: true)
       end
 
       # Supported Method Parameters::
@@ -217,41 +412,32 @@ module PWN
       # )
 
       public_class_method def self.edit(opts = {})
-        file = opts[:file].to_s.scrub if File.exist?(opts[:file].to_s.scrub)
-        key = opts[:key] ||= PWN::Plugins::AuthenticationHelper.mask_password(
-          prompt: 'Key'
-        )
+        file = File.expand_path(opts.fetch(:file))
+        raise ArgumentError, 'Vault is not protected by YubiKey' if !opts[:yubikey].nil? && !hardware_encrypted?(file: file)
 
-        iv = opts[:iv] ||= PWN::Plugins::AuthenticationHelper.mask_password(
-          prompt: 'IV'
-        )
+        editor = opts[:editor] || '/usr/bin/vim'
+        raise 'ERROR: Editor not found.' unless File.executable?(editor)
 
-        editor = opts[:editor] ||= '/usr/bin/vim'
+        bytes = File.binread(file)
+        access = if hardware_encrypted?(data: bytes)
+                   access_options(opts)
+                 else
+                   { key: opts[:key] || PWN::Plugins::AuthenticationHelper.mask_password(prompt: 'Key'),
+                     iv: opts[:iv] || PWN::Plugins::AuthenticationHelper.mask_password(prompt: 'IV') }
+                 end
+        plaintext = decrypt_data(access.merge(data: bytes))
+        runtime = File.join(Dir.home, '.pwn', 'workspaces', 'runtime')
+        FileUtils.mkdir_p(runtime, mode: 0o700)
+        Dir.mktmpdir('pwn-vault-edit-', runtime) do |directory|
+          temporary = File.join(directory, 'vault.yaml')
+          File.open(temporary, File::WRONLY | File::CREAT | File::EXCL, 0o600) { |io| io.write(plaintext) }
+          raise IOError, 'Vault editor failed; original ciphertext retained' unless system(editor, temporary)
 
-        raise 'ERROR: Editor not found.' unless File.exist?(editor)
-
-        decrypt(
-          file: file,
-          key: key,
-          iv: iv
-        )
-
-        # Get realtive editor in case aliases are used
-        relative_editor = File.basename(editor)
-        system(relative_editor, file)
-
-        # If the Pry object exists, set refresh_config to true
+          ciphertext = encrypt_data(access.merge(data: File.binread(temporary)))
+          publish_data(file: file, data: ciphertext, expected: bytes)
+        end
         Pry.config.refresh_pwn_env = true if defined?(Pry)
-
-        encrypt(
-          file: file,
-          key: key,
-          iv: iv
-        )
-      rescue ArgumentError
-        raise 'ERROR: Incorrect Key or IV.'
-      rescue StandardError => e
-        raise e
+        :saved
       end
 
       # Supported Method Parameters::
@@ -262,27 +448,10 @@ module PWN
       # )
 
       public_class_method def self.encrypt(opts = {})
-        file = opts[:file].to_s.scrub if File.exist?(opts[:file].to_s.scrub)
-        key = opts[:key] ||= PWN::Plugins::AuthenticationHelper.mask_password(
-          prompt: 'Key'
-        )
-
-        iv = opts[:iv] ||= PWN::Plugins::AuthenticationHelper.mask_password(
-          prompt: 'IV'
-        )
-
-        cipher = OpenSSL::Cipher.new('aes-256-cbc')
-        cipher.encrypt
-        cipher.key = Base64.strict_decode64(key)
-        cipher.iv = Base64.strict_decode64(iv)
-
-        data = File.read(file)
-        encrypted = cipher.update(data) + cipher.final
-        encrypted_string = Base64.strict_encode64(encrypted)
-
-        File.write(file, "#{encrypted_string}\n")
-      rescue StandardError => e
-        raise e
+        file = opts.fetch(:file)
+        bytes = File.binread(file)
+        ciphertext = encrypt_data(opts.merge(data: bytes))
+        publish_data(file: file, data: ciphertext, expected: bytes)
       end
 
       # Supported Method Parameters::
@@ -295,6 +464,8 @@ module PWN
         raise 'ERROR: File does not exist.' unless File.exist?(file)
 
         file_contents = File.read(file).chomp
+        return true if hardware_encrypted?(data: file_contents)
+
         file_contents.is_a?(String) && Base64.strict_encode64(Base64.strict_decode64(file_contents)) == file_contents
       rescue ArgumentError
         false
@@ -311,6 +482,13 @@ module PWN
         label = opts[:label].to_s
         label = "#{opts[:host] || 'loot'}:#{opts[:username] || 'user'}:#{SecureRandom.hex(4)}" if label.empty?
         records = load_records(engagement: eng)
+        selector = opts[:yubikey]
+        prior = records.find { |row| row[:label] == label }
+        envelope = prior && prior[:secret]
+        if selector.nil? && envelope.is_a?(Hash) && (envelope[:kdf] || envelope['kdf']) == YUBIKEY_KDF
+          metadata = envelope[:yubikey] || envelope['yubikey']
+          selector = metadata.transform_keys(&:to_sym).slice(:slot, :serial)
+        end
         record = {
           id: SecureRandom.hex(6),
           label: label,
@@ -319,7 +497,7 @@ module PWN
           host: opts[:host].to_s,
           service: opts[:service].to_s,
           username: opts[:username].to_s,
-          secret: encrypt_secret(secret: secret),
+          secret: encrypt_secret(secret: secret, yubikey: selector),
           source: (opts[:source] || 'manual').to_s,
           where: (opts[:where] || opts[:path]).to_s,
           finding_id: (opts[:finding_id] || opts[:finding]).to_s,
@@ -351,7 +529,7 @@ module PWN
         row = rows.find { |item| item[:label] == label }
         return nil unless row
 
-        decrypt_secret(row: row[:secret] || row)
+        decrypt_secret(row: row[:secret] || row, yubikey: opts[:yubikey])
       end
 
       # List loot metadata for lateral-movement planning (no plaintext secrets).
@@ -379,7 +557,7 @@ module PWN
           finding_id: opts[:finding_id] || opts[:finding],
           engagement: opts[:engagement] || opts[:engagement_id]
         ).map do |row|
-          row.merge(secret: fetch(label: row[:label], engagement: row[:engagement]))
+          row.merge(secret: fetch(label: row[:label], engagement: row[:engagement], yubikey: opts[:yubikey]))
         end
       end
 
@@ -395,13 +573,13 @@ module PWN
 
       public_class_method def self.expand(opts = {})
         text = opts[:text].to_s
-        text.gsub(/\{\{vault:([^}]+)\}\}/) { fetch(label: Regexp.last_match(1).to_s.strip).to_s }
+        text.gsub(/\{\{vault:([^}]+)\}\}/) { fetch(label: Regexp.last_match(1).to_s.strip, yubikey: opts[:yubikey]).to_s }
       end
 
       public_class_method def self.redact(opts = {})
         text = opts[:text].to_s
         load_all_records.each do |row|
-          val = decrypt_secret(row: row[:secret] || row).to_s
+          val = decrypt_secret(row: row[:secret] || row, yubikey: opts[:yubikey]).to_s
           next if val.empty?
 
           text = text.gsub(val, "{{vault:#{row[:label]}}}")
@@ -449,6 +627,8 @@ module PWN
       end
 
       private_class_method def self.encrypt_secret(opts = {})
+        return seal_credentials(credentials: { 'secret' => opts[:secret].to_s }, yubikey: opts[:yubikey]) unless opts[:yubikey].nil?
+
         cipher = OpenSSL::Cipher.new('aes-256-gcm')
         cipher.encrypt
         cipher.key = master_key
@@ -462,6 +642,14 @@ module PWN
         row = opts[:row]
         return '' unless row.is_a?(Hash)
 
+        hardware = row.key?(:kdf) || row.key?('kdf')
+        if hardware
+          envelope = row.transform_keys(&:to_s)
+          envelope['yubikey'] = envelope['yubikey'].transform_keys(&:to_s) if envelope['yubikey'].is_a?(Hash)
+          return open_credentials(envelope: envelope, yubikey: opts[:yubikey]).fetch('secret')
+        end
+        raise ArgumentError, 'Loot is not protected by YubiKey' unless opts[:yubikey].nil?
+
         cipher = OpenSSL::Cipher.new('aes-256-gcm')
         cipher.decrypt
         cipher.key = master_key
@@ -470,6 +658,8 @@ module PWN
         cipher.auth_data = 'pwn-vault'
         cipher.update(Base64.strict_decode64(row[:ct] || row['ct'].to_s)) + cipher.final
       rescue StandardError
+        raise if hardware || opts[:yubikey]
+
         ''
       end
 
@@ -489,22 +679,59 @@ module PWN
 
       private_class_method def self.parse_box(opts = {})
         path = opts[:path].to_s
-        return [] unless File.file?(path)
+        stat = begin
+          File.lstat(path)
+        rescue Errno::ENOENT
+          nil
+        end
+        return [] unless stat
+
+        invalid = "Invalid loot store #{path}"
+        raise IOError, "#{invalid}: expected a regular file" unless stat.file?
 
         data = JSON.parse(File.read(path), symbolize_names: true)
-        if data.is_a?(Hash) && data[:records].is_a?(Array)
-          data[:records].map { |row| row.transform_keys(&:to_sym) }
-        elsif data.is_a?(Hash)
-          data.map do |label, row|
-            next unless row.is_a?(Hash)
+        raise IOError, "#{invalid}: expected a mapping" unless data.is_a?(Hash)
 
-            { label: label.to_s, secret: row.transform_keys(&:to_sym), engagement: 'default', host: '', source: 'legacy' }
-          end.compact
+        if data[:records].is_a?(Array)
+          raise IOError, "#{invalid}: unsupported version" if data.key?(:version) && data[:version] != 2
+
+          rows = data[:records].map do |row|
+            next row unless row.is_a?(Hash) && !row.key?(:secret)
+
+            # Strip only record metadata so unknown KDFs and hardware fields still
+            # reach envelope validation rather than becoming software ciphertext.
+            secret = row.except(:id, :label, :kind, :engagement, :host, :service, :username, :source, :where, :finding_id, :at)
+            row.except(*secret.keys).merge(secret: secret)
+          end
+          raise IOError, "#{invalid}: invalid record or secret envelope" unless rows.all? { |row| row.is_a?(Hash) && row[:label].is_a?(String) && !row[:label].empty? && valid_loot_secret?(secret: row[:secret]) }
+
+          rows
         else
-          []
+          raise IOError, "#{invalid}: invalid legacy secret envelope" unless data.all? { |label, row| !label.to_s.empty? && valid_loot_secret?(secret: row) }
+
+          data.map do |label, row|
+            { label: label.to_s, secret: row, engagement: 'default', host: '', source: 'legacy' }
+          end
         end
-      rescue StandardError
-        []
+      rescue JSON::ParserError
+        raise IOError, "Invalid loot store #{path}: malformed JSON", cause: nil
+      rescue SystemCallError => e
+        raise IOError, "Cannot read loot store #{path} (#{e.class})", cause: nil
+      end
+
+      # Validate storage shape without unlocking secrets or accepting an unknown backend.
+      private_class_method def self.valid_loot_secret?(opts = {})
+        secret = opts[:secret]
+        return false unless secret.is_a?(Hash) && %i[iv ct tag].all? { |key| secret[key].is_a?(String) && !secret[key].empty? }
+        return true if (secret.keys - %i[iv ct tag]).empty?
+        return false unless secret[:kdf] == YUBIKEY_KDF && secret[:version] == 1 && secret[:cipher] == 'aes-256-gcm'
+        return false unless %i[salt key_id].all? { |key| secret[key].is_a?(String) && !secret[key].empty? }
+
+        metadata = secret[:yubikey]
+        return false unless metadata.is_a?(Hash) && (metadata.keys - %i[slot serial challenge]).empty? && metadata[:slot].is_a?(Integer) && [1, 2].include?(metadata[:slot])
+        return false unless metadata[:challenge].is_a?(String) && !metadata[:challenge].empty?
+
+        metadata[:serial].nil? || (metadata[:serial].is_a?(String) && metadata[:serial].match?(/\A[0-9]+\z/))
       end
 
       private_class_method def self.save_records(opts = {})
@@ -529,57 +756,101 @@ module PWN
           # Seal credentials in an authenticated AES256GCM envelope, without filesystem access.
           #{self}.seal_credentials(
             credentials: 'required - JSON-compatible credentials hash',
-            passphrase: 'optional - required unless keyring is supplied',
+            passphrase: 'optional - required unless keyring or yubikey is supplied',
             keyring: 'optional - callable OS keyring reader returning a raw 32-byte key',
+            yubikey: 'optional - native hardware selector Hash: Integer slot (1 or 2), exact decimal String serial, nonempty control-free reader/device_path, exchange-capable connection and finite positive timeout; serial/reader and reader/device_path are mutually exclusive; only slot/serial persist; requires a provisioned HMAC-SHA1 slot',
             key_id: 'optional - keyring identifier, default pwn-ai-credentials'
           )
           # Open an authenticated envelope in memory; never writes plaintext.
           #{self}.open_credentials(
             envelope: 'required - sealed credentials hash',
             passphrase: 'optional - required for passphrase envelopes',
-            keyring: 'optional - callable OS keyring reader for keyring envelopes'
+            keyring: 'optional - callable OS keyring reader for keyring envelopes',
+            yubikey: 'optional - runtime hardware selector; defaults to the stored slot and serial'
           )
-          # Run refresh encryption secrets and return its result
+          # Encrypt bytes in memory using a legacy key and IV or a YubiKey-authenticated envelope.
+          #{self}.encrypt_data(
+            data: 'required - plaintext String, including binary data',
+            key: 'optional - Base64 AES key for legacy CBC encryption only',
+            iv: 'optional - Base64 IV for legacy CBC encryption only',
+            yubikey: 'optional - hardware selector Hash; excludes software key and IV'
+          )
+          # Authenticate and decrypt bytes in memory without a software fallback for hardware envelopes.
+          #{self}.decrypt_data(
+            data: 'required - encrypted String returned by encrypt_data',
+            key: 'optional - legacy Base64 AES key',
+            iv: 'optional - legacy Base64 IV',
+            yubikey: 'optional - runtime hardware selector Hash for the stored slot'
+          )
+          # Identify hardware envelopes without using a device or decryptor.
+          #{self}.hardware_encrypted?(
+            file: 'optional - existing file path when data is not supplied',
+            data: 'optional - encrypted String to inspect instead of a file'
+          )
+          # Resolve hardware selectors or legacy credentials without prompting.
+          #{self}.access_options(
+            file: 'required - existing encrypted vault path',
+            decryptor_file: 'optional - legacy sidecar path, default file.decryptor',
+            key: 'optional - explicit legacy key overrides the sidecar',
+            iv: 'optional - explicit legacy IV overrides the sidecar',
+            yubikey: 'optional - runtime selector Hash for a hardware envelope'
+          )
+          # Yield a YAML mapping for in-memory edits and atomically save ciphertext only.
+          #{self}.update(
+            file: 'required - encrypted YAML file; mutate the mapping yielded to the block',
+            decryptor_file: 'optional - legacy key and IV sidecar path',
+            key: 'optional - explicit legacy Base64 key',
+            iv: 'optional - explicit legacy Base64 IV',
+            yubikey: 'optional - hardware selector override; file format is preserved'
+          ) { |document| ... }
+          # Rewrap hardware ciphertext with fresh randomness or explicitly convert legacy encryption to hardware.
           #{self}.refresh_encryption_secrets(
             file: 'required - file to encrypt with new key and iv',
-            key: 'required - key to decrypt',
-            iv: 'required - iv to decrypt'
+            key: 'optional - legacy key to decrypt',
+            iv: 'optional - legacy IV to decrypt',
+            yubikey: 'optional - current hardware selector; defaults to the envelope metadata',
+            new_yubikey: 'optional - destination hardware selector; never provisions or rotates a device slot'
           )
 
           # Run create and return its result
           #{self}.create(
             file: 'required - encrypted file to create',
-            decryptor_file: 'optional - file to save the key && iv values'
+            decryptor_file: 'optional - file to save legacy key and IV; omit for hardware vaults',
+            yubikey: 'optional - hardware selector Hash instead of generating software secrets'
           )
 
           # Run decrypt and return its result
           #{self}.decrypt(
             file: 'required - file to decrypt',
-            key: 'required - key to decrypt',
-            iv: 'required - iv to decrypt'
+            key: 'optional - legacy key to decrypt',
+            iv: 'optional - legacy IV to decrypt',
+            yubikey: 'optional - runtime hardware selector; hardware format is auto-detected'
           )
 
           # Run dump and return its result
           #{self}.dump(
             file: 'required - file to dump',
-            key: 'required - key to decrypt',
-            iv: 'required - iv to decrypt',
+            key: 'optional - legacy key to decrypt',
+            iv: 'optional - legacy IV to decrypt',
+            yubikey: 'optional - hardware selector Hash; no plaintext file is created',
             yaml: 'optional - dump as parsed yaml hash (default: true)'
           )
 
           # Run edit and return its result
           #{self}.edit(
             file: 'required - file to edit',
-            key: 'required - key to decrypt',
-            iv: 'required - iv to decrypt',
+            key: 'optional - legacy key to decrypt',
+            iv: 'optional - legacy IV to decrypt',
+            yubikey: 'optional - hardware selector; original ciphertext stays intact until the temporary edited copy is re-encrypted',
             editor: 'optional - editor to use (default: /usr/bin/vim)'
           )
 
           # Run encrypt and return its result
           #{self}.encrypt(
             file: 'required - file to encrypt',
-            key: 'required - key to decrypt',
-            iv: 'required - iv to decrypt'
+            key: 'optional - legacy key for encryption',
+            iv: 'optional - legacy IV for encryption',
+            yubikey: 'optional - hardware selector Hash selecting authenticated encryption instead of legacy CBC'
           )
 
           # Run file encrypted and return its result
@@ -587,9 +858,10 @@ module PWN
             file: 'required - file to check if encrypted'
           )
 
-          # Store a secret outside the transcript (AES-GCM; key in ~/.pwn-vault.key).
+          # Store a secret outside the transcript using AES-GCM with hardware or a local master key.
           #{self}.store(
             secret: 'required - secret value (password, token, or key material)',
+            yubikey: 'optional - hardware selector Hash; no disk master key; replacing a hardware label preserves protection',
             label: 'optional - vault label; defaults to host:user:hex',
             engagement: 'optional - engagement id scoping the loot file (defaults to default)',
             engagement_id: 'optional - alias for engagement',
@@ -607,6 +879,7 @@ module PWN
           # Fetch a stored secret by label.
           #{self}.fetch(
             label: 'required - vault label',
+            yubikey: 'optional - runtime hardware selector; hardware failures raise without software fallback',
             engagement: 'optional - engagement id to search first',
             engagement_id: 'optional - alias for engagement'
           )
@@ -625,6 +898,7 @@ module PWN
           # Return decrypted creds that match a service auth prompt.
           #{self}.offer(
             host: 'optional - hostname or IP to match',
+            yubikey: 'optional - hardware selector forwarded when decrypting matching loot',
             service: 'optional - service name such as http or ssh',
             kind: 'optional - password, token, or key',
             finding_id: 'optional - finding id this secret is linked to',
@@ -636,6 +910,7 @@ module PWN
           # Parse username/password strings from recon evidence into the loot store.
           #{self}.ingest(
             text: 'required - recon banner, .env, or HTML containing creds',
+            yubikey: 'optional - hardware selector to encrypt extracted loot',
             host: 'optional - hostname or IP this secret authenticates',
             service: 'optional - service name such as http or ssh',
             source: 'optional - provenance source such as recon',
@@ -649,12 +924,14 @@ module PWN
 
           # Replace {{vault:label}} tokens with stored secrets.
           #{self}.expand(
-            text: 'required - string possibly containing {{vault:label}} tokens'
+            text: 'required - string possibly containing {{vault:label}} tokens',
+            yubikey: 'optional - hardware selector for referenced loot'
           )
 
           # Replace stored secret values with {{vault:label}} placeholders.
           #{self}.redact(
-            text: 'required - string that may contain stored secrets'
+            text: 'required - string that may contain stored secrets',
+            yubikey: 'optional - hardware selector for stored hardware loot; may require physical touch'
           )
 
           # Print the AUTHOR(S) string for this module.

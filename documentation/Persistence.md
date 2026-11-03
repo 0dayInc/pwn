@@ -7,8 +7,8 @@ external services and environment overrides can place evidence elsewhere.
 
 | Path | Owner | Format | Reset tool | Purpose |
 |---|---|---|---|---|
-| `pwn.yaml` | `PWN::Config` · `PWN::Plugins::Vault` | AES-encrypted YAML | `pwn-vault` | engines, keys, agent options |
-| `pwn.yaml.decryptor` | `PWN::Plugins::Vault` | key/IV | - | decrypts `pwn.yaml` (or set `PWN_DECRYPTOR_KEY`/`_IV`) |
+| `pwn.yaml` | `PWN::Config` · `PWN::Plugins::Vault` | Legacy AES-CBC or authenticated YubiKey-derived AES-GCM | `pwn-vault` | engines, keys, agent options; see [hardware vaults](YubiKey-Vaults.md) |
+| `pwn.yaml.decryptor` | `PWN::Plugins::Vault` | Legacy key/IV | - | decrypts legacy `pwn.yaml` (or set `PWN_DECRYPTOR_KEY`/`_IV`); absent for hardware-only vaults |
 | **`.schema`** | **`PWN::Migrate`** | JSON `{schema:,pwn_version:,at:}` | `pwn setup --migrate` | **schema stamp - drives the one-line drift warning on launch** |
 | `memory.json` | `PWN::Memory` | JSON array | `memory_clear` | facts · prefs · lessons · env - injected into every prompt |
 | `memory.idx` | `PWN::MemoryIndex` | JSON `{key → {sha,vec}}` | `PWN::MemoryIndex.reset` | local embedding index over `memory.json` - powers **relevance-ranked** MEMORY injection (incremental; only re-embeds changed entries) |
@@ -34,7 +34,8 @@ external services and environment overrides can place evidence elsewhere.
 | `curriculum/` | `PWN::AI::Agent::Curriculum` | JSONL | rm -rf | self-play reproducers · train/gate A/B eval sets |
 | `curriculum_kpi.jsonl` | `PWN::AI::Agent::Curriculum.practice_kpi` | JSONL | rm | outer curriculum KPI snapshots (repeating-mistake trend) |
 | `finetune/*.jsonl` | `Learning.export_finetune` · `Reward.export_dpo` | ShareGPT / OpenAI / DPO JSONL | `rm` | supervised + preference datasets - feed to a LoRA over the local model |
-| `backup/<ts>/` | `PWN::Migrate` | tree copy | rm -rf | timestamped snapshot taken before every `--migrate --fix` |
+| `workspaces/runtime/` | `PWN::Plugins::AISandbox` · `SessionCleanup.temporary` | files | operator-managed | Unspecified `pwn-ai` writes, `TMPDIR`, and registered disposable inputs such as Festival speech. Another path is writable only when the original request names it. `/opt/pwn` stays read-only |
+| `backup/<generation>/` | `PWN::Backups` | shared generations | see [Backup Retention](Backup-Retention.md) | One store, seven generation folders total, for every recovery producer including migrate |
 | `quarantine/` | `PWN::Migrate` | quarantined originals | rm -rf | corrupt/incompatible state files moved aside so the owner re-seeds |
 | `pwn_history` | Pry / pwn-ai | text | operator-managed | Shared durable input history at `~/.pwn/pwn_history` |
 
@@ -69,8 +70,9 @@ for the full `PWN::Migrate` API.
 tar czf pwn-state-$(date +%F).tgz -C "$HOME" .pwn
 ```
 
-`pwn setup --migrate --fix` also writes one automatically to
-`~/.pwn/backup/<timestamp>/` before touching anything.
+`pwn setup --migrate --fix` admits one generation through `PWN::Backups` under
+`~/.pwn/backup/` before it changes state. That store holds seven generations
+total, not a new unbounded tree per run. See [Backup Retention](Backup-Retention.md).
 
 ## Start fresh for a new engagement
 

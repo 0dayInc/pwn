@@ -5,6 +5,9 @@ the goal; the agent plans a sequence of tool calls (`pwn_eval`, `shell`,
 `memory_*`, `skill_*`, `mistakes_*`, `reward_*`, `curriculum_*`, `extro_*`,
 `agent_*`, ...), executes them against the live process, observes the results,
 and checks completion against the original request and available host evidence.
+Unspecified tool writes go to `~/.pwn/workspaces/runtime`. A path outside that
+directory is allowed only when the original request names it. See
+[Operability](Operability.md).
 Learning records failures and corrections; it cannot guarantee nonrecurrence.
 
 ## Two ways to run it
@@ -336,7 +339,9 @@ anthropic` opens that nested mapping, and `/vault edit ai anthropic model`
 opens a scalar. Tokens identify one nested key path, never filenames or multiple
 disjoint scopes. The target and decryptor are the same `driver_opts.pwn_env_path`
 and `driver_opts.pwn_dec_path` used by `pwn-vault`, defaulting to
-`~/.pwn/pwn.yaml` and its existing `.decryptor` sidecar. Unknown paths are rejected; edit the parent mapping
+`~/.pwn/pwn.yaml` and its existing legacy `.decryptor` sidecar. Hardware-backed
+[YubiKey vaults](YubiKey-Vaults.md) are detected without requiring a sidecar.
+Unknown paths are rejected; edit the parent mapping
 to add a new key. Arrays are edited as a whole, not by numeric path indices.
 Existing non-null types must be retained; an existing null may remain null or
 be replaced by a YAML value. The root must retain an `ai` mapping, a supported
@@ -355,8 +360,9 @@ only shipped schema key names, never reads/decrypts the vault, and never offers
 configuration values; existing custom keys can be typed explicitly.
 
 Plaintext is decrypted/edited in memory. Only encrypted bytes enter the private
-temporary file, which is atomically renamed over the vault using the same
-AES-256-CBC format/key/IV as `pwn-vault`; the decryptor is not regenerated.
+temporary file, which is atomically renamed over the vault using its existing
+backend: legacy AES-256-CBC key/IV or a fresh authenticated YubiKey envelope.
+The device is never provisioned and the legacy decryptor is not regenerated.
 Save re-reads the current document, preserves changes outside the selected scope,
 and refuses a changed selected scope (the whole document for unscoped edits).
 Editor instances serialize saves with a directory lock; a final ciphertext check
@@ -642,7 +648,7 @@ After the reply, `Learning.auto_introspect` calls `rsi_tick`. That tick reads ES
 
 ## What the agent can call
 
-16 toolsets · **150 tools** - full table at
+16 toolsets · **152 tools** - full table at
 [Agent Tool Registry](Agent-Tool-Registry.md).
 
 The two that matter most:

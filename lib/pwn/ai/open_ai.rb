@@ -172,7 +172,6 @@ module PWN
       # bearer lives in-session only.
       private_class_method def self.persist_oauth_to_vault(opts = {})
         oauth = opts[:oauth]
-        return false if Thread.current[:pwn_request_runtime]
         return false unless oauth.is_a?(Hash)
         return false unless real_config_value?(value: oauth[:bearer_token])
 
@@ -187,32 +186,15 @@ module PWN
         dec_path = dec_path.to_s.strip
         dec_path = "#{env_path}.decryptor" if dec_path.empty?
 
-        unless File.exist?(env_path) && File.exist?(dec_path) && File.readable?(dec_path)
+        unless File.exist?(env_path)
           puts '[*] INFO: OpenAI OAuth tokens updated in this session only; ' \
-               "persistence to #{env_path} skipped (missing decryption artifacts" \
-               "#{" at #{dec_path}" unless dec_path.empty?})."
+               "persistence to #{env_path} skipped (missing vault)."
           return false
         end
 
-        decryptor = YAML.load_file(dec_path, symbolize_names: true)
-        key = decryptor.is_a?(Hash) ? decryptor[:key] : nil
-        iv  = decryptor.is_a?(Hash) ? decryptor[:iv]  : nil
-        unless real_config_value?(value: key) && real_config_value?(value: iv)
-          puts '[*] INFO: OpenAI OAuth tokens updated in this session only; ' \
-               "persistence to #{env_path} skipped (decryptor at #{dec_path} " \
-               'has no usable key/iv).'
-          return false
-        end
-
-        # Work on a private sibling; never decrypt the live vault in place.
-        # Rename only after encryption succeeds, preserving the old vault on
-        # write/encryption errors and keeping the existing key + iv intact.
-        Tempfile.create(['.pwn-openai-oauth-', '.yaml'], File.dirname(env_path)) do |temp|
-          temp.write(File.binread(env_path))
-          temp.flush
-          PWN::Plugins::Vault.decrypt(file: temp.path, key: key, iv: iv)
-          cfg = YAML.load_file(temp.path, symbolize_names: true)
-          cfg = {} unless cfg.is_a?(Hash)
+        # The shared updater resolves hardware or legacy credentials, keeps
+        # plaintext in memory and publishes only encrypted bytes atomically.
+        PWN::Plugins::Vault.update(file: env_path, decryptor_file: dec_path) do |cfg|
           cfg[:ai] = {} unless cfg[:ai].is_a?(Hash)
           cfg[:ai][:openai] = {} unless cfg[:ai][:openai].is_a?(Hash)
           vault_oauth = cfg[:ai][:openai][:oauth]
@@ -223,13 +205,6 @@ module PWN
           vault_oauth[:id_token] = oauth[:id_token] if real_config_value?(value: oauth[:id_token])
           vault_oauth[:account_id] = oauth[:account_id] if real_config_value?(value: oauth[:account_id])
           vault_oauth[:expires_at] = oauth[:expires_at] if oauth.key?(:expires_at) && !oauth[:expires_at].nil?
-
-          # Match PWN::Config.default_env YAML style (string keys, no leading ':').
-          yaml_env = YAML.dump(cfg).gsub(/^(\s*):/, '\1')
-          File.write(temp.path, yaml_env)
-          PWN::Plugins::Vault.encrypt(file: temp.path, key: key, iv: iv)
-          temp.fsync
-          File.rename(temp.path, env_path)
         end
 
         true
@@ -563,7 +538,7 @@ module PWN
           end
           retry if retry_count < max_attempts
 
-          raise e if oauth_selected || Thread.current[:pwn_provider_attempt_owner]
+          raise e if oauth_selected || Thread.current[:pwn_provider_attempt_owner] || Thread.current[:pwn_session_title]
 
           nil
         end
@@ -717,6 +692,7 @@ module PWN
             reasoning_effort: effort
           )
         end
+        http_body = PWN::AI::ServerTools.attach(engine: :openai, http_body: http_body, request: opts)
 
         response = open_ai_rest_call(
           http_method: :post,
@@ -1039,7 +1015,10 @@ module PWN
         }
         # Reasoning models reject sampler params (temperature, top_p, etc.)
         http_body[:temperature] = temp unless reasoning
-        http_body[:reasoning_effort] = opts[:reasoning_effort] if reasoning && opts[:reasoning_effort]
+        effort = opts[:reasoning_effort].to_s
+        if reasoning && !effort.empty?
+          http_body[:reasoning_effort] = effort == 'none' ? 'minimal' : effort
+        end
 
         response = open_ai_rest_call(
           http_method: :post,

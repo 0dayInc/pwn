@@ -162,7 +162,14 @@ module PWN
         mod = Object.const_get(const)
         return nil unless mod.respond_to?(:chat)
 
-        resp = mod.chat(request: opts[:request], model: endpoint[:model], spinner: false, quiet: true, timeout: 8)
+        resp = mod.chat(
+          request: opts[:request],
+          model: endpoint[:model],
+          spinner: false,
+          quiet: true,
+          timeout: opts[:session] ? 90 : 8,
+          reasoning_effort: (opts[:session] ? 'none' : nil)
+        )
         text = response_text(response: resp)
         text.strip.empty? ? nil : text
       rescue StandardError

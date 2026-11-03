@@ -9,7 +9,7 @@ module HarnessSwarmAcceptance
     source = options[:source_root] || HarnessEvaluation::ROOT
     rows = %w[correct lie stale missing tampered].map do |name|
       root = Dir.mktmpdir("swarm-#{name}-", options.fetch(:output))
-      home = File.join(root, 'home')
+      home = "#{root}-home"
       FileUtils.mkdir_p(home)
       prompt = 'Create result.txt containing exactly alpha followed by newline, then read it back.'
       final = { role: 'assistant', content: 'FIXTURE_COMPLETE', tool_calls: [] }

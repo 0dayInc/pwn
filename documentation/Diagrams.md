@@ -24,7 +24,7 @@ a dependency guarantee. External services/radios require separate live verificat
 [source](diagrams/dot/persistence-filesystem.dot) · doc: [Persistence](Persistence.md)
 ![persistence-filesystem](diagrams/persistence-filesystem.svg)
 
-### Plugin Ecosystem (107 modules)
+### Plugin Ecosystem (108 modules)
 [source](diagrams/dot/plugin-ecosystem.dot) · doc: [Plugins](Plugins.md)
 ![plugin-ecosystem](diagrams/plugin-ecosystem.svg)
 
@@ -69,7 +69,7 @@ a dependency guarantee. External services/radios require separate live verificat
 [source](diagrams/dot/ai-integration-tool-calling.dot) · doc: [AI Integration](AI-Integration.md)
 ![ai-integration-tool-calling](diagrams/ai-integration-tool-calling.svg)
 
-### Agent Tool Registry (16 toolsets · 150 tools)
+### Agent Tool Registry (16 toolsets · 152 tools)
 [source](diagrams/dot/agent-tool-registry.dot) · doc: [Agent Tool Registry](Agent-Tool-Registry.md)
 ![agent-tool-registry](diagrams/agent-tool-registry.svg)
 

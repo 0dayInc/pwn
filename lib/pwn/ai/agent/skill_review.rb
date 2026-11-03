@@ -80,6 +80,8 @@ module PWN
         #     skills_root: 'optional - local skills root; default ~/.pwn/skills'
         #   )
         public_class_method def self.decide(opts = {})
+          return PWN::Backups.transaction { decide(opts) } unless PWN::Backups.active?
+
           digest = opts[:source_sha256].to_s
           decision = opts[:decision].to_s
           root = File.realpath(opts[:skills_root] || File.join(Dir.home, '.pwn', 'skills'))
@@ -202,8 +204,7 @@ module PWN
           original = File.binread(path)
           raise 'skill source changed' unless Digest::SHA256.hexdigest(original) == proposal[:source_sha256]
 
-          backup = "#{path}.#{proposal[:source_sha256]}.bak"
-          File.open(backup, File::WRONLY | File::CREAT | File::EXCL | File::NOFOLLOW, 0o600) { |file| file.write(original) } unless File.exist?(backup)
+          backup = PWN::Backups.capture(path: path, label: 'skill-review')
           raise 'backup changed' unless !File.symlink?(backup) && File.binread(backup) == original
 
           content = "#{original}\n\n## Reviewed procedure\n\n#{procedure[:text]}\n"
@@ -330,14 +331,15 @@ module PWN
         end
 
         private_class_method def self.apply_update(opts = {})
+          lock = Learning.send(:learning_lock)
+          return PWN::Backups.transaction { apply_update(opts) } unless PWN::Backups.active?
+
           proposal = opts[:proposal]
           path = proposal[:path].to_s
           return finish(proposal.merge(action: 'refused', reason: 'skill path missing')) unless File.file?(path) && !File.symlink?(path)
 
           original = File.read(path)
-          digest = Digest::SHA256.hexdigest(original)
-          backup = "#{path}.#{digest}.bak"
-          File.open(backup, File::WRONLY | File::CREAT | File::EXCL, 0o600) { |file| file.write(original) } unless File.exist?(backup)
+          backup = PWN::Backups.capture(path: path, label: 'skill-review')
           signature = (opts[:evidence] || {})[:signature].to_s
           lesson = "#{signature}\n#{opts[:procedure][:text]}"
           written = Learning.update_skill(name: proposal[:name], lesson: lesson, query: proposal[:request], pwn_skills_path: opts[:skills_root])
@@ -349,6 +351,8 @@ module PWN
 
           PWN::Config.load_skills(pwn_skills_path: opts[:skills_root]) if defined?(PWN::Config) && PWN::Config.respond_to?(:load_skills)
           finish(proposal.merge(action: 'applied', backup: backup))
+        ensure
+          Learning.send(:learning_unlock, lock: lock)
         end
 
         private_class_method def self.finish(opts = {})

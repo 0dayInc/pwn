@@ -59,6 +59,8 @@ module PWN
         # Explicit operator action only; never called from Policy.finish/Loop.
         public_class_method def self.promote(opts = {})
           return { promoted: false, reason: 'disabled' } unless opts[:enabled] == true
+          return PWN::Backups.transaction { promote(opts) } unless PWN::Backups.active?
+
           raise ArgumentError, 'stop all policy writers and set quiescent: true' unless opts[:quiescent] == true
 
           baseline = read_snapshot(path: opts.fetch(:baseline))
@@ -80,12 +82,7 @@ module PWN
           raise ArgumentError, 'snapshot changed during evaluation' unless replayed.all? { |r| r[:snapshot_sha256] == { baseline: prior_digest, candidate: candidate_digest } }
           raise ArgumentError, 'live policy is not the evaluated baseline' unless read_snapshot(path: live) == baseline
 
-          backup = "#{live}.rollback-#{prior_digest}.json"
-          if File.exist?(backup)
-            raise ArgumentError, 'rollback snapshot differs' unless read_snapshot(path: backup) == baseline
-          else
-            File.open(backup, File::WRONLY | File::CREAT | File::EXCL, 0o600) { |file| file.write(baseline) }
-          end
+          backup = PWN::Backups.capture(path: live, label: 'policy-evaluation', pin: true)
           replace(path: live, bytes: candidate)
           { promoted: true, receipt_version: 1, change_kind: 'routing_policy',
             acceptance_sha256: Digest::SHA256.hexdigest(JSON.generate(deterministic(value: replayed))),
@@ -97,6 +94,8 @@ module PWN
 
         public_class_method def self.rollback(opts = {})
           return { rolled_back: false, reason: 'disabled' } unless opts[:enabled] == true
+          return PWN::Backups.transaction { rollback(opts) } unless PWN::Backups.active?
+
           raise ArgumentError, 'stop all policy writers and set quiescent: true' unless opts[:quiescent] == true
 
           receipt = opts.fetch(:receipt)
@@ -106,8 +105,9 @@ module PWN
           prior_digest = receipt.fetch(:baseline_sha256)
           raise ArgumentError, 'invalid rollback digest' unless prior_digest.is_a?(String) && prior_digest.match?(/\A[0-9a-f]{64}\z/)
 
-          backup = "#{live}.rollback-#{prior_digest}.json"
-          raise ArgumentError, 'rollback target mismatch' unless receipt[:live_path] == live && receipt[:rollback_path] == backup
+          backup = File.expand_path(receipt.fetch(:rollback_path))
+          root = Thread.current[:pwn_backup_transaction][:root]
+          raise ArgumentError, 'rollback target mismatch' unless receipt[:live_path] == live && backup.start_with?("#{root}/") && File.realpath(backup) == backup
 
           bytes = read_snapshot(path: backup)
           raise ArgumentError, 'rollback snapshot digest mismatch' unless Digest::SHA256.hexdigest(bytes) == prior_digest

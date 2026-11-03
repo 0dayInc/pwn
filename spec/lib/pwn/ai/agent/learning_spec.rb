@@ -89,7 +89,7 @@ describe PWN::AI::Agent::Learning do
       expect(described_class.evidence_complete?(row: row)).to be(true)
       expect(File.binread(@source)).to eq(original_source)
       migration = Digest::SHA256.hexdigest(@original)
-      backup = File.join(@root, 'learning', 'migrations', "#{migration}.backup.jsonl")
+      backup = JSON.parse(File.read(result[:ledger])).fetch('backup')
       expect(File.binread(backup)).to eq(@original.b)
       expect(described_class.rollback_evidence(migration: migration)[:restored]).to be(true)
       expect(File.binread(@learning)).to eq(@original.b)
@@ -778,14 +778,14 @@ describe 'PWN::AI::Agent::Learning conflicted outcomes' do
     end
   end
 
-  it 'prunes bak files down to max_baks' do
+  it 'leaves legacy siblings untouched and reports the global seven-folder policy' do
     Dir.mktmpdir do |dir|
       stub_const('PWN::AI::Agent::Learning::LEARNING_FILE', File.join(dir, 'learning.jsonl'))
       File.write(File.join(dir, 'learning.jsonl'), "{}\n")
       7.times { |i| File.write(File.join(dir, "learning.jsonl.bak-#{i}"), 'x') }
       out = PWN::AI::Agent::Learning.compact!(max_baks: 5)
-      expect(Dir[File.join(dir, '*.bak*')].length).to eq(5)
-      expect(out[:pruned]).to eq(2)
+      expect(Dir[File.join(dir, '*.bak*')].length).to eq(7)
+      expect(out).to include(pruned: 0, max_baks: 7, scope: 'global')
     end
   end
 end

@@ -990,6 +990,15 @@ module PWN
           text.sub(%r{\s*\[/UNTRUSTED TOOL OUTPUT\]\s*\z}m, '')
         end
 
+        private_class_method def self.terminal_effect_blocker(opts = {})
+          runtime = opts[:runtime]
+          diagnostic = runtime&.blocker
+          return nil unless diagnostic
+
+          runtime.finish!(status: 'blocked', unmet: runtime.unmet + [diagnostic])
+          "[pwn-ai] blocked: #{diagnostic}"
+        end
+
         private_class_method def self.declared_deliverables(opts = {})
           Array(declared_contract(request: opts[:request])[:paths])
         end
@@ -1004,7 +1013,7 @@ module PWN
                      end
           # Paths are user-owned. Inference cannot invent a destination or
           # convert the source document into a write obligation.
-          contract = contract.merge(paths: literals.any? ? literals : contract[:paths])
+          contract = contract.merge(paths: literals)
           Thread.current[:pwn_loop_deliverables] = contract if Thread.current[:pwn_loop_active]
           contract
         end
@@ -2091,6 +2100,10 @@ module PWN
             model = opts[:model] || Thread.current[:pwn_swarm_model] || config[:model]
             cwt_opts[:model] = model unless model.to_s.strip.empty?
             cwt_opts[:temp] = opts[:temp] unless opts[:temp].nil?
+            if PWN::AI::ServerTools.mixable?(engine: engine, model: cwt_opts[:model])
+              hosted = Array(config[:server_tools]).map(&:to_s).reject(&:empty?)
+              cwt_opts[:server_tools] = hosted if hosted.any?
+            end
             if tools && !tools.empty?
               env_tc = begin
                 config[:tool_choice]
@@ -3637,6 +3650,9 @@ module PWN
                   return "[pwn-ai] #{status}: explicit request verification did not pass."
                 end
               end
+              effect_blocker = terminal_effect_blocker(runtime: runtime)
+              return effect_blocker if effect_blocker
+
               # Completion is an evidence decision, never a prose classifier.
               unless may_finalize?(
                 request: request,

@@ -198,7 +198,7 @@ module PWN
           end
           retry if retry_count < max_attempts
 
-          raise e if Thread.current[:pwn_provider_attempt_owner]
+          raise e if Thread.current[:pwn_provider_attempt_owner] || Thread.current[:pwn_session_title]
 
           nil
         rescue StandardError => e
@@ -671,6 +671,7 @@ module PWN
         end
         http_body[:tool_choice] = opts[:tool_choice] if opts[:tool_choice]
         http_body[:think] = think_wire(reasoning_effort: opts[:reasoning_effort], think: opts[:think])
+        raise ArgumentError, 'Ollama has no server-side tool workspace. Its tools are client-executed.' if Array(opts[:server_tools]).any?
 
         response = ollama_rest_call(
           http_method: :post,
@@ -837,7 +838,8 @@ module PWN
             timeout: 'optional - seconds (default 900)',
             spinner: 'optional - display spinner (default false)',
             think: 'optional - true enables Ollama think (default true; false disables)',
-            reasoning_effort: 'optional - think level from /api/show thinking.values'
+            reasoning_effort: 'optional - think level from /api/show thinking.values',
+            server_tools: 'optional - rejected; Ollama has no server-side tool workspace'
           )
 
           # Run chat and return its result

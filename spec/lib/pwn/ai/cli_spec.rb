@@ -16,10 +16,9 @@ RSpec.describe 'PWN::AI::CLI' do
       session = PWN::Sessions.create(source: 'fixture')
       PWN::AI::Agent::OpenGoal.begin!(request: 'Original objective', session_id: session[:id])
       expect(PWN::Sessions).not_to receive(:create)
-      expect(PWN::AI::Agent::Loop).to receive(:run) do |opts|
+      expect(PWN::AI::CLI).to receive(:mission_request) do |opts|
         expect(opts).to include(session_id: session[:id], request: 'continue')
-        opts[:on_outcome].call(status: 'blocked')
-        'Not complete'
+        { outcome: { status: 'blocked' }, final: 'Not complete' }
       end
       expect(PWN::AI::CLI.run(argv: ['--resume-session', session[:id]], output: StringIO.new)).to eq(1)
     end
@@ -33,10 +32,9 @@ RSpec.describe 'PWN::AI::CLI' do
       File.write(path, JSON.generate(contract))
       argv = ['--replace-session', session[:id], '--ai', 'New objective', '--verification-contract', path]
       expect { PWN::AI::CLI.parse(argv: argv) }.to raise_error(OptionParser::InvalidArgument, /approve-replacement/)
-      expect(PWN::AI::Agent::Loop).to receive(:run) do |opts|
+      expect(PWN::AI::CLI).to receive(:mission_request) do |opts|
         expect(opts).to include(session_id: session[:id], request: 'New objective', verification_contract: contract)
-        opts[:on_outcome].call(status: 'complete')
-        'fixture'
+        { outcome: { status: 'complete' }, final: 'fixture' }
       end
       expect(PWN::AI::CLI.run(argv: argv + ['--approve-replacement'], output: StringIO.new)).to eq(0)
     end
@@ -201,14 +199,13 @@ RSpec.describe 'PWN::AI::CLI' do
       allow(PWN::Config).to receive(:refresh_env)
       allow(PWN::AI::Context).to receive(:ingestion_db_path).and_return(File.join(root, 'evidence.db'))
       allow_any_instance_of(Net::HTTP).to receive(:request).and_raise(Errno::ECONNREFUSED)
-      expect(PWN::AI::Agent::Loop).to receive(:run) do |args|
+      expect(PWN::AI::CLI).to receive(:mission_request) do |args|
         db = SQLite3::Database.new(File.join(root, 'evidence.db'))
         expect(db.get_first_value('SELECT count(*) FROM chunks')).to be > 0
         db.close
         expect(File.file?(File.join(root, "#{args[:session_id]}.jsonl"))).to be(true)
         expect(args[:request]).to eq('explain')
-        args.fetch(:on_outcome).call(status: 'complete', unmet: [])
-        'fixture answer'
+        { outcome: { status: 'complete', unmet: [] }, final: 'fixture answer' }
       end
       output = StringIO.new
       expect(PWN::AI::CLI.run(argv: ['--analyze', source, '--ai', 'explain'], output: output)).to eq(0)

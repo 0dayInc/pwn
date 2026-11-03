@@ -90,7 +90,7 @@ RSpec.describe PWN::SessionCleanup do
       expect(JSON.parse(File.read(report[:transaction_ledger]))['state']).to eq('interrupted')
     end
 
-    it 'indexes only committed legacy backup rows and compacts duplicates without unlinking the last copy' do
+    it 'keeps centralized copies out of the legacy compactor and retains learning rollback bytes' do
       described_class.install
       allow(described_class).to receive(:legacy_owners).and_return([])
       original = File.binread(path)
@@ -103,15 +103,15 @@ RSpec.describe PWN::SessionCleanup do
       PWN::Sessions.append(session_id: id, role: 'user', content: 'evidence')
       File.write(PWN::AI::Agent::Learning::LEARNING_FILE, JSON.generate(session_id: id, outcome: 'fixture'))
       migration = PWN::AI::Agent::Learning.migrate_evidence(dry_run: false)
-      learning_backup = migration[:ledger].sub('.json', '.backup.jsonl')
+      learning_backup = JSON.parse(File.read(migration[:ledger])).fetch('backup')
       inventory = described_class.legacy_backups.map { |row| row[:path] }
-      expect(inventory).to include(*backups, learning_backup)
+      expect(inventory & (backups + [learning_backup])).to be_empty
       config = described_class.policy
       config['retention_days']['maintenance'] = 0
       File.write(File.join(Dir.home, '.pwn', 'maintenance', 'policy.json'), JSON.generate(config))
       result = described_class.prune_legacy_backups(dry_run: false)
-      expect(result[:compacted] & backups).not_to be_empty
-      expect(File.identical?(*backups)).to be(true)
+      expect(result[:compacted] & backups).to be_empty
+      expect(backups.map { |file| File.binread(file) }).to eq([original, original])
       expect(File.file?(learning_backup)).to be(true)
       record = JSON.parse(File.read(migration[:ledger])).merge('state' => 'prepared')
       File.write(migration[:ledger], JSON.generate(record))
@@ -125,8 +125,11 @@ RSpec.describe PWN::SessionCleanup do
       layout = File.join(directory, 'layout.json')
       File.write(layout, JSON.generate(version: 1, categories: { learning: ['learning_evidence'] }))
       described_class.install
-      expect(JSON.parse(File.read(layout))).to include('version' => 2, 'categories' => described_class::STORAGE)
+      expect(JSON.parse(File.read(layout))).to include('version' => 3, 'categories' => described_class::STORAGE)
       expect(File.binread(File.join(directory, 'policy.json'))).to eq(config)
+      File.write(layout, JSON.generate(version: 2, categories: { 'tmp' => ['tmp'] }))
+      described_class.install
+      expect(JSON.parse(File.read(layout))).to include('version' => 3, 'categories' => described_class::STORAGE)
       File.write(layout, JSON.generate(version: 99, categories: {}))
       expect { described_class.install }.to raise_error(IOError, /inventory/)
     end
@@ -146,7 +149,7 @@ RSpec.describe PWN::SessionCleanup do
       lease&.close
     end
 
-    it 'prunes redundant physical continuation backups while preserving rollback paths and unique evidence' do
+    it 'preserves centralized continuation recovery and does not run a competing compactor' do
       described_class.install
       root = File.join(Dir.home, '.pwn', 'swarm')
       swarm = '20200101_010203_abcdef'
@@ -165,25 +168,19 @@ RSpec.describe PWN::SessionCleanup do
       File.write(File.join(Dir.home, '.pwn', 'maintenance', 'policy.json'), JSON.generate(config))
       expect(File.identical?(*backups)).to be(false)
       report = described_class.prune_legacy_backups(dry_run: false)
-      expect(report[:compacted].length).to eq(1)
-      expect(File.identical?(*backups)).to be(true)
+      expect(report[:compacted]).to be_empty
+      expect(File.identical?(*backups)).to be(false)
       expect(backups.map { |file| File.binread(file) }).to eq([original, original])
-      expect(described_class.prune_legacy_backups(dry_run: false)[:compacted]).to be_empty
-      expect(described_class.recovery_status(ledger: report[:ledger])[:state]).to eq('committed')
-      # Model interruption after the atomic replacement but before commit readback.
-      interrupted = JSON.parse(File.read(report[:ledger]))
-      interrupted['state'] = 'prepared'
-      interrupted['records'].each { |row| row['state'] = 'prepared' }
-      File.write(report[:ledger], JSON.generate(interrupted))
-      expect(described_class.recover(ledger: report[:ledger], action: 'resume', dry_run: false)[:state]).to eq('committed')
-      expect(backups.map { |file| File.binread(file) }).to eq([original, original])
+      ledger = File.join(File.dirname(backups.last), 'ledger.json')
+      expect(described_class.recover(ledger: ledger, action: 'rollback', dry_run: false)[:restored]).to eq([map])
+      expect(File.binread(map)).to eq(original)
     end
 
     it 'owns actual festival input through use and removes it without a global tmp sweep' do
       observed = nil
       allow(PWN::Plugins::Voice).to receive(:text_to_speech) do |opts|
         observed = opts[:text_path]
-        expect(observed).to start_with("#{File.join(Dir.home, '.pwn', 'tmp')}/")
+        expect(observed).to start_with("#{described_class.disposable_directory('tmp')}/")
         expect(File.read(observed)).to eq('fixture speech')
         expect(described_class.clean_disposables(dry_run: false)[:deleted]).to be_empty
       end
@@ -224,11 +221,20 @@ RSpec.describe PWN::SessionCleanup do
       config['retention_days']['maintenance'] = 0
       File.write(File.join(Dir.home, '.pwn', 'maintenance', 'policy.json'), JSON.generate(config))
       2.times do |index|
-        file = File.join(Dir.home, '.pwn', 'tmp', "expiry-#{index}")
+        file = File.join(described_class.disposable_directory('tmp'), "expiry-#{index}")
         File.write(file, "bytes-#{index}")
         described_class.register_disposable(path: file, category: 'tmp', expires_at: 0)
       end
       result = described_class.clean_disposables(dry_run: false)
+      # Exercise the retained legacy recovery reader with a genuine old layout.
+      old_directory = File.dirname(result[:ledger])
+      legacy_directory = File.join(Dir.home, '.pwn', 'maintenance', 'quarantine', 'legacy-expiry')
+      FileUtils.mkdir_p(File.dirname(legacy_directory))
+      FileUtils.mv(old_directory, legacy_directory)
+      result = JSON.parse(JSON.generate(result).gsub(old_directory, legacy_directory), symbolize_names: true)
+      data = JSON.parse(File.read(result[:ledger]).gsub(old_directory, legacy_directory))
+      File.write(result[:ledger], JSON.generate(data))
+      result[:records] = data.fetch('records')
       backups = result[:records].map { |row| row['backup'] }
       allow(File).to receive(:unlink).and_call_original
       allow(File).to receive(:unlink).with(backups.last).and_raise(Interrupt)
@@ -309,6 +315,14 @@ RSpec.describe PWN::SessionCleanup, 'disposable admission and scan progress' do
     described_class.cache(path: cache, bytes: 'q' * 1_048_576)
     described_class.register_disposable(path: cache, category: 'cache', expires_at: 0)
     removed = described_class.clean_disposables(dry_run: false)
+    old_directory = File.dirname(removed[:ledger])
+    legacy_directory = File.join(Dir.home, '.pwn', 'maintenance', 'quarantine', 'legacy-budget')
+    FileUtils.mkdir_p(File.dirname(legacy_directory))
+    FileUtils.mv(old_directory, legacy_directory)
+    removed = JSON.parse(JSON.generate(removed).gsub(old_directory, legacy_directory), symbolize_names: true)
+    data = JSON.parse(File.read(removed[:ledger]).gsub(old_directory, legacy_directory))
+    File.write(removed[:ledger], JSON.generate(data))
+    removed[:records] = data.fetch('records')
     backup = removed[:records].first.fetch('backup')
     config = described_class.policy.merge('work_bytes' => 8192)
     config['retention_days']['maintenance'] = 0

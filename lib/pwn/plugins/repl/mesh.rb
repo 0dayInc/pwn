@@ -3906,17 +3906,9 @@ class << PWN::Plugins::REPL # rubocop:disable Metrics/ClassLength
     env_path = File.join(Dir.home, '.pwn', 'pwn.yaml') if env_path.empty?
     dec_path = dec_path.to_s.strip
     dec_path = "#{env_path}.decryptor" if dec_path.empty?
-    return false unless File.exist?(env_path) && File.exist?(dec_path) && File.readable?(dec_path)
+    return false unless File.exist?(env_path)
 
-    decryptor = YAML.load_file(dec_path, symbolize_names: true)
-    key = decryptor.is_a?(Hash) ? decryptor[:key] : nil
-    iv = decryptor.is_a?(Hash) ? decryptor[:iv] : nil
-    return false if key.to_s.strip.empty? || iv.to_s.strip.empty?
-
-    PWN::Plugins::Vault.decrypt(file: env_path, key: key, iv: iv)
-    begin
-      cfg = YAML.load_file(env_path, symbolize_names: true)
-      cfg = {} unless cfg.is_a?(Hash)
+    PWN::Plugins::Vault.update(file: env_path, decryptor_file: dec_path) do |cfg|
       cfg[:plugins] = {} unless cfg[:plugins].is_a?(Hash)
       dst = cfg[:plugins][:meshtastic]
       dst = {} unless dst.is_a?(Hash)
@@ -3933,15 +3925,10 @@ class << PWN::Plugins::REPL # rubocop:disable Metrics/ClassLength
         end
       end
       cfg[:plugins][:meshtastic] = dst
-      yaml_env = YAML.dump(cfg).gsub(/^(\s*):/, '\1')
-      File.write(env_path, yaml_env)
-      File.chmod(0o600, env_path)
-    ensure
-      PWN::Plugins::Vault.encrypt(file: env_path, key: key, iv: iv)
     end
     true
   rescue StandardError => e
-    mesh_ui_puts(text: "[pwn-mesh] persist skipped: #{e.class}: #{e.message}")
+    mesh_ui_puts(text: "[pwn-mesh] persist skipped: #{e.class}")
     false
   end
 
