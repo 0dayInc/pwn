@@ -64,7 +64,7 @@ show-source PWN::Plugins::Fuzz.http
 |---|---|
 | `OAuth2` · `BasicAuth` · `AuthenticationHelper` | credential flows |
 | `Vault` | Local encrypted configuration and engagement loot helpers; not a HashiCorp Vault client |
-| [`YubiKey`](YubiKey.md) | Guarded ykman operations, HMAC-backed authenticated vaults and OATH codes |
+| [`YubiKey`](YubiKey.md) | Native Ruby HID/PC/SC operations, HMAC-backed vaults and OATH codes |
 
 ### Hardware / Physical
 | Module | Purpose | Doc |

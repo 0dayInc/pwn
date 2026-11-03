@@ -187,7 +187,7 @@
 <text xml:space="preserve" text-anchor="middle" x="555" y="-71.07" font-family="sans-Serif" font-size="11.00" fill="#cbd5e1">SEPARATE OPTIONAL WEIGHT PATH</text>
 <text xml:space="preserve" text-anchor="middle" x="555" y="-57.57" font-family="sans-Serif" font-size="11.00" fill="#cbd5e1">Curriculum export / configured trainer is opt&#45;in</text>
 <text xml:space="preserve" text-anchor="middle" x="555" y="-44.07" font-family="sans-Serif" font-size="11.00" fill="#cbd5e1">Not routing&#45;policy promotion or proof of adapter gains</text>
-<text xml:space="preserve" text-anchor="middle" x="555" y="-30.57" font-family="sans-Serif" font-size="11.00" fill="#cbd5e1">Scheduled curriculum jobs are disabled by default</text>
+<text xml:space="preserve" text-anchor="middle" x="555" y="-30.57" font-family="sans-Serif" font-size="11.00" fill="#cbd5e1">Curriculum jobs are not seeded</text>
 </g>
 </g>
 </svg>

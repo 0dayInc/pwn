@@ -9,37 +9,37 @@ not a simulated language model.
 
 ## Run from a source checkout
 
-```sh
-ruby scripts/benchmark_policy.rb --self-check
-ruby scripts/benchmark_policy.rb --output /tmp/pwn-policy-benchmark.json
-bundle exec rubocop scripts/benchmark_policy.rb
+There is no standalone `scripts/benchmark_policy.rb`. The worker lives in
+`PWN::AI::Agent::PolicyEvaluation` and runs only in a fresh Ruby process.
+
+```ruby
+require './lib/pwn/ai/agent/policy_evaluation'
+PWN::AI::Agent::PolicyEvaluation.export_training(dir: '/tmp/pwn-policy-snapshots')
 ```
 
-The experiment uses Ruby and its standard libraries; it does not require the
-full application boot sequence. Use a fresh Ruby process, not the live agent
-console. JSON is printed to stdout and optionally written to `--output`.
-`--self-check` runs independent scorer tests, both complete experimental arms,
-and two fresh snapshot workers; it prints short pass messages instead of a
-report. Use the options separately.
-The benchmark exits nonzero if persistence changes during evaluation, splits
-overlap, a negative control succeeds, or a positive control fails. Self-checks
-also require actual training updates in the on arm and none in the off arm.
-They deliberately do **not** require an improvement of a predetermined size.
+`export_training` writes `off.json` and `on.json` under a new directory whose
+parent is a real directory, then returns held-out reports for seeds 0 and 1.
+It does not promote. Frozen snapshots are compared with `evaluate` or
+`pwn-ai --policy evaluate`. Do not load this from the live agent console.
+The worker exits nonzero if persistence changes during evaluation, splits
+overlap, a negative control succeeds, or a positive control fails.
+It does **not** require an improvement of a predetermined size.
 
 ## Relation to existing evaluation
 
 `lib/pwn/ai/agent/curriculum.rb` provides live self-play, judge-based practice,
 mistake-derived evaluation prompts, and adapter training/promotion gates. This
-standalone script does not invoke those paths. It provides a small, independently
+module does not invoke those paths. It provides a small, independently
 scored experiment where the training labels come from actual task achievement,
 not `Reward.judge`, model prose, or a previously assigned reward. It calls
 `Policy.begin_episode`, `observe_step`, and `finish` with those labels during
 training. This is not a test of Reward's verification-record binding, the live
 Loop, Metrics learning, memory retrieval, or adapter training.
 
-The experimental driver remains in `scripts/`. The opt-in `PolicyEvaluation`
-module launches only this fixed runner; it does not load the live agent in its
-workers. Its module autoload does not enable evaluation or promotion.
+The experimental driver is `PWN::AI::Agent::PolicyEvaluation`. Its public
+methods spawn a fresh Ruby process that loads only Policy and Registry after
+clearing the environment. Loading the module does not enable evaluation or
+promotion.
 
 ## Protocol
 
@@ -161,21 +161,19 @@ usage records. Do not present this controller experiment as that study.
 
 ## Opt-in independent snapshot evaluation (R5)
 
-The original commands and `off`/`on` report shape still work. To additionally
-export snapshots and run repeated evaluations in **fresh subprocesses**, use:
+To export snapshots and run repeated evaluations in **fresh subprocesses**:
 
-```sh
-ruby scripts/benchmark_policy.rb --heldout \
-  --snapshot-dir /tmp/pwn-policy-snapshots \
-  --output /tmp/pwn-policy-heldout.json
+```ruby
+require './lib/pwn/ai/agent/policy_evaluation'
+PWN::AI::Agent::PolicyEvaluation.export_training(dir: '/tmp/pwn-policy-snapshots')
 ```
 
-The snapshot directory must be **new**, below `/tmp`, with no symlink parents.
-`off.json` and `on.json` are genuine Policy JSON tables after the same real
-training schedule. Exported `updated_at` metadata is normalized to `null` for
-reproducible snapshot digests; no Q entries or rewards are fabricated. Export
-happens before that arm's evaluation. Neither `--heldout` nor `--snapshot-dir`
-promotes anything or discovers/reads a real home-directory policy.
+The snapshot directory must be **new**. Its parent must be a real directory,
+not a symlink. `off.json` and `on.json` are genuine Policy JSON tables after
+the same real training schedule. Exported `updated_at` metadata is normalized
+to `null` for reproducible snapshot digests; no Q entries or rewards are
+fabricated. Export happens before that arm's evaluation. Export does not
+promote anything or discover/read a real home-directory policy.
 
 The added `heldout` array contains protocol `pwn-policy-heldout-v2`, for suite
 indices 0 and 1. Each worker runs three frozen arms: `off` (baseline snapshot,
@@ -231,13 +229,14 @@ not train or write the live policy. The Ruby API supports other indices 0..7.
 
 From a source checkout, this disposable demonstration stays entirely under a
 new `/tmp` directory (use `pwn-ai` instead of `ruby -Ilib bin/pwn-ai` for an
-installed executable):
+installed executable). Export writes `off.json` and `on.json`; it does not
+promote:
 
 ```sh
 umask 077
 work=$(mktemp -d /tmp/pwn-offline-policy.XXXXXX)
-ruby scripts/benchmark_policy.rb --heldout \
-  --snapshot-dir "$work/snapshots" --output "$work/benchmark.json"
+ruby -Ilib -rpwn/ai/agent/policy_evaluation -e \
+  "PWN::AI::Agent::PolicyEvaluation.export_training(dir: '$work/snapshots')"
 ruby -Ilib bin/pwn-ai --policy evaluate \
   --baseline "$work/snapshots/off.json" --candidate "$work/snapshots/on.json" \
   > "$work/reports.json"

@@ -60,14 +60,9 @@ describe 'PWN::AI::Agent::PolicyEvaluation' do
     expect(second[:isolation][:environment_keys]).to eq(%w[HOME LANG TMPDIR])
   end
 
-  it 'exports learned snapshots and repeated independent reports only on explicit benchmark opt-in' do
-    output, error, status = Open3.capture3(
-      { 'HOME' => @root, 'LANG' => 'C.UTF-8' },
-      RbConfig.ruby, File.expand_path('../../../../../scripts/benchmark_policy.rb', __dir__),
-      '--heldout', '--snapshot-dir', File.join(@root, 'snapshots'), unsetenv_others: true
-    )
-    expect(status.success?).to be(true), error
-    report = JSON.parse(output, symbolize_names: true)
+  it 'exports learned snapshots through PolicyEvaluation without a standalone script' do
+    evaluator = PWN::AI::Agent::PolicyEvaluation
+    report = evaluator.export_training(dir: File.join(@root, 'snapshots'))
     expect(report[:heldout].map { |row| row[:seed] }).to eq([0, 1])
     expect(File.file?(File.join(@root, 'snapshots', 'on.json'))).to be(true)
     report[:heldout].each do |row|
@@ -75,6 +70,7 @@ describe 'PWN::AI::Agent::PolicyEvaluation' do
       expect(row[:arms][:candidate][:evaluation][:completed]).to be > row[:arms][:baseline][:evaluation][:completed]
     end
     expect(report).not_to have_key(:promoted)
+    expect(File).not_to exist(File.expand_path('../../../../../scripts/benchmark_policy.rb', __dir__))
   end
 
   it 'requires opt-in and promotes a replay-verified candidate with a byte-exact rollback snapshot' do
@@ -83,13 +79,8 @@ describe 'PWN::AI::Agent::PolicyEvaluation' do
     live = File.join(@root, 'live.json')
     File.write(live, File.read(@baseline))
     expect(evaluator.promote(live_path: live)).to include(promoted: false, reason: 'disabled')
-    output, error, status = Open3.capture3(
-      { 'HOME' => @root, 'LANG' => 'C.UTF-8' }, RbConfig.ruby,
-      File.expand_path('../../../../../scripts/benchmark_policy.rb', __dir__),
-      '--heldout', '--snapshot-dir', File.join(@root, 'snapshots'), unsetenv_others: true
-    )
-    expect(status.success?).to be(true), error
-    reports = JSON.parse(output, symbolize_names: true)[:heldout]
+    report = evaluator.export_training(dir: File.join(@root, 'snapshots'))
+    reports = report[:heldout]
     baseline = File.join(@root, 'snapshots', 'off.json')
     candidate = File.join(@root, 'snapshots', 'on.json')
     File.write(live, File.read(baseline))
@@ -214,13 +205,9 @@ describe 'PWN::AI::Agent::PolicyEvaluation' do
     end.to raise_error(ArgumentError, /regular file/)
   end
 
-  it 'exercises the snapshot worker as part of the standalone script self-check' do
-    output, error, status = Open3.capture3(
-      { 'HOME' => @root, 'LANG' => 'C.UTF-8' }, RbConfig.ruby,
-      File.expand_path('../../../../../scripts/benchmark_policy.rb', __dir__),
-      '--self-check', unsetenv_others: true
-    )
-    expect(status.success?).to be(true), error
-    expect(output).to include('Snapshot self-checks passed', 'Self-checks passed')
+  it 'does not keep a standalone benchmark script' do
+    expect(File).not_to exist(File.expand_path('../../../../../scripts/benchmark_policy.rb', __dir__))
+    source = File.read(PWN::AI::Agent::PolicyEvaluation.method(:evaluate).source_location.first)
+    expect(source).not_to include('scripts/benchmark_policy.rb')
   end
 end

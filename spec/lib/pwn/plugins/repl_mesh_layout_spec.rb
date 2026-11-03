@@ -118,6 +118,8 @@ describe PWN::Plugins::REPL, 'mesh terminal layout' do
     allow(Curses).to receive(:stdscr).and_return(double('stdscr', erase: nil, noutrefresh: nil))
     allow(Curses).to receive(:doupdate)
     expect { described_class.send(:mesh_relayout!, lines: 24, cols: 100) }.not_to raise_error
+    expect(PWN.const_defined?(:MeshSndrWin)).to be(false)
+    expect(PWN.const_defined?(:MeshRcvrWin)).to be(false)
     expect(PWN::MeshTxWin).to equal(old)
     expect(old).not_to have_received(:close)
   ensure

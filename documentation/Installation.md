@@ -315,7 +315,7 @@ pwn setup --list-profiles
 | `vision` | `OCR` · `ScannableCodes` · `Reports` · `extro_vision` · tesseract / zbar / graphviz |
 | `voice` | `PWN::Plugins::Voice` · `extro_voice` · espeak-ng / sox |
 | `exploit` | `Metasploit` · `sqlmap` |
-| `hardware` | `Serial` · `BusPirate` · `Android` · `BareSIP` · `YubiKey` (`ykman`) · `extro_serial` · `extro_telecomm` |
+| `hardware` | `Serial` · `BusPirate` · `Android` · `BareSIP` · `YubiKey` (HIDAPI/PC/SC, no `ykman`) · `extro_serial` · `extro_telecomm` |
 | `re` | `Radare2` · `GDB` · `ExploitDev` · `Frida` · Android RE (`apktool`/`jadx`) · `pwndbg` · `ropper` · `rizin` |
 | `full` | everything above |
 

@@ -84,6 +84,7 @@ module PWN
 
               # Init ncurses UI (idempotent) with separate RX (top) and TX (bottom) panes
               Curses.init_screen
+              PWN.const_set(:MeshCurses, true)
               Curses.curs_set(0)
               Curses.noecho
               Curses.cbreak
@@ -340,7 +341,10 @@ class << PWN::Plugins::REPL # rubocop:disable Metrics/ClassLength
     top = Integer(opts[:top])
     left = Integer(opts[:left])
     win = PWN.const_defined?(name) ? PWN.const_get(name) : nil
+    ready = PWN.const_defined?(:MeshCurses) && PWN::MeshCurses == true
     if win.nil?
+      return nil unless ready
+
       win = Curses::Window.new(height, width, top, left)
       PWN.const_set(name, win)
     elsif win.respond_to?(:resize) && win.respond_to?(:move)
@@ -349,6 +353,8 @@ class << PWN::Plugins::REPL # rubocop:disable Metrics/ClassLength
       win.erase if win.respond_to?(:erase)
     else
       mesh_drop_win(name: name)
+      return nil unless ready
+
       win = Curses::Window.new(height, width, top, left)
       PWN.const_set(name, win)
     end
@@ -403,7 +409,7 @@ class << PWN::Plugins::REPL # rubocop:disable Metrics/ClassLength
     conv = layout[:conversation]
     mesh_place_win(name: :MeshRxHeaderWin, height: layout[:header], width: layout[:cols], top: 0, left: 0, scroll: false)
     frame = mesh_place_win(name: :MeshRxFrameWin, height: layout[:body], width: conv, top: body_start, left: 0, scroll: false)
-    mesh_box!(win: frame)
+    mesh_box!(win: frame) if frame
     mesh_place_win(
       name: :MeshRxBodyWin,
       height: [layout[:body] - 2, 1].max,
@@ -428,8 +434,10 @@ class << PWN::Plugins::REPL # rubocop:disable Metrics/ClassLength
       mesh_drop_win(name: :MeshRcvrWin)
     end
     tx = mesh_place_win(name: :MeshTxWin, height: layout[:tx], width: layout[:cols], top: layout[:tx_top], left: 0, scroll: false)
-    tx.keypad(true) if tx.respond_to?(:keypad)
-    tx.timeout = 100 if tx.respond_to?(:timeout=)
+    if tx
+      tx.keypad(true) if tx.respond_to?(:keypad)
+      tx.timeout = 100 if tx.respond_to?(:timeout=)
+    end
     PWN.const_set(:MeshMutex, Mutex.new) unless PWN.const_defined?(:MeshMutex)
     state = PWN.const_defined?(:MeshRxState) ? PWN::MeshRxState : nil
     mesh_set_focus(focus: :conversation) if state.is_a?(Hash) && %i[sndr rcvr].include?(state[:focus]) && !mesh_side_panes?
