@@ -84,7 +84,7 @@ module PWN
 
           enc = PWN::Plugins::Vault.file_encrypted?(file: p)
           # Shape (missing keys vs env_template) is checked separately in
-          # .vault_drift because it requires the decryptor.
+          # .vault_drift because it requires access to the legacy key or YubiKey.
           { ok: enc, why: enc ? nil : 'not encrypted (run PWN::Plugins::Vault.create)' }
         }
       },
@@ -245,33 +245,33 @@ module PWN
         File.write(path, YAML.dump(raw))
         io.puts "    · agents.yml added default model to #{patched} personas"
       },
-      4 => lambda { |_root, io|
+      4 => lambda { |_root, io, vault_opts = {}|
         io.puts '    · pwn.yaml ai_sandbox, ai_router, model_routes task classes'
-        PWN::Migrate.backfill_vault(io: io)
+        PWN::Migrate.backfill_vault(vault_opts.merge(io: io))
       },
-      5 => lambda { |_root, io|
+      5 => lambda { |_root, io, vault_opts = {}|
         io.puts '    · pwn.yaml ai.agent.skill_review'
-        PWN::Migrate.backfill_vault(io: io)
+        PWN::Migrate.backfill_vault(vault_opts.merge(io: io))
       },
-      6 => lambda { |_root, io|
+      6 => lambda { |_root, io, vault_opts = {}|
         io.puts '    · pwn.yaml ai.tui.theme'
-        PWN::Migrate.backfill_vault(io: io)
+        PWN::Migrate.backfill_vault(vault_opts.merge(io: io))
       },
-      7 => lambda { |_root, io|
+      7 => lambda { |_root, io, vault_opts = {}|
         io.puts '    · pwn.yaml ai.tui.theme.title'
-        PWN::Migrate.backfill_vault(io: io)
+        PWN::Migrate.backfill_vault(vault_opts.merge(io: io))
       },
       8 => lambda { |_root, io|
         io.puts '    · guarded session_cleanup default cron payload and job'
         PWN::Cron.install_defaults
       },
-      9 => lambda { |_root, io|
+      9 => lambda { |_root, io, vault_opts = {}|
         io.puts '    · pwn.yaml plugins.meshtastic.channel short_name'
-        PWN::Migrate.backfill_vault(io: io)
+        PWN::Migrate.backfill_vault(vault_opts.merge(io: io))
       },
-      10 => lambda { |_root, io|
+      10 => lambda { |_root, io, vault_opts = {}|
         io.puts '    · pwn.yaml ai reasoning_effort for anthropic, gemini, ollama, openwebui'
-        PWN::Migrate.backfill_vault(io: io)
+        PWN::Migrate.backfill_vault(vault_opts.merge(io: io))
       },
       11 => lambda { |_root, io|
         io.puts '    · versioned housekeeping policy and managed session_cleanup helper'
@@ -313,14 +313,15 @@ module PWN
     end
 
     # Supported Method Parameters::
-    # rows = PWN::Migrate.status
+    # rows = PWN::Migrate.status(pwn_env_path: 'optional - Selected configuration vault path')
     #
     # Per-file compatibility report — the machine-readable half of
     # `.check`.  Never writes.  Never raises (each verifier is rescued).
 
-    public_class_method def self.status
+    public_class_method def self.status(opts = {})
+      selected_vault = opts[:pwn_env_path] || vault_paths[:file]
       files = STATE_FILES.map do |rel, meta|
-        path = File.join(PWN_ROOT, rel)
+        path = meta[:kind] == :vault ? selected_vault : File.join(PWN_ROOT, rel)
         exists = meta[:kind] == :dir ? File.directory?(path) : File.file?(path)
         raw = exists && meta[:kind] != :dir ? safe_read(path: path) : nil
         v = verify_one(path: path, raw: raw, meta: meta)
@@ -397,12 +398,13 @@ module PWN
       io      = opts[:io] || $stdout
 
       FileUtils.mkdir_p(PWN_ROOT) unless dry_run
-      before = status
+      before = status(pwn_env_path: opts[:pwn_env_path])
       io.puts "PWN::Migrate — pwn #{before[:pwn_version]} · ~/.pwn schema " \
               "#{before[:schema_installed]} → #{before[:schema_current]}" \
               "#{'  (dry-run)' if dry_run}"
 
-      drift = fix ? vault_drift(key: opts[:key], iv: opts[:iv]) : nil
+      vault_opts = { key: opts[:key], iv: opts[:iv], yubikey: opts[:yubikey], pwn_env_path: opts[:pwn_env_path], pwn_dec_path: opts[:pwn_dec_path] }
+      drift = fix ? vault_drift(vault_opts) : nil
       changes = before[:schema_installed] < SCHEMA_VERSION ||
                 (fix && (!before[:incompatible].empty? || (drift && !drift[:missing].empty?)))
       bpath = nil
@@ -418,7 +420,9 @@ module PWN
         next unless m
 
         io.puts "  migrate  : v#{n - 1} → v#{n}"
-        m.call(PWN_ROOT, io) unless dry_run
+        unless dry_run
+          m.arity == 2 ? m.call(PWN_ROOT, io) : m.call(PWN_ROOT, io, vault_opts)
+        end
         applied << n
       end
 
@@ -434,13 +438,13 @@ module PWN
 
         # pwn.yaml key backfill runs even when the vault verifier passed —
         # "encrypted" ≠ "has every key this release added".
-        vd = backfill_vault(key: opts[:key], iv: opts[:iv], dry_run: dry_run, io: io)
+        vd = backfill_vault(vault_opts.merge(dry_run: dry_run, io: io))
         fixed << vd if vd && vd[:added].to_i.positive?
       end
 
       stamp! if !dry_run && changes
 
-      after = status
+      after = status(pwn_env_path: opts[:pwn_env_path])
       io.puts
       io.puts "  result   : #{after[:incompatible].length} incompatible remaining " \
               "(was #{before[:incompatible].length}) · schema now #{after[:schema_installed]}"
@@ -458,16 +462,15 @@ module PWN
     #
     # Deep-diff the user's decrypted pwn.yaml against the current
     # PWN::Config.env_template.  → { missing: [dotted.paths], user: {…} }
-    # Returns nil when the decryptor is unavailable (never prompts).
+    # Returns nil when vault access is unavailable (never prompts).
 
     public_class_method def self.vault_drift(opts = {})
-      key, iv = decryptor(opts)
-      return nil unless key && iv
-
-      yaml = File.join(PWN_ROOT, 'pwn.yaml')
+      paths = vault_paths(opts)
+      yaml = paths[:file]
       return nil unless File.file?(yaml) && PWN::Plugins::Vault.file_encrypted?(file: yaml)
 
-      user = PWN::Plugins::Vault.dump(file: yaml, key: key, iv: iv)
+      access = PWN::Plugins::Vault.access_options(paths.merge(key: opts[:key], iv: opts[:iv], yubikey: opts[:yubikey]))
+      user = PWN::Plugins::Vault.dump(access.merge(file: yaml))
       tmpl = env_template
       { missing: missing_paths(tmpl: tmpl, user: user), user: user, template: tmpl }
     rescue StandardError
@@ -480,7 +483,7 @@ module PWN
     # )
     #
     # Decrypt → deep-merge template UNDER user (never overwrites) →
-    # re-encrypt with the SAME key/iv.  This is the fix for the #1
+    # re-encrypt with the SAME legacy key/iv or hardware selector. This fixes the
     # upgrade break: `NoMethodError: undefined method '[]' for nil` when
     # a release added `env[:ai][:new_engine][:…]` and the user's vault
     # predates it.
@@ -488,9 +491,9 @@ module PWN
     public_class_method def self.backfill_vault(opts = {})
       io      = opts[:io] || $stdout
       dry_run = opts[:dry_run] ? true : false
-      d = vault_drift(key: opts[:key], iv: opts[:iv])
+      d = vault_drift(opts)
       unless d
-        io.puts '  vault    : skipped (no decryptor available — run with --pwn-dec or set key:/iv:)'
+        io.puts '  vault    : skipped (vault access unavailable — check YubiKey or legacy decryptor/key/IV)'
         return nil
       end
       if d[:missing].empty?
@@ -503,13 +506,10 @@ module PWN
       io.puts "             … (+#{d[:missing].length - 8} more)" if d[:missing].length > 8
       return { rel: 'pwn.yaml', added: d[:missing].length, missing: d[:missing], dry_run: true } if dry_run
 
-      merged = deep_defaults(user: d[:user], tmpl: d[:template])
-      yaml   = File.join(PWN_ROOT, 'pwn.yaml')
-      key, iv = decryptor(opts)
-      # Same colon-stripping default_env uses so the file stays diff-clean.
-      File.write(yaml, YAML.dump(merged).gsub(/^(\s*):/, '\1'))
-      File.chmod(0o600, yaml)
-      PWN::Plugins::Vault.encrypt(file: yaml, key: key, iv: iv)
+      access = vault_paths(opts).merge(key: opts[:key], iv: opts[:iv], yubikey: opts[:yubikey])
+      PWN::Plugins::Vault.update(access) do |user|
+        user.replace(deep_defaults(user: user, tmpl: d[:template]))
+      end
 
       { rel: 'pwn.yaml', added: d[:missing].length, missing: d[:missing] }
     rescue StandardError => e
@@ -711,18 +711,12 @@ module PWN
       SCHEMA_VERSION
     end
 
-    private_class_method def self.decryptor(opts = {})
-      key = opts[:key]
-      iv  = opts[:iv]
-      return [key, iv] if key && iv
-
-      dec = File.join(PWN_ROOT, 'pwn.yaml.decryptor')
-      return [nil, nil] unless File.file?(dec)
-
-      d = YAML.load_file(dec, symbolize_names: true)
-      [d[:key], d[:iv]]
-    rescue StandardError
-      [nil, nil]
+    private_class_method def self.vault_paths(opts = {})
+      driver = defined?(PWN::Env) && PWN::Env.is_a?(Hash) ? PWN::Env[:driver_opts] : nil
+      driver = {} unless driver.is_a?(Hash)
+      file = opts[:pwn_env_path] || driver[:pwn_env_path] || File.join(PWN_ROOT, 'pwn.yaml')
+      decryptor_file = opts[:pwn_dec_path] || driver[:pwn_dec_path] || "#{file}.decryptor"
+      { file: file, decryptor_file: decryptor_file }
     end
 
     private_class_method def self.safe_read(opts = {})
@@ -814,7 +808,9 @@ module PWN
         #{self}.needed?
 
         # Run status and return its result
-        #{self}.status
+        #{self}.status(
+          pwn_env_path: 'optional - Vault path; defaults to driver options then ~/.pwn/pwn.yaml'
+        )
 
         # Human-readable ~/.pwn state doctor.  Read-only.  Called from
         #{self}.check(
@@ -828,20 +824,30 @@ module PWN
           dry_run: 'optional - report what WOULD happen, write nothing (default false)',
           key: 'optional - vault key   (default: read ~/.pwn/pwn.yaml.decryptor)',
           iv: 'optional - vault iv    (default: read ~/.pwn/pwn.yaml.decryptor)',
+          yubikey: 'optional - Hardware selector overrides: slot, serial, reader, device_path, connection, timeout',
+          pwn_env_path: 'optional - Vault path; defaults to driver options then ~/.pwn/pwn.yaml',
+          pwn_dec_path: 'optional - Legacy decryptor path; defaults to driver options then vault sidecar',
           io: 'optional - IO to write to (default $stdout)'
         )
 
         # Run vault drift and return its result
         #{self}.vault_drift(
-          key: 'optional - vault key, iv: optional - vault iv'
+          key: 'optional - Legacy vault key override',
+          iv: 'optional - Legacy vault IV override',
+          yubikey: 'optional - Hardware selector overrides: slot, serial, reader, device_path, connection, timeout',
+          pwn_env_path: 'optional - Vault path; defaults to driver options then ~/.pwn/pwn.yaml',
+          pwn_dec_path: 'optional - Legacy decryptor path; hardware vaults need no sidecar'
         )
 
         # Run backfill vault and return its result
         #{self}.backfill_vault(
-          key: 'optional - optional, iv: optional, dry_run: false, io: $stdout',
-          io: 'optional - io value consumed by #backfill_vault',
-          dry_run: 'optional - dry run value consumed by #backfill_vault',
-          iv: 'optional - iv value consumed by #backfill_vault'
+          key: 'optional - Legacy vault key override',
+          iv: 'optional - Legacy vault IV override',
+          yubikey: 'optional - Hardware selector overrides: slot, serial, reader, device_path, connection, timeout',
+          pwn_env_path: 'optional - Vault path; defaults to driver options then ~/.pwn/pwn.yaml',
+          pwn_dec_path: 'optional - Legacy decryptor path; hardware vaults need no sidecar',
+          io: 'optional - Report output; defaults to $stdout',
+          dry_run: 'optional - Report missing keys without writing; defaults to false'
         )
 
         # Compatibility report; shared producer admission owns retention.

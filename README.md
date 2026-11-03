@@ -9,6 +9,7 @@
 - [Intro](#intro)
   * [What is PWN](#what-is-pwn)
   * [Why PWN](#why-pwn)
+    * [Vault and Sandboxing](#vault-and-sandboxing)
   * [How PWN Works](#how-pwn-works)
 - [Documentation](#documentation)
 - [Installation](#installation)
@@ -87,6 +88,42 @@ The whole stack is open source and easy to read. That matters when software
 is driving security decisions without you watching every click.
 
 Full page: [Why PWN](documentation/Why-PWN.md)
+
+##### **Vault and Sandboxing** #####
+
+Agentic security research, bug bounty hunting and penetration testing put
+credentials, client evidence and untrusted target content in the same tool loop.
+Vault and sandboxing reduce accidental secret persistence and limit local damage
+from untrusted PoCs or target-supplied prompt injection:
+
+- **Keep secrets separate from the conversation.** [Vault](lib/pwn/plugins/vault.rb)
+  encrypts configuration and captured credential values at rest. Use
+  `{{vault:label}}` references: [Dispatch](lib/pwn/ai/agent/dispatch.rb) resolves
+  them at the tool boundary and redacts known stored secrets from returned results.
+  Together with transcript/log redaction, this reduces copying raw secrets into
+  prompts, logs and reusable context. Store/query loot under explicit engagement
+  IDs with host/service/finding provenance. Use unique labels: reference expansion
+  can search across engagements, so these IDs are not credential access controls.
+- **Contain tool effects, not just model instructions.** The
+  [mandatory runtime boundary](documentation/Runtime-Source-Protection.md) uses
+  Linux workers to separate tool writes from protected source and controller state;
+  [mission containment](documentation/Mission-Cancellation.md) owns their descendants.
+  Unnamed writes default to `~/.pwn/workspaces/runtime`. Other destinations must
+  come from the original operator request, not tool output; naming a file can
+  grant its parent directory. Protected source stays read-only even if named.
+  Missing required Landlock/seccomp or namespace support makes execution fail closed.
+  Optional `strict`/`permissive`/`off` profiles do not disable that mandatory boundary.
+
+**Know the limits.** Encryption at rest does not protect secrets from an active
+process that has unlocked them or promise LLM-provider privacy. Vault is not
+whole-filesystem or evidence/artifact encryption, and redaction can miss secrets.
+Sandboxing is not authorization, complete network isolation, a perfect container,
+or a guarantee against bugs or prompt injection. Operators still need target
+authorization and scope, least-privilege credentials, and separate evidence access,
+retention and encryption controls.
+
+Details: [Configuration](documentation/Configuration.md) ·
+[Optional hardware-backed vaults and recovery](documentation/YubiKey-Vaults.md)
 
 #### **How PWN Works** ####
 

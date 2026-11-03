@@ -24,7 +24,7 @@ a dependency guarantee. External services/radios require separate live verificat
 [source](diagrams/dot/persistence-filesystem.dot) · doc: [Persistence](Persistence.md)
 ![persistence-filesystem](diagrams/persistence-filesystem.svg)
 
-### Plugin Ecosystem (107 modules)
+### Plugin Ecosystem (108 modules)
 [source](diagrams/dot/plugin-ecosystem.dot) · doc: [Plugins](Plugins.md)
 ![plugin-ecosystem](diagrams/plugin-ecosystem.svg)
 

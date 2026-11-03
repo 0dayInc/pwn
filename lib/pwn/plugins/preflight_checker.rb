@@ -6,9 +6,9 @@ require 'time'
 
 module PWN
   module Plugins
-    # Plugin/binary/capability preflight. Plugins declare required_bins /
-    # required_caps; HOST summaries list degraded modules without autoloading
-    # the whole plugin tree.
+    # Plugin/binary/capability preflight. Native probes load host libraries
+    # only: no device enumeration, authentication or I/O. HOST summaries list
+    # degraded modules without autoloading the whole plugin tree.
     module PreflightChecker
       class MissingBinary < StandardError; end
       class MissingCapability < StandardError; end
@@ -32,6 +32,13 @@ module PWN
         'PWN::Plugins::Semgrep' => { bins: %w[semgrep] },
         'PWN::Plugins::ExploitDB' => { bins: %w[searchsploit] },
         'PWN::Plugins::Recon' => { bins: %w[subfinder httpx] },
+        'PWN::Plugins::YubiKey' => {
+          bins: [],
+          native: [
+            { name: 'FIDO native transport', probe: 'PWN::Plugins::YubiKey', options: { application: :fido } },
+            { name: 'PC/SC native transport', probe: 'PWN::Plugins::YubiKey', options: { application: :oath } }
+          ]
+        },
         'PWN::Plugins::CredentialAttack' => { bins: %w[hydra john hashcat] }
       }.freeze
 
@@ -97,6 +104,11 @@ module PWN
         PLUGIN_DEPS.each do |mod, dep|
           missing = Array(dep[:bins]).reject { |b| bin?(name: b) }
           caps[mod] = { bins: dep[:bins], missing: missing, ok: missing.empty?, caps: Array(dep[:caps]) }
+          next unless dep[:native]
+
+          missing_native = Array(dep[:native]).reject { |probe| native_available?(probe: probe) }.map { |probe| probe[:name] }
+          caps[mod][:missing_native] = missing_native
+          caps[mod][:ok] &&= missing_native.empty?
         end
         row = {
           at: Time.now.utc.iso8601,
@@ -164,21 +176,25 @@ module PWN
           bins = Array(dep[:bins])
           caps = Array(dep[:caps])
           services = Array(dep[:services])
+          native = Array(dep[:native])
           missing_bins = bins.reject { |b| bin?(name: b) }
+          missing_native = native.reject { |probe| native_available?(probe: probe) }.map { |probe| probe[:name] }
           missing_caps = []
           if caps.include?('CAP_NET_RAW')
             pkt_ok = defined?(PWN::Plugins::Packet) && PWN::Plugins::Packet.respond_to?(:health) && PWN::Plugins::Packet.health[:ok]
             missing_caps << 'CAP_NET_RAW' unless pkt_ok || cap_net_raw?
           end
           missing_services = services.reject { |s| service?(name: s[:name] || s['name'], path: s[:path] || s['path']) }.map { |s| s[:name] || s['name'] }
-          status = if missing_bins.empty? && missing_caps.empty? && missing_services.empty?
+          status = if missing_bins.empty? && missing_caps.empty? && missing_services.empty? && missing_native.empty?
                      :ok
-                   elsif bins.any? && missing_bins.length == bins.length
+                   elsif (bins.any? && missing_bins.length == bins.length) || (native.any? && missing_native.length == native.length)
                      :dead
                    else
                      :degraded
                    end
-          { plugin: plugin, status: status, missing_bins: missing_bins, missing_caps: missing_caps, missing_services: missing_services }
+          row = { plugin: plugin, status: status, missing_bins: missing_bins, missing_caps: missing_caps, missing_services: missing_services }
+          row[:missing_native] = missing_native if dep[:native]
+          row
         end
       end
 
@@ -189,13 +205,22 @@ module PWN
         degraded = rows.select { |r| r[:status] == :degraded }
         lines = ["HOST plugins ok=#{rows.count { |r| r[:status] == :ok }} degraded=#{degraded.length} dead=#{dead.length}"]
         (degraded + dead).first(cap).each do |r|
-          miss = (Array(r[:missing_bins]) + Array(r[:missing_caps]) + Array(r[:missing_services])).join(',')
+          miss = (Array(r[:missing_bins]) + Array(r[:missing_caps]) + Array(r[:missing_services]) + Array(r[:missing_native])).join(',')
           fb = Array(FALLBACKS[r[:plugin]]).join(',')
           extra = fb.empty? ? '' : " fallback=#{fb}"
           anchor = r[:plugin].to_s.downcase.gsub(/[^a-z0-9]+/, '-').gsub(/\A-+|-+\z/, '')
           lines << "  #{r[:status]} #{r[:plugin]} missing=#{miss}#{extra} see documentation/Plugin-Degradation.md##{anchor}"
         end
         lines.join("\n")
+      end
+
+      # Only trusted declarations above may supply a host-only available? probe.
+      private_class_method def self.native_available?(opts = {})
+        probe = opts[:probe]
+        provider = probe.fetch(:probe).split('::').inject(Object) { |scope, name| scope.const_get(name, false) }
+        provider.available?(probe.fetch(:options, {})) == true
+      rescue LoadError, StandardError
+        false
       end
 
       public_class_method def self.authors
@@ -247,7 +272,7 @@ module PWN
             path: 'required - unix socket path (e.g. /var/run/docker.sock)'
           )
 
-          # Run check and return its result
+          # Report dependencies; native rows add missing_native from host-only library probes, never device readiness.
           #{self}.check(
             names: 'optional - Array names value consumed by #check'
           )
@@ -258,7 +283,7 @@ module PWN
             limit: 'optional - limit value consumed by #host_summary'
           )
 
-          # Refresh ~/.pwn/capabilities.json with bin/CAP_* presence.
+          # Refresh ~/.pwn/capabilities.json with bin/CAP_* and host-native-library presence; no device discovery.
           #{self}.manifest(
             refresh: 'optional - unused reserved refresh flag'
           )

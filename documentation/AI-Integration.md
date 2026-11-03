@@ -56,12 +56,14 @@ The trailing `nil` prevents the console from echoing the returned bearer.
 Successful enrollment updates the live environment and calls the private
 `persist_oauth_to_vault` helper, as token refresh does. It uses the configured
 `driver_opts.pwn_env_path` and `pwn_dec_path`, defaulting to
-`~/.pwn/pwn.yaml` and its `.decryptor` file. Existing decryption artifacts are
-required; missing artifacts leave tokens in the session only and produce a
+`~/.pwn/pwn.yaml` and its legacy `.decryptor` file. A [YubiKey vault](YubiKey-Vaults.md)
+uses its hardware selector instead and does not need a software sidecar.
+Unavailable credentials or hardware leave tokens in the session only and produce a
 notice. Tokens are not printed by the enrollment success message.
 
-Persistence retains unrelated settings and the existing key/IV, encrypts a
-private temporary file, and replaces the vault only after encryption succeeds.
+Persistence retains unrelated settings and the encryption backend, decrypts and
+merges in memory, writes only ciphertext to a private temporary file, and
+replaces the vault only after encryption succeeds.
 The resulting vault has mode `0600`. The original vault remains unchanged on
 a persistence failure; the helper does not create or rotate decryptor secrets.
 

@@ -397,25 +397,13 @@ module PWN
         dec_path = dec_path.to_s.strip
         dec_path = "#{env_path}.decryptor" if dec_path.empty?
 
-        unless File.exist?(env_path) && File.exist?(dec_path) && File.readable?(dec_path)
+        unless File.exist?(env_path)
           puts '[*] INFO: Google Workspace OAuth tokens updated in this session only; ' \
-               "persistence to #{env_path} skipped (missing decryption artifacts)."
+               "persistence to #{env_path} skipped (missing vault)."
           return false
         end
 
-        decryptor = YAML.load_file(dec_path, symbolize_names: true)
-        key = decryptor.is_a?(Hash) ? decryptor[:key] : nil
-        iv = decryptor.is_a?(Hash) ? decryptor[:iv] : nil
-        unless real_config_value?(value: key) && real_config_value?(value: iv)
-          puts '[*] INFO: Google Workspace OAuth tokens updated in this session only; ' \
-               'decryptor has no usable key/iv.'
-          return false
-        end
-
-        PWN::Plugins::Vault.decrypt(file: env_path, key: key, iv: iv)
-        begin
-          vault = YAML.load_file(env_path, symbolize_names: true)
-          vault = {} unless vault.is_a?(Hash)
+        PWN::Plugins::Vault.update(file: env_path, decryptor_file: dec_path) do |vault|
           vault[:plugins] = {} unless vault[:plugins].is_a?(Hash)
           vault[:plugins][:google_workspace] = {} unless vault[:plugins][:google_workspace].is_a?(Hash)
           slot = vault[:plugins][:google_workspace][:oauth]
@@ -423,15 +411,10 @@ module PWN
           %i[bearer_token refresh_token expires_at client_id client_secret redirect_uri scope].each do |k|
             slot[k] = oauth[k] if oauth.key?(k) && !oauth[k].nil?
           end
-          yaml_env = YAML.dump(vault).gsub(/^(\s*):/, '\1')
-          File.write(env_path, yaml_env)
-          File.chmod(0o600, env_path)
-        ensure
-          PWN::Plugins::Vault.encrypt(file: env_path, key: key, iv: iv)
         end
         true
       rescue StandardError => e
-        warn "[!] Google Workspace OAuth vault persistence failed (session tokens still updated): #{e.class}: #{e.message}"
+        warn "[!] Google Workspace OAuth vault persistence failed (session tokens still updated): #{e.class}"
         false
       end
 

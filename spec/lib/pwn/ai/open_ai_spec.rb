@@ -65,14 +65,14 @@ describe PWN::AI::OpenAI do
       end
 
       it 'leaves the original vault encrypted and unchanged if re-encryption fails' do
-        allow(PWN::Plugins::Vault).to receive(:encrypt).and_raise(IOError, 'fixture write failure')
+        allow(PWN::Plugins::Vault).to receive(:encrypt_data).and_raise(IOError, 'fixture write failure')
         expect(described_class.send(:persist_oauth_to_vault, oauth: { bearer_token: 'fixture-access' })).to be(false)
         expect(File.binread(@vault_path)).to eq(@original_ciphertext)
         expect(Dir.children(@oauth_home)).to match_array(%w[pwn.yaml custom.decryptor])
       end
 
       it 'does not expose vault contents through persistence exception messages' do
-        allow(PWN::Plugins::Vault).to receive(:encrypt).and_raise(IOError, 'fixture-access in parser context')
+        allow(PWN::Plugins::Vault).to receive(:encrypt_data).and_raise(IOError, 'fixture-access in parser context')
         expect do
           described_class.send(:persist_oauth_to_vault, oauth: { bearer_token: 'fixture-access' })
         end.to output(/vault persistence failed.*IOError/).to_stderr

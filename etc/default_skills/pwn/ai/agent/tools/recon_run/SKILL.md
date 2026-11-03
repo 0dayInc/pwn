@@ -1,39 +1,48 @@
 ---
 name: pwn-ai-agent-tools-reconrun
-description: Drive PWN::Ai::Agent::Tools::ReconRun from pwn_eval.
+description: Run recon pipelines with optional hardware-protected loot.
 license: MIT
 allowed-tools: [pwn, pwn_eval]
 metadata:
   bundled: true
-  generated: true
+  preserve: true
   module: PWN::Ai::Agent::Tools::ReconRun
   source: pwn/ai/agent/tools/recon_run.rb
 ---
 
-# PWN::Ai::Agent::Tools::ReconRun
+# recon_run registry tool
 
-Public API for PWN::Ai::Agent::Tools::ReconRun.
+Use the registered `recon_run` tool or `PWN::Plugins::Recon.run`; this file
+registers a tool, not a Ruby class named `PWN::Ai::Agent::Tools::ReconRun`.
 
 ## When to use
 
-Call `PWN::Ai::Agent::Tools::ReconRun` from `pwn_eval` when the task needs this module.
-Do not reimplement it in shell.
+Run selected recon modules against a single authorized target and persist their
+asset/evidence model. Scanner observations are not proven findings.
 
 ## Methodologies
 
-Generated from `pwn/ai/agent/tools/recon_run.rb`. Prefer the public class methods below.
-Class methods take `(opts = {})` and read `opts`.
+Supply `target` and a nonempty `modules` array from `nmap`, `banner`, `tls`,
+`subfinder`, `nuclei`. Optional `ports`, `engagement_id`, positive `timeout` up to
+300 seconds and `ingest` control the pipeline; tool ingestion defaults to true.
 
 ## How to call
 
-```ruby
-PWN::Ai::Agent::Tools::ReconRun.help
-PWN::Ai::Agent::Tools::ReconRun.help(opts)
+```json
+{"target":"app.example.test","modules":["banner"],"ports":[443],"ingest":false,"yubikey":{"slot":2}}
 ```
 
-## Public methods
+## Hardware protection
 
-- _(no public class methods parsed)_
+The optional `yubikey` selector accepts only integer `slot` 1/2, decimal String
+`serial`, and positive `timeout` seconds. An empty object chooses hardware
+defaults. It forwards into Vault ingestion without provisioning or software
+fallback. Device access errors remain failures. PINs, seeds, arbitrary executable
+paths and secret selector fields are forbidden by the tool schema.
+
+Only harvested loot is hardware encrypted. Raw scanner evidence and the asset
+model remain ordinary files; protect those separately. Do not claim a completed
+scan when harvesting failed, or replay an expensive scan blindly after device loss.
 
 ## Source
 
@@ -41,5 +50,6 @@ PWN::Ai::Agent::Tools::ReconRun.help(opts)
 
 ## Verification
 
-`PWN::Ai::Agent::Tools::ReconRun.respond_to?(:help)` after the
-module is loaded. Read the source for parameter names.
+Run `spec/lib/pwn/ai/agent/tools/recon_run_spec.rb` and
+`spec/lib/pwn/ai/agent/tools/recon_run_yubikey_spec.rb`. The latter exercises the
+real handler/Recon/Vault path with fake socket/device boundaries and no live scan.

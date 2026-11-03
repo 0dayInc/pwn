@@ -28,7 +28,11 @@ module PWN
 
           def prepared?
             rows = File.readlines('/proc/self/uid_map').map { |line| line.split.map(&:to_i) }
-            rows.length == 1 && rows.first.last == 1
+            count = rows.length == 1 ? rows.first.last : nil
+            # The initial host map is the full 32-bit range. Any smaller single
+            # line is a user namespace, including a root test bootstrap that must
+            # still include a non-root account.
+            count.is_a?(Integer) && count.positive? && count < 4_294_967_295
           rescue SystemCallError
             false
           end

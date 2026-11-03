@@ -7,7 +7,7 @@ PWN::AI::Agent::Registry.register(
   toolset: 'pwn',
   schema: {
     name: 'loot_query',
-    description: 'Query the engagement-scoped encrypted loot store (creds/tokens/keys with provenance). Use for lateral-movement planning; BasicAuth.encode(host:) auto-offers matching secrets when a service prompts for auth.',
+    description: 'Query engagement-scoped encrypted loot metadata without decrypting secrets. Store/ingest/offer can select YubiKey hardware protection; hardware access failures never fall back to software. BasicAuth.encode(host:) auto-offers matching secrets when a service prompts for auth.',
     parameters: {
       type: 'object',
       properties: {
@@ -23,6 +23,16 @@ PWN::AI::Agent::Registry.register(
         username: { type: 'string' },
         where: { type: 'string' },
         source: { type: 'string' },
+        yubikey: {
+          type: 'object',
+          description: 'Non-secret selector for an already provisioned HMAC-SHA1 slot. Omit for the existing backend; an empty object selects hardware defaults.',
+          properties: {
+            slot: { type: 'integer', enum: [1, 2] },
+            serial: { type: 'string', pattern: '^[0-9]+$' },
+            timeout: { type: 'number', exclusiveMinimum: 0 }
+          },
+          additionalProperties: false
+        },
         label: { type: 'string' }
       }
     }

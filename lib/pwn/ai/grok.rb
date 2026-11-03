@@ -167,27 +167,13 @@ module PWN
         dec_path = dec_path.to_s.strip
         dec_path = "#{env_path}.decryptor" if dec_path.empty?
 
-        unless File.exist?(env_path) && File.exist?(dec_path) && File.readable?(dec_path)
+        unless File.exist?(env_path)
           puts '[*] INFO: Grok OAuth tokens updated in this session only; ' \
-               "persistence to #{env_path} skipped (missing decryption artifacts" \
-               "#{" at #{dec_path}" unless dec_path.empty?})."
+               "persistence to #{env_path} skipped (missing vault)."
           return false
         end
 
-        decryptor = YAML.load_file(dec_path, symbolize_names: true)
-        key = decryptor.is_a?(Hash) ? decryptor[:key] : nil
-        iv  = decryptor.is_a?(Hash) ? decryptor[:iv]  : nil
-        unless real_config_value?(value: key) && real_config_value?(value: iv)
-          puts '[*] INFO: Grok OAuth tokens updated in this session only; ' \
-               "persistence to #{env_path} skipped (decryptor at #{dec_path} " \
-               'has no usable key/iv).'
-          return false
-        end
-
-        PWN::Plugins::Vault.decrypt(file: env_path, key: key, iv: iv)
-        begin
-          cfg = YAML.load_file(env_path, symbolize_names: true)
-          cfg = {} unless cfg.is_a?(Hash)
+        PWN::Plugins::Vault.update(file: env_path, decryptor_file: dec_path) do |cfg|
           cfg[:ai] = {} unless cfg[:ai].is_a?(Hash)
           cfg[:ai][:grok] = {} unless cfg[:ai][:grok].is_a?(Hash)
           vault_oauth = cfg[:ai][:grok][:oauth]
@@ -196,19 +182,11 @@ module PWN
           vault_oauth[:bearer_token] = oauth[:bearer_token]
           vault_oauth[:refresh_token] = oauth[:refresh_token] if real_config_value?(value: oauth[:refresh_token])
           vault_oauth[:expires_at] = oauth[:expires_at] if oauth.key?(:expires_at) && !oauth[:expires_at].nil?
-
-          # Match PWN::Config.default_env YAML style (string keys, no leading ':').
-          yaml_env = YAML.dump(cfg).gsub(/^(\s*):/, '\1')
-          File.write(env_path, yaml_env)
-          File.chmod(0o600, env_path)
-        ensure
-          # Always re-encrypt with the IDENTICAL key + iv — never rotate.
-          PWN::Plugins::Vault.encrypt(file: env_path, key: key, iv: iv)
         end
 
         true
       rescue StandardError => e
-        warn "[!] Grok OAuth vault persistence failed (session tokens still updated): #{e.class}: #{e.message}"
+        warn "[!] Grok OAuth vault persistence failed (session tokens still updated): #{e.class}"
         false
       end
 

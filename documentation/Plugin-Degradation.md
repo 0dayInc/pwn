@@ -75,6 +75,18 @@ Required: `searchsploit`. Fallback: `intel_lookup`.
 
 Required: `subfinder`, `httpx`. Fallback: `NmapIt.scan` + `Corpus.get`.
 
+## pwn-plugins-yubikey
+
+Required: `ykman` (YubiKey Manager CLI). Preflight checks executable presence
+only; it never opens a device, requests a PIN, or performs a challenge. An `ok`
+status does not establish device availability, provisioning, or authorization.
+Hardware-backed vault operations require the selected YubiKey and its existing
+HMAC-SHA1 OTP slot; missing devices, denied touch, or authentication failures
+raise without falling back to a disk master key or software MFA. Restore device
+access before retrying. Dispatch blocks the handler when vault expansion fails;
+if output redaction fails after execution, it withholds the result and reports
+that the handler executed, so verify its effects before retrying.
+
 ## pwn-plugins-credentialattack
 
 Required: `hydra`, `john`, `hashcat`. Fallback: `pwn_eval` + `Corpus`.

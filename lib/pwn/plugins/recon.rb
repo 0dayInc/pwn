@@ -138,7 +138,7 @@ module PWN
           File.rename(temp, path)
         end
         result = JSON.parse(File.read(path), symbolize_names: true).merge(path: path)
-        result[:loot] = harvest_loot(assets: result[:assets], engagement_id: engagement)
+        result[:loot] = harvest_loot(assets: result[:assets], engagement_id: engagement, yubikey: opts[:yubikey])
         if opts[:ingest]
           begin
             ingestor = opts[:ingestor] || PWN::AI::Context.method(:ingest)
@@ -285,6 +285,7 @@ module PWN
               source: 'recon',
               where: opts[:where] || "banner:#{obs[:port] || asset[:port]}",
               engagement: eng,
+              yubikey: opts[:yubikey],
               finding_id: opts[:finding_id]
             )
           end
@@ -354,6 +355,7 @@ module PWN
             modules: 'optional - Array nmap/banner/tls/subfinder/nuclei; defaults nmap/banner',
             ports: 'optional - Array of integer ports; defaults 80 and 443',
             engagement_id: 'optional - simple identifier; defaults default',
+            yubikey: 'optional - hardware selector Hash for harvested loot; device failure raises without software fallback',
             root: 'optional - engagements directory; defaults ~/.pwn/engagements',
             timeout: 'optional - per-operation timeout seconds; defaults 15, maximum 300',
             ingest: 'optional - invoke Context.ingest after persistence; defaults false',
@@ -366,6 +368,7 @@ module PWN
             assets: 'required - Array of recon asset hashes with address and observations',
             engagement_id: 'optional - engagement id scoping the loot file (defaults to default)',
             engagement: 'optional - alias for engagement_id',
+            yubikey: 'optional - hardware selector Hash forwarded to Vault.ingest for captured secrets',
             where: 'optional - provenance path overlay when observation port is missing',
             finding_id: 'optional - finding id linked onto harvested secrets'
           )

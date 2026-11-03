@@ -315,7 +315,7 @@ pwn setup --list-profiles
 | `vision` | `OCR` · `ScannableCodes` · `Reports` · `extro_vision` · tesseract / zbar / graphviz |
 | `voice` | `PWN::Plugins::Voice` · `extro_voice` · espeak-ng / sox |
 | `exploit` | `Metasploit` · `sqlmap` |
-| `hardware` | `Serial` · `BusPirate` · `Android` · `BareSIP` · `extro_serial` · `extro_telecomm` |
+| `hardware` | `Serial` · `BusPirate` · `Android` · `BareSIP` · `YubiKey` (`ykman`) · `extro_serial` · `extro_telecomm` |
 | `re` | `Radare2` · `GDB` · `ExploitDev` · `Frida` · Android RE (`apktool`/`jadx`) · `pwndbg` · `ropper` · `rizin` |
 | `full` | everything above |
 
@@ -683,7 +683,7 @@ row as `MISSING` until a key is set.
 Everything above is a thin CLI over two autoloaded modules:
 
 ```ruby
-PWN::Setup.check                          # → { ok:, native_gems_missing:, toolchain_missing:, state:, pkg_manager:, os:, arch: }
+PWN::Setup.check                          # → { ok:, native_gems_missing:, toolchain_missing:, state:, pkg_manager:, os:, arch:, native_libraries_missing: }
 PWN::Setup.deps(profile: :web, yes: true) # install, then re-check
 PWN::Setup.list_profiles
 PWN::Setup.migrate(fix: true)             # thin wrapper → PWN::Migrate.run
@@ -718,7 +718,7 @@ Vagrant, CI) picks it up automatically.
 ```ruby
 pwn[CURRENT_VERSION]:001 >>> PWN::Setup.check[:ok]          # => true
 pwn[CURRENT_VERSION]:002 >>> PWN::Migrate.needed?           # => false
-pwn[CURRENT_VERSION]:003 >>> PWN::Plugins.constants.count   # => 107
+pwn[CURRENT_VERSION]:003 >>> PWN::Plugins.constants.count   # => 108
 pwn[CURRENT_VERSION]:004 >>> PWN::SAST.constants.count      # => 48
 pwn[CURRENT_VERSION]:005 >>> pwn-ai                         # launches agent TUI
 ```

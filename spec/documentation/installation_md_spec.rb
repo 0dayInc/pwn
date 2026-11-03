@@ -66,7 +66,7 @@ RSpec.describe 'documentation/Installation.md' do
     it 'programmatic API section is truthful' do
       expect(PWN::Setup).to respond_to(:check, :deps, :list_profiles, :pkg_manager, :migrate)
       expect(PWN::Setup.check(io: StringIO.new).keys)
-        .to eq(%i[ok native_gems_missing toolchain_missing state pkg_manager os arch])
+        .to eq(%i[ok native_gems_missing toolchain_missing state pkg_manager os arch native_libraries_missing])
       expect(PWN::Setup.pkg_manager.keys).to eq(%i[key install sudo])
       expect(PWN::Setup.constants).to include(:NATIVE_GEMS, :TOOLCHAIN, :PROFILES)
     end

@@ -5,6 +5,9 @@ require 'yaml'
 module PWN
   module WWW
     # This plugin supports paypal.com actions.
+    # Its legacy login adapter selects SMS MFA; YubiKey OATH is unsupported even
+    # with confirm: true; it is rejected before login rather than submitting
+    # an authenticator code as SMS.
     module Paypal
       # Supported Method Parameters::
       # browser_obj = PWN::WWW::Paypal.open(
@@ -86,10 +89,14 @@ module PWN
       #   browser_obj: 'required - browser_obj returned from #open method',
       #   username: 'required - username (email address)',
       #   password: 'optional - passwd (will prompt if blank)',
-      #   mfa: 'optional - if true prompt for mfa token (defaults to false)'
+      #   mfa: 'optional - if true prompt for mfa token (defaults to false)',
+      #   yubikey: 'optional - rejected: exact OATH account Hash with :serial, :reader, :device_path, :connection, :timeout is unsupported even with confirm: true; this adapter is SMS-only; explicit mfa/mfa_token values conflict; omit to use manual SMS'
       # )
 
       public_class_method def self.login(opts = {})
+        PWN::Plugins::AuthenticationHelper.validate_mfa_options(opts)
+        raise ArgumentError, 'PayPal YubiKey OATH login is unsupported by this SMS-only browser adapter' unless opts[:yubikey].nil?
+
         browser_obj = opts[:browser_obj]
         username = opts[:username].to_s.scrub.strip.chomp
         password = opts[:password]
@@ -110,7 +117,7 @@ module PWN
         browser.button(id: 'btnLogin').click!
 
         if mfa
-          # Send code to SMS
+          # Send code to SMS; this legacy adapter does not select an OATH authenticator.
           browser.button(id: 'btnSelectSoftToken').wait_until(&:present?).click!
           until browser.url == 'https://www.paypal.com/myaccount/home'
             browser.text_field(id: 'security-code').wait_until(&:present?).set(PWN::Plugins::AuthenticationHelper.mfa(prompt: 'enter mfa token'))
@@ -188,12 +195,16 @@ module PWN
             mfa: 'optional - mfa value consumed by #signup'
           )
 
-          # Run login and return its result
+          # Log in using the existing manual SMS challenge.
+          # YubiKey OATH is unsupported even with confirm: true; this SMS-only browser adapter rejects it before login.
+          # Service-level authenticator availability does not establish a compatible adapter flow.
+          # Validate options and reject conflicting explicit tokens before any login action.
           #{self}.login(
             browser_obj: 'required - browser_obj returned from #open method',
             username: 'required - username (email address)',
             password: 'optional - passwd (will prompt if blank)',
-            mfa: 'optional - if true prompt for mfa token (defaults to false)'
+            mfa: 'optional - if true prompt for mfa token (defaults to false)',
+            yubikey: 'optional - rejected: exact OATH account Hash with :serial, :reader, :device_path, :connection, :timeout is unsupported even with confirm: true; this adapter is SMS-only; explicit mfa/mfa_token values conflict; omit to use manual SMS'
           )
 
           # Run logout and return its result

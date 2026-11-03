@@ -6,7 +6,7 @@
 lib/pwn/                # all namespaces
 lib/pwn/setup.rb        # PWN::Setup - doctor/provisioner data tables
 lib/pwn/migrate.rb      # PWN::Migrate - ~/.pwn state doctor / auto-migrator
-lib/pwn/plugins/        # 107 top-level plugin autoloads
+lib/pwn/plugins/        # 108 top-level plugin autoloads
 lib/pwn/ai/agent/       # agent core
 lib/pwn/ai/agent/tools/ # LLM tool registrations
 bin/                    # 56 executables: 53 pwn_* drivers + pwn / pwn-ai / pwn-capd (incl. pwn_setup)

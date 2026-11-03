@@ -28,8 +28,8 @@ module PWN
         end
 
         # Private, in-memory configuration transaction. No plaintext filesystem stage.
-        # Compatible with pwn-vault AES-256-CBC and its existing decryptor sidecar.
-        class VaultEdit # rubocop:disable Metrics/ClassLength -- One private encrypted transaction owns validation and atomic persistence.
+        # Uses the shared vault codec for legacy sidecars and YubiKey envelopes.
+        class VaultEdit
           class Error < StandardError; end
 
           attr_reader :text
@@ -82,15 +82,17 @@ module PWN
           end
 
           def serialize(value)
-            YAML.dump(value).gsub(/^(\s*):/, '\1')
+            YAML.dump(value)
           end
 
           def credentials
+            return PWN::Plugins::Vault.access_options(file: @path) if PWN::Plugins::Vault.hardware_encrypted?(file: @path)
+
             safe_file(@decryptor_path)
             result = parse(File.read(@decryptor_path))
             raise Error, 'Decryptor requires the existing key and IV; restore the original sidecar.' unless result.is_a?(Hash) && result[:key].is_a?(String) && result[:iv].is_a?(String)
 
-            result.slice(:key, :iv)
+            PWN::Plugins::Vault.access_options(result.slice(:key, :iv).merge(file: @path, decryptor_file: @decryptor_path))
           end
 
           def safe_file(path)
@@ -154,12 +156,7 @@ module PWN
           end
 
           def encrypt(text)
-            secrets = credentials
-            cipher = OpenSSL::Cipher.new('aes-256-cbc')
-            cipher.encrypt
-            cipher.key = Base64.strict_decode64(secrets.fetch(:key))
-            cipher.iv = Base64.strict_decode64(secrets.fetch(:iv))
-            "#{Base64.strict_encode64(cipher.update(text) + cipher.final)}\n"
+            PWN::Plugins::Vault.encrypt_data(credentials.merge(data: text))
           end
 
           def atomic_write(encrypted, previous)

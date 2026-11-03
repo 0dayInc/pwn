@@ -5,6 +5,8 @@ require 'yaml'
 module PWN
   module WWW
     # This plugin supports github.com actions.
+    # YubiKey OATH MFA requires explicit confirm: true because HOTP advances counters
+    # and protected OATH accounts may require authentication; no automatic repair or deletion occurs.
     module GitHub
       # Supported Method Parameters::
       # browser_obj = PWN::WWW::GitHub.open(
@@ -29,10 +31,12 @@ module PWN
       #   username: 'required - username',
       #   password: 'optional - passwd (will prompt if blank)',
       #   mfa: 'optional - MFA / TOTP token string, or true to prompt (defaults to false)',
-      #   mfa_token: 'optional - MFA / TOTP token used to reach a post-authenticated state'
+      #   mfa_token: 'optional - MFA / TOTP token used to reach a post-authenticated state',
+      #   yubikey: 'optional - Hash selecting an exact OATH account (required :account and literal :confirm true); optional :serial exact decimal String, :reader or :device_path nonempty control-free String, :connection native exchange object, :timeout finite positive seconds (default 30), in-memory :password or callable :secret_provider; serial/reader and reader/device_path are mutually exclusive; no OTP slot; explicit mfa/mfa_token values conflict'
       # )
 
       public_class_method def self.login(opts = {})
+        PWN::Plugins::AuthenticationHelper.validate_mfa_options(opts)
         browser_obj = opts[:browser_obj]
         username = opts[:username].to_s.scrub.strip.chomp
         password = opts[:password]
@@ -45,6 +49,7 @@ module PWN
           password = opts[:password].to_s.scrub.strip.chomp
         end
         mfa = opts[:mfa]
+        yubikey = opts[:yubikey]
         mfa_token = opts[:mfa_token].to_s.scrub.strip.chomp
         mfa_token = mfa.to_s.scrub.strip.chomp if mfa_token.empty? && mfa.is_a?(String)
 
@@ -54,7 +59,7 @@ module PWN
         browser.text_field(name: 'password').wait_until(&:present?).set(password)
         browser.input(name: 'commit').click!
 
-        if mfa || !mfa_token.empty?
+        if mfa || !mfa_token.empty? || !yubikey.nil?
           until browser.url == 'https://github.com/' ||
                 browser.url.include?('https://github.com/dashboard') ||
                 (
@@ -63,23 +68,28 @@ module PWN
                   !browser.url.include?('/session')
                 )
 
+            mfa_field = if browser.text_field(name: 'app_otp').exist?
+                          browser.text_field(name: 'app_otp')
+                        elsif browser.text_field(id: 'app_totp').exist?
+                          browser.text_field(id: 'app_totp')
+                        elsif browser.text_field(name: 'otp').exist?
+                          browser.text_field(name: 'otp')
+                        else
+                          raise ArgumentError, 'YubiKey OATH requires an authenticator challenge, not SMS' unless yubikey.nil?
+
+                          browser.text_field(name: 'sms_otp')
+                        end
+            mfa_field.wait_until(&:present?)
+
             token = if mfa_token.empty?
-                      PWN::Plugins::AuthenticationHelper.mfa(prompt: 'enter mfa token')
+                      PWN::Plugins::AuthenticationHelper.mfa(prompt: 'enter mfa token', yubikey: yubikey)
                     else
                       consumed = mfa_token
                       mfa_token = ''
                       consumed
                     end
 
-            if browser.text_field(name: 'app_otp').exist?
-              browser.text_field(name: 'app_otp').wait_until(&:present?).set(token)
-            elsif browser.text_field(id: 'app_totp').exist?
-              browser.text_field(id: 'app_totp').wait_until(&:present?).set(token)
-            elsif browser.text_field(name: 'otp').exist?
-              browser.text_field(name: 'otp').wait_until(&:present?).set(token)
-            else
-              browser.text_field(name: 'sms_otp').wait_until(&:present?).set(token)
-            end
+            mfa_field.set(token)
 
             if browser.input(name: 'commit').exist?
               browser.input(name: 'commit').click!
@@ -151,13 +161,19 @@ module PWN
             proxy: 'optional - scheme://proxy_host:port || tor'
           )
 
-          # Run login and return its result
+          # Log in with manual MFA or explicitly selected YubiKey OATH.
+          # YubiKey enables MFA even when mfa is false; failures never fall back to a prompt.
+          # Configure the service for an authenticator challenge, not SMS.
+          # Example yubikey: { account: 'EXACT_OATH_NAME', confirm: true, serial: '123456', timeout: 30 }
+          # Explicit consent is required: HOTP advances counters and protected OATH accounts may require authentication; no automatic repair or deletion occurs.
+          # Reject conflicting explicit tokens before any login action.
           #{self}.login(
             browser_obj: 'required - browser_obj returned from #open method',
             username: 'required - username value consumed by #login',
             password: 'optional - passwd (will prompt if blank)',
             mfa: 'optional - MFA / TOTP token string, or true to prompt (defaults to false)',
-            mfa_token: 'optional - MFA / TOTP token used to reach a post-authenticated state'
+            mfa_token: 'optional - MFA / TOTP token used to reach a post-authenticated state',
+            yubikey: 'optional - Hash selecting an exact OATH account (required :account and literal :confirm true); optional :serial exact decimal String, :reader or :device_path nonempty control-free String, :connection native exchange object, :timeout finite positive seconds (default 30), in-memory :password or callable :secret_provider; serial/reader and reader/device_path are mutually exclusive; no OTP slot; explicit mfa/mfa_token values conflict'
           )
 
           # Run logout and return its result

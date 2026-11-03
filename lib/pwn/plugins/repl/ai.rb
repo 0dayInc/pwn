@@ -1147,21 +1147,11 @@ module PWN
             env_path = File.join(Dir.home, '.pwn', 'pwn.yaml') if env_path.empty?
             dec_path = dec_path.to_s.strip
             dec_path = "#{env_path}.decryptor" if dec_path.empty?
-            return false unless File.exist?(env_path) && File.exist?(dec_path) && File.readable?(dec_path)
+            return false unless File.exist?(env_path)
 
-            decryptor = YAML.load_file(dec_path, symbolize_names: true)
-            key = decryptor.is_a?(Hash) ? decryptor[:key] : nil
-            iv = decryptor.is_a?(Hash) ? decryptor[:iv] : nil
-            return false if key.to_s.strip.empty? || iv.to_s.strip.empty?
-
-            # Never decrypt the live vault in place: failed encryption must leave
-            # the previous ciphertext intact. Rename only the encrypted merge.
-            require 'tempfile'
-            Tempfile.create(['.pwn-ai-selection', '.yaml'], File.dirname(env_path)) do |file|
-              file.binmode
-              path = file.path
-              cfg = PWN::Plugins::Vault.dump(file: env_path, key: key, iv: iv)
-              cfg = {} unless cfg.is_a?(Hash)
+            # Shared update preserves hardware or legacy format and publishes only
+            # ciphertext after a locked re-read and final conflict comparison.
+            PWN::Plugins::Vault.update(file: env_path, decryptor_file: dec_path) do |cfg|
               cfg[:ai] = {} unless cfg[:ai].is_a?(Hash)
               cfg[:ai][:active] = engine unless opts.key?(:system_role_content)
               unless model.to_s.strip.empty?
@@ -1177,20 +1167,10 @@ module PWN
                 cfg[:ai][engine.to_sym] ||= {}
                 cfg[:ai][engine.to_sym][:system_role_content] = opts[:system_role_content]
               end
-              yaml_env = YAML.dump(cfg).gsub(/^(\s*):/, '\1')
-              cipher = OpenSSL::Cipher.new('aes-256-cbc')
-              cipher.encrypt
-              cipher.key = Base64.strict_decode64(key)
-              cipher.iv = Base64.strict_decode64(iv)
-              ciphertext = Base64.strict_encode64(cipher.update(yaml_env) + cipher.final)
-              file.write("#{ciphertext}\n")
-              file.flush
-              file.fsync
-              File.rename(path, env_path)
             end
             true
           rescue StandardError => e
-            warn "[pwn-ai] settings persist failed: #{e.class}: #{e.message}"
+            warn "[pwn-ai] settings persist failed: #{e.class}; check vault access and retry."
             false
           end
 

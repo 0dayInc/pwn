@@ -17,7 +17,7 @@ module PWN
         basic_user = opts[:username]
         basic_pass = opts[:password]
         if (basic_user.nil? || basic_pass.nil?) && !opts[:host].to_s.empty?
-          hit = Array(PWN::Plugins::Vault.offer(host: opts[:host], service: opts[:service], engagement: opts[:engagement] || opts[:engagement_id])).first
+          hit = Array(PWN::Plugins::Vault.offer(host: opts[:host], service: opts[:service], engagement: opts[:engagement] || opts[:engagement_id], yubikey: opts[:yubikey])).first
           if hit
             basic_user = hit[:username] if basic_user.nil?
             basic_pass = hit[:secret] if basic_pass.nil?
@@ -63,6 +63,7 @@ module PWN
             password: 'optional - password; omitted values are filled from Vault.offer',
             host: 'optional - hostname used to offer recon loot when username or password is omitted',
             service: 'optional - service name such as http or ssh used to match loot',
+            yubikey: 'optional - YubiKey selector Hash forwarded to hardware-protected Vault loot',
             engagement: 'optional - engagement id scoping the loot file (defaults to default)',
             engagement_id: 'optional - alias for engagement'
           )

@@ -7,8 +7,8 @@ external services and environment overrides can place evidence elsewhere.
 
 | Path | Owner | Format | Reset tool | Purpose |
 |---|---|---|---|---|
-| `pwn.yaml` | `PWN::Config` · `PWN::Plugins::Vault` | AES-encrypted YAML | `pwn-vault` | engines, keys, agent options |
-| `pwn.yaml.decryptor` | `PWN::Plugins::Vault` | key/IV | - | decrypts `pwn.yaml` (or set `PWN_DECRYPTOR_KEY`/`_IV`) |
+| `pwn.yaml` | `PWN::Config` · `PWN::Plugins::Vault` | Legacy AES-CBC or authenticated YubiKey-derived AES-GCM | `pwn-vault` | engines, keys, agent options; see [hardware vaults](YubiKey-Vaults.md) |
+| `pwn.yaml.decryptor` | `PWN::Plugins::Vault` | Legacy key/IV | - | decrypts legacy `pwn.yaml` (or set `PWN_DECRYPTOR_KEY`/`_IV`); absent for hardware-only vaults |
 | **`.schema`** | **`PWN::Migrate`** | JSON `{schema:,pwn_version:,at:}` | `pwn setup --migrate` | **schema stamp - drives the one-line drift warning on launch** |
 | `memory.json` | `PWN::Memory` | JSON array | `memory_clear` | facts · prefs · lessons · env - injected into every prompt |
 | `memory.idx` | `PWN::MemoryIndex` | JSON `{key → {sha,vec}}` | `PWN::MemoryIndex.reset` | local embedding index over `memory.json` - powers **relevance-ranked** MEMORY injection (incremental; only re-embeds changed entries) |

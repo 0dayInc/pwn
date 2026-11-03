@@ -163,7 +163,6 @@ module PWN
       # bearer lives in-session only.
       private_class_method def self.persist_oauth_to_vault(opts = {})
         oauth = opts[:oauth]
-        return false if Thread.current[:pwn_request_runtime]
         return false unless oauth.is_a?(Hash)
         return false unless real_config_value?(value: oauth[:bearer_token])
 
@@ -178,27 +177,13 @@ module PWN
         dec_path = dec_path.to_s.strip
         dec_path = "#{env_path}.decryptor" if dec_path.empty?
 
-        unless File.exist?(env_path) && File.exist?(dec_path) && File.readable?(dec_path)
+        unless File.exist?(env_path)
           puts '[*] INFO: Anthropic OAuth tokens updated in this session only; ' \
-               "persistence to #{env_path} skipped (missing decryption artifacts" \
-               "#{" at #{dec_path}" unless dec_path.empty?})."
+               "persistence to #{env_path} skipped (missing vault)."
           return false
         end
 
-        decryptor = YAML.load_file(dec_path, symbolize_names: true)
-        key = decryptor.is_a?(Hash) ? decryptor[:key] : nil
-        iv  = decryptor.is_a?(Hash) ? decryptor[:iv]  : nil
-        unless real_config_value?(value: key) && real_config_value?(value: iv)
-          puts '[*] INFO: Anthropic OAuth tokens updated in this session only; ' \
-               "persistence to #{env_path} skipped (decryptor at #{dec_path} " \
-               'has no usable key/iv).'
-          return false
-        end
-
-        PWN::Plugins::Vault.decrypt(file: env_path, key: key, iv: iv)
-        begin
-          cfg = YAML.load_file(env_path, symbolize_names: true)
-          cfg = {} unless cfg.is_a?(Hash)
+        PWN::Plugins::Vault.update(file: env_path, decryptor_file: dec_path) do |cfg|
           cfg[:ai] = {} unless cfg[:ai].is_a?(Hash)
           cfg[:ai][:anthropic] = {} unless cfg[:ai][:anthropic].is_a?(Hash)
           vault_oauth = cfg[:ai][:anthropic][:oauth]
@@ -207,19 +192,11 @@ module PWN
           vault_oauth[:bearer_token] = oauth[:bearer_token]
           vault_oauth[:refresh_token] = oauth[:refresh_token] if real_config_value?(value: oauth[:refresh_token])
           vault_oauth[:expires_at] = oauth[:expires_at] if oauth.key?(:expires_at) && !oauth[:expires_at].nil?
-
-          # Match PWN::Config.default_env YAML style (string keys, no leading ':').
-          yaml_env = YAML.dump(cfg).gsub(/^(\s*):/, '\1')
-          File.write(env_path, yaml_env)
-          File.chmod(0o600, env_path)
-        ensure
-          # Always re-encrypt with the IDENTICAL key + iv — never rotate.
-          PWN::Plugins::Vault.encrypt(file: env_path, key: key, iv: iv)
         end
 
         true
       rescue StandardError => e
-        warn "[!] Anthropic OAuth vault persistence failed (session tokens still updated): #{e.class}: #{e.message}"
+        warn "[!] Anthropic OAuth vault persistence failed (session tokens still updated): #{e.class}"
         false
       end
 
@@ -297,14 +274,11 @@ module PWN
         opts[:refresh_token] = refresh_token if refresh_token
         opts[:expires_at]    = Time.now.to_i + data['expires_in'].to_i if data['expires_in']
 
+        sync_oauth_into_env(oauth: opts)
+        persisted = persist_oauth_to_vault(oauth: opts)
         puts "\n[*] SUCCESS: Anthropic OAuth bearer obtained via authorization_code + PKCE."
         puts '    Cached in-memory for this pwn / pwn-ai process.'
-        puts ''
-        puts '    TO MAKE THIS PERMANENT (recommended -- one-time), store via pwn-vault:'
-        puts "      ai.anthropic.oauth.refresh_token = #{refresh_token}" if refresh_token
-        puts "      ai.anthropic.oauth.bearer_token  = #{access_token}"
-        puts '    On future runs the refresh_token alone is enough -- PWN::AI::Anthropic will'
-        puts '    silently exchange it for a fresh access_token (no browser, no prompt).'
+        puts(persisted ? '    Saved to the encrypted configuration vault.' : '    Session only: encrypted vault persistence unavailable.')
         puts ''
 
         access_token

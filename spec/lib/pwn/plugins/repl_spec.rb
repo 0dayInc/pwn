@@ -92,9 +92,9 @@ describe PWN::Plugins::REPL do # rubocop:disable Metrics/BlockLength
       Process.wait(pid)
       pid = nil
       expect(File.binread(path)).to eq(ciphertext)
-      stages = Dir.glob(File.join(@tmp, '.pwn-ai-selection*'))
-      expect(stages.length).to eq(1)
-      expect(stages.map { |stage| File.binread(stage) }.join).not_to include('PRIVATE_FIXTURE_SENTINEL')
+      # Shared Vault.update encrypts before allocating a ciphertext-only stage.
+      stages = Dir.glob(File.join(@tmp, '{.pwn-ai-selection*,.pwn-vault-*}'))
+      expect(stages).to be_empty
     ensure
       Process.kill('KILL', pid) if pid
       Process.wait(pid) if pid
@@ -835,15 +835,14 @@ describe PWN::Plugins::REPL do # rubocop:disable Metrics/BlockLength
         yaml = File.join(dir, 'pwn.yaml')
         dec = "#{yaml}.decryptor"
         File.write(yaml, YAML.dump({ plugins: { meshtastic: { transport: 'mqtt', channel: { active: 'LongFast' } } } }))
-        File.write(dec, YAML.dump({ key: 'k' * 32, iv: 'i' * 16 }))
-        allow(PWN::Plugins::Vault).to receive(:decrypt)
-        allow(PWN::Plugins::Vault).to receive(:encrypt)
+        PWN::Plugins::Vault.create(file: yaml, decryptor_file: dec)
+        credentials = YAML.safe_load_file(dec, symbolize_names: true)
         prev = PWN::Env[:driver_opts]
         PWN::Env[:driver_opts] = { pwn_env_path: yaml, pwn_dec_path: dec }
         described_class.persist_mesh_env(
           mesh: { transport: 'serial', channel: { active: 'LongFast' }, serial: { port: '/dev/ttyACM0' } }
         )
-        cfg = YAML.load_file(yaml, symbolize_names: true)
+        cfg = PWN::Plugins::Vault.dump({ file: yaml }.merge(credentials))
         expect(cfg.dig(:plugins, :meshtastic, :transport).to_s).to eq('serial')
         expect(cfg.dig(:plugins, :meshtastic, :channel, :active).to_s).to eq('LongFast')
         expect(cfg.dig(:plugins, :meshtastic, :serial, :port)).to eq('/dev/ttyACM0')

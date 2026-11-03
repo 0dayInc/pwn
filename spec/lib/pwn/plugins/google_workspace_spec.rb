@@ -86,33 +86,22 @@ describe PWN::Plugins::GoogleWorkspace do
     Dir.mktmpdir('pwn-gw-oauth-') do |dir|
       env_path = File.join(dir, 'pwn.yaml')
       dec_path = "#{env_path}.decryptor"
-      key = '0' * 32
-      iv = '1' * 16
-      File.write(env_path, "plugins:\n  google_workspace:\n    oauth:\n      client_id: cid\n      client_secret: sec\n")
-      File.write(dec_path, YAML.dump(key: key, iv: iv))
-      allow(PWN::Plugins::Vault).to receive(:decrypt)
-      allow(PWN::Plugins::Vault).to receive(:encrypt)
+      stub_const('PWN::Plugins::GoogleWorkspace::PENDING_FILE', File.join(dir, 'pending.json'))
+      stub_const('PWN::Env', {
+                   plugins: { google_workspace: { oauth: { client_id: 'cid', client_secret: 'sec' } } },
+                   driver_opts: { pwn_env_path: env_path, pwn_dec_path: dec_path }
+                 })
+      File.write(env_path, YAML.dump(PWN::Env))
+      PWN::Plugins::Vault.create(file: env_path, decryptor_file: dec_path)
+      credentials = YAML.safe_load_file(dec_path, symbolize_names: true)
       allow(RestClient).to receive(:post).and_return(
         instance_double(RestClient::Response, body: {
-          access_token: 'live-bearer',
-          refresh_token: 'live-refresh',
+          access_token: 'fixture-bearer',
+          refresh_token: 'fixture-refresh',
           expires_in: 3600,
           scope: 'https://www.googleapis.com/auth/gmail.modify'
         }.to_json)
       )
-
-      PWN::Env[:plugins] ||= {}
-      PWN::Env[:plugins][:google_workspace] ||= {}
-      PWN::Env[:plugins][:google_workspace][:oauth] ||= {}
-      slot = PWN::Env[:plugins][:google_workspace][:oauth]
-      prev = slot.dup
-      slot[:client_id] = 'cid'
-      slot[:client_secret] = 'sec'
-      slot[:bearer_token] = nil
-      slot[:refresh_token] = nil
-      PWN::Env[:driver_opts] ||= {}
-      PWN::Env[:driver_opts][:pwn_env_path] = env_path
-      PWN::Env[:driver_opts][:pwn_dec_path] = dec_path
 
       result = described_class.obtain_oauth_auth_url(
         client_id: 'cid',
@@ -122,20 +111,13 @@ describe PWN::Plugins::GoogleWorkspace do
         probe: ->(_redirect) { 'AUTHCODE' }
       )
 
-      expect(result[:bearer_token]).to eq('live-bearer')
-      expect(result[:refresh_token]).to eq('live-refresh')
-      expect(slot[:bearer_token]).to eq('live-bearer')
-      expect(slot[:refresh_token]).to eq('live-refresh')
-      vault = YAML.load_file(env_path, symbolize_names: true)
-      expect(vault.dig(:plugins, :google_workspace, :oauth, :bearer_token)).to eq('live-bearer')
-      expect(vault.dig(:plugins, :google_workspace, :oauth, :refresh_token)).to eq('live-refresh')
-    ensure
-      if prev
-        slot.clear
-        slot.merge!(prev)
-      end
-      PWN::Env[:driver_opts].delete(:pwn_env_path) if PWN::Env[:driver_opts].is_a?(Hash)
-      PWN::Env[:driver_opts].delete(:pwn_dec_path) if PWN::Env[:driver_opts].is_a?(Hash)
+      expect(result[:bearer_token]).to eq('fixture-bearer')
+      expect(result[:refresh_token]).to eq('fixture-refresh')
+      expect(PWN::Env.dig(:plugins, :google_workspace, :oauth)).to include(bearer_token: 'fixture-bearer', refresh_token: 'fixture-refresh')
+      vault = PWN::Plugins::Vault.dump({ file: env_path }.merge(credentials))
+      expect(vault.dig(:plugins, :google_workspace, :oauth)).to include(bearer_token: 'fixture-bearer', refresh_token: 'fixture-refresh')
+      expect(PWN::Plugins::Vault.file_encrypted?(file: env_path)).to be(true)
+      expect(File.stat(env_path).mode & 0o777).to eq(0o600)
     end
   end
 

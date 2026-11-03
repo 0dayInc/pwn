@@ -33,6 +33,18 @@ PWN::Driver::Parser.new do |options|
     opts[:mfa] = f
   end
 
+  options.on('--yubikey-account=NAME', '<Optional - Exact OATH account; supports GitHub, Synack, Twitter, BugCrowd, CoinbasePro, AppCobaltIO; Paypal SMS adapter unsupported; requires --yubikey-confirm; enables MFA even with --no-mfa; never an OTP slot>') do |name|
+    opts[:yubikey_account] = name
+  end
+
+  options.on('--yubikey-confirm', '<Required with --yubikey-account - Explicit OATH consent: HOTP advances counters; ykman may authenticate/delete remembered keys and delete corrupted OATH credentials>') do |confirm|
+    opts[:yubikey_confirm] = confirm
+  end
+
+  options.on('--yubikey-serial=SERIAL', '<Optional - Decimal YubiKey serial; requires --yubikey-account>') do |serial|
+    opts[:yubikey_serial] = serial
+  end
+
   options.on('-pPROXY', '--proxy=PROXY', '<Optional - HTTP or Socks Proxy || tor>') do |p|
     opts[:proxy] = p
   end
@@ -60,6 +72,24 @@ pwn_www_mod_str = opts[:pwn_www_mod_str].to_s.scrub.strip.chomp
 
 username = opts[:username].to_s.scrub.strip.chomp
 
+yubikey = nil
+raise ArgumentError, 'YubiKey serial requires --yubikey-account with an exact OATH account name' if opts[:yubikey_account].nil? && !opts[:yubikey_serial].nil?
+raise ArgumentError, '--yubikey-confirm requires --yubikey-account with an exact OATH account name' if opts[:yubikey_account].nil? && !opts[:yubikey_confirm].nil?
+
+unless opts[:yubikey_account].nil?
+  supported_oath_modules = %w[GitHub Synack Twitter BugCrowd CoinbasePro AppCobaltIO]
+  raise ArgumentError, "YubiKey OATH is supported only with --pwn-www-mod=#{supported_oath_modules.join('|')}; the Paypal adapter is SMS-only" unless supported_oath_modules.include?(pwn_www_mod_str)
+
+  yubikey = { account: opts[:yubikey_account], confirm: opts[:yubikey_confirm] }
+  unless opts[:yubikey_serial].nil?
+    serial = opts[:yubikey_serial]
+    raise ArgumentError, 'YubiKey serial must be a decimal string without whitespace' unless serial.is_a?(String) && serial.match?(/\A[0-9]+\z/)
+
+    yubikey[:serial] = serial
+  end
+  PWN::Plugins::AuthenticationHelper.validate_mfa_options(yubikey: yubikey, mfa: opts[:mfa], mfa_token: opts[:mfa_token])
+end
+
 password = opts[:password] # Don't cast to string to detect if PWN::Plugins::AuthenticationHelper is necessary
 if password.nil?
   password = PWN::Plugins::AuthenticationHelper.mask_password
@@ -67,11 +97,7 @@ else
   password = opts[:password].to_s.scrub.strip.chomp
 end
 
-if opts[:mfa]
-  mfa = true
-else
-  mfa = false
-end
+mfa = opts[:mfa] || false
 
 proxy = opts[:proxy].to_s.scrub.strip.chomp unless opts[:proxy].nil?
 
@@ -151,12 +177,14 @@ begin
       browser_obj = pwn_www_mod.open(browser_type: :chrome)
     end
     # Now AuthN via PWN::WWW::<MODULE>
-    browser_obj = pwn_www_mod.login(
+    login_opts = {
       browser_obj: browser_obj,
       username: username,
       password: password,
       mfa: mfa
-    )
+    }
+    login_opts[:yubikey] = yubikey unless yubikey.nil?
+    browser_obj = pwn_www_mod.login(login_opts)
     puts "#{@green}complete.#{@end_of_color}\n\n\n"
   elsif pwn_www_mod_str == '' && proxy
     browser_obj = PWN::Plugins::TransparentBrowser.open(
