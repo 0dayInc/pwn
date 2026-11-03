@@ -15,8 +15,10 @@ RSpec.describe 'PWN::AI::Agent::MissionNamespace compiler-free process ownership
 
   it 'does not ask newuidmap for a host uid range starting at 0' do
     source = File.read(File.expand_path('../../../../support/mission_namespace.rb', __dir__))
+    pid_token = ['#', '{pid}'].join
     expect(source).not_to include('--map-users=0:0:65536')
-    expect(source).to include('/proc/#{pid}/uid_map')
+    expect(source).to include("/proc/#{pid_token}/uid_map")
+    expect(source.index('Process.groups = []')).to be < source.index("/proc/#{pid_token}/setgroups")
   end
 
   it 'loads through root and direct requires without suppressing sibling autoloads' do

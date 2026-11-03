@@ -28,6 +28,11 @@ module PwnSpecNamespace
   def bootstrap_root!
     dir = nil
     pid = nil
+    # setgroups deny is required before gid_map and then makes Process.groups=
+    # return EPERM for every process in the suite. Clear supplementary groups
+    # while this parent can still call setgroups. The unshare child inherits
+    # the empty set, which is the cleared state the smoke drop expects.
+    Process.groups = []
     dir = Dir.mktmpdir('pwn-userns-')
     File.chmod(0o1777, dir)
     ready = File.join(dir, 'ready')
@@ -47,7 +52,7 @@ module PwnSpecNamespace
     File.write("/proc/#{pid}/uid_map", "0 0 65536\n")
     File.write(go, "go\n")
     Process.wait(pid)
-    status = $?.exitstatus || 1
+    status = Process.last_status.exitstatus || 1
     pid = nil
     exit status
   rescue StandardError

@@ -12,6 +12,10 @@ module PWN
   module Backups
     LIMIT = 7
     GENERATION = /\A\d{8}_\d{6}_[a-f0-9]{8}\z/
+    # Published Migrate.backup! names from before .generation.json. Not an unknown folder.
+    LEGACY_SNAPSHOT = /\A\d{8}_\d{6}\z/
+    # Unpublished housekeeping-era copy. Rename was the publish step, so this is not a restore name.
+    PARTIAL_SNAPSHOT = /\A\.partial-\d{8}_\d{6}(?:_[a-f0-9]{8})?\z/
 
     # Supported Method Parameters::
     # PWN::Backups.active?
@@ -69,23 +73,13 @@ module PWN
         pins = names.length >= LIMIT ? reference_pins(root: root) : []
         raise IOError, 'Pinned backup missing' unless (pins - names).empty?
 
-        candidates = names.select do |name|
-          next false unless name.match?(GENERATION) && !pins.include?(name)
-
-          path = File.join(root, name)
-          safe_directory(path: path)
-          state = File.join(path, '.generation.json')
-          next false unless File.file?(state) && !File.symlink?(state)
-
-          record = JSON.parse(File.binread(state))
-          # Capture pins that nothing references may be expired. Policy pins and
-          # evidence references are already in `pins`. Interrupted generations are not.
-          record['version'] == 1 && record['state'] == 'complete'
-        end
+        candidates = names.select { |name| expirable_name?(name: name, root: root, pins: pins) }
         count = [names.length - LIMIT + 1, 0].max
         raise IOError, 'Backup capacity occupied by legacy, pinned or interrupted generations' if candidates.length < count
 
-        candidates.sort_by { |name| File.mtime(File.join(root, name)).to_r }.first(count).each { |name| FileUtils.remove_entry_secure(File.join(root, name)) }
+        candidates.sort_by { |name| [File.mtime(File.join(root, name)).to_r, name] }.first(count).each do |name|
+          FileUtils.remove_entry_secure(File.join(root, name))
+        end
         context[:directory] = File.join(root, "#{Time.now.utc.strftime('%Y%m%d_%H%M%S')}_#{SecureRandom.hex(4)}")
         Dir.mkdir(context[:directory], 0o700)
         write_state(context: context, state: 'prepared')
@@ -283,6 +277,44 @@ module PWN
       pins.uniq
     rescue JSON::ParserError, KeyError => e
       raise IOError, "Unreadable backup references: #{e.class}"
+    end
+
+    # Unreferenced complete generations, published pre-generation snapshots, and
+    # unpublished partials may be expired. Policy pins, evidence references,
+    # interrupted generations, and unknown folder names may not.
+    private_class_method def self.expirable_name?(opts = {})
+      name = opts[:name].to_s
+      root = opts[:root]
+      return false if opts[:pins].include?(name)
+
+      path = File.join(root, name)
+      return false unless owned_directory?(path: path)
+      return true if name.match?(PARTIAL_SNAPSHOT)
+      return false unless name.match?(GENERATION) || name.match?(LEGACY_SNAPSHOT)
+
+      state = File.join(path, '.generation.json')
+      return true unless File.exist?(state) || File.symlink?(state)
+      return false unless File.file?(state) && !File.symlink?(state)
+
+      record = JSON.parse(File.binread(state))
+      record.is_a?(Hash) && record['version'] == 1 && record['state'] == 'complete'
+    rescue JSON::ParserError
+      false
+    end
+
+    private_class_method def self.owned_directory?(opts = {})
+      path = opts[:path]
+      ancestor = path
+      loop do
+        return false if File.symlink?(ancestor)
+        break if File.dirname(ancestor) == ancestor
+
+        ancestor = File.dirname(ancestor)
+      end
+      stat = File.stat(path)
+      stat.directory? && stat.uid == Process.uid
+    rescue SystemCallError
+      false
     end
 
     private_class_method def self.safe_directory(opts = {})
