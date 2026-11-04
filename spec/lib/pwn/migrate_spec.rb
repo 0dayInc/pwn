@@ -381,8 +381,42 @@ describe PWN::Migrate, 'backup housekeeping' do
     result = described_class.prune_backups(dry_run: false, keep: 3, expire_history: true)
     expect(result).to include(keep: 7, scope: 'global', deleted: [])
     expect(Dir.children(root).length).to eq(8)
-    expect { described_class.send(:backup!) }.to raise_error(IOError)
-    expect(Dir.children(root).grep(/\A\d/).length).to eq(8)
+  end
+
+  it 'expires oldest unreferenced legacy snapshots so migration can publish one verified generation' do
+    root = described_class::BACKUP_ROOT
+    dirs = 8.times.map do |i|
+      dir = File.join(root, format('2026010%d_000000', i + 1))
+      FileUtils.mkdir_p(dir)
+      File.write(File.join(dir, 'learning.jsonl'), "unique-#{i}")
+      File.utime(Time.at(1_700_000_000 + i), Time.at(1_700_000_000 + i), dir)
+      dir
+    end
+    path = described_class.send(:backup!)
+    expect(File).not_to exist(dirs[0])
+    expect(File).not_to exist(dirs[1])
+    expect(File).to exist(dirs.last)
+    expect(JSON.parse(File.binread(File.join(path, '.snapshot-manifest.json')))['complete']).to be(true)
+    expect(Dir.children(root).grep(/\A\d/).length).to eq(7)
+  end
+
+  it 'admits a schema migration snapshot when seven legacy timestamp folders already fill the store' do
+    root = described_class::BACKUP_ROOT
+    FileUtils.mkdir_p(root)
+    dirs = 7.times.map do |i|
+      dir = File.join(root, format('2025010%d_000000', i + 1))
+      FileUtils.mkdir_p(dir)
+      File.write(File.join(dir, 'learning.jsonl'), "legacy-#{i}")
+      File.utime(Time.at(1_700_100_000 + i), Time.at(1_700_100_000 + i), dir)
+      dir
+    end
+    File.write(described_class::SCHEMA_FILE, JSON.generate(schema: 11))
+    result = described_class.run(io: io)
+    expect(result[:applied_migrations]).to eq([12])
+    expect(result[:backup]).to be_a(String)
+    expect(File).not_to exist(dirs.first)
+    expect(File).to exist(File.join(result[:backup], '.snapshot-manifest.json'))
+    expect(Dir.children(root).count { |name| File.directory?(File.join(root, name)) }).to eq(7)
   end
 
   it 'publishes a verified scoped snapshot and fails closed on a copy failure' do

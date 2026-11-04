@@ -515,13 +515,22 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
     @screen = screen
     output = double('terminal', tty?: true)
     previous = [$stdin, $stdout, $stderr]
-    Timeout.timeout(60, Class.new(Exception)) do # rubocop:disable Lint/InheritException -- must escape Console rescue StandardError
-      reader = lambda do
-        key = keys.empty? ? tick.call : keys.shift
-        Thread.pass if key.nil?
-        key
+    @console = nil
+    allow(PWN::Plugins::REPL::AIConsole::Console).to receive(:new).and_wrap_original do |original, *args, **kwargs|
+      @console = original.call(*args, **kwargs)
+    end
+    expired = Class.new(Exception) # rubocop:disable Lint/InheritException -- must escape Console rescue StandardError
+    begin
+      Timeout.timeout(60, expired) do
+        reader = lambda do
+          key = keys.empty? ? tick.call : keys.shift
+          Thread.pass if key.nil?
+          key
+        end
+        PWN::Plugins::REPL::AIConsole.run(pry: @pry, input: input, output: output, curses: screen, getch: reader)
       end
-      PWN::Plugins::REPL::AIConsole.run(pry: @pry, input: input, output: output, curses: screen, getch: reader)
+    rescue expired
+      raise expired, "execution expired phase=#{@launch_phase.inspect} session=#{@pry.config.pwn_ai_session_id} paint=#{@paint.join[-240]}"
     end
     expect([$stdin, $stdout]).to eq(previous.take(2))
     expect(PWN::Plugins::Log.raw_stderr).to equal(previous[2])
@@ -2674,15 +2683,26 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
       expect(opts[:messages]).to include(hash_including(role: 'user', content: 'Previous fixture question'), hash_including(role: 'assistant', content: 'Previous fixture answer'))
       { choices: [{ message: { role: 'assistant', content: 'Selected route.', tool_calls: [] } }] }
     end
-    keys = "/model openai console-fixture\n/sessions resume resumed console\n".chars
-    submitted = false
+    keys = "/model openai console-fixture\n".chars
+    phase = :model
     launch(keys) do
-      if !submitted && @pry.config.pwn_ai_session_id == sid
-        submitted = true
-        keys.concat("what color is a lemon?\n".chars)
+      @launch_phase = phase
+      idle = @console && !@console.send(:busy?)
+      case phase
+      when :model
+        if idle && @paint.join.include?('model=console-fixture')
+          phase = :resume
+          keys.concat("/sessions resume resumed console\n".chars)
+        end
         nil
-      elsif @paint.any? { |row| row.include?('Selected route.') }
-        "\u0004"
+      when :resume
+        if idle && @pry.config.pwn_ai_session_id == sid
+          phase = :ask
+          keys.concat("what color is a lemon?\n".chars)
+        end
+        nil
+      else
+        "\u0004" if @paint.join.include?('Selected route.')
       end
     end
     expect(@pry.config.pwn_ai_session_id).to eq(sid)

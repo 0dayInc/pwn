@@ -49,6 +49,9 @@ describe PWN::Backups do
 
   it 'pins actual evidence paths but not quoted inventory prose' do
     copies = 7.times.map { described_class.capture(path: @source) }
+    generations = copies.map { |path| File.dirname(path, 2) }
+    generations.each_with_index { |dir, index| File.utime(Time.at(1_700_000_100 + index), Time.at(1_700_000_100 + index), dir) }
+    File.utime(Time.at(1_700_000_000), Time.at(1_700_000_000), generations[1])
     File.write(File.join(@home, '.pwn', 'learning.jsonl'), JSON.generate(evidence_path: copies.first, prose: "old path #{copies[1]}"))
     described_class.capture(path: @source)
     expect(File).to exist(copies.first)
@@ -117,6 +120,67 @@ describe PWN::Backups do
     result = described_class.relocate_legacy(paths: [legacy], dry_run: false, writers_stopped: true)
     expect(File).not_to exist(legacy)
     expect(File.read(result[:moved].fetch(legacy))).to eq('legacy bytes')
+  end
+
+  it 'expires an unreferenced legacy timestamp snapshot and keeps a referenced one' do
+    root = File.join(@home, '.pwn', 'backup')
+    FileUtils.mkdir_p(root)
+    dirs = 7.times.map do |index|
+      dir = File.join(root, format('2020010%d_000000', index + 1))
+      FileUtils.mkdir_p(dir)
+      File.write(File.join(dir, 'learning.jsonl'), "legacy-#{index}")
+      File.utime(Time.at(1_600_000_000 + index), Time.at(1_600_000_000 + index), dir)
+      dir
+    end
+    File.write(File.join(@home, '.pwn', 'learning.jsonl'), JSON.generate(evidence_path: "#{dirs.last}/learning.jsonl"))
+    described_class.capture(path: @source, label: 'migration')
+    expect(File).not_to exist(dirs.first)
+    expect(File).to exist(dirs.last)
+    expect(Dir.children(root).count { |name| File.directory?(File.join(root, name)) }).to eq(7)
+  end
+
+  it 'expires an unreferenced pre-generation hex snapshot that has no generation record' do
+    root = File.join(@home, '.pwn', 'backup')
+    FileUtils.mkdir_p(root)
+    dirs = 7.times.map do |index|
+      hex = (index + 1).to_s(16).rjust(8, '0')
+      dir = File.join(root, "2020020#{index + 1}_000000_#{hex}")
+      FileUtils.mkdir_p(dir)
+      File.utime(Time.at(1_600_000_100 + index), Time.at(1_600_000_100 + index), dir)
+      dir
+    end
+    described_class.capture(path: @source, label: 'migration')
+    expect(File).not_to exist(dirs.first)
+    expect(File).to exist(dirs.last)
+  end
+
+  it 'expires an unpublished partial copy that was never renamed into a restore name' do
+    root = File.join(@home, '.pwn', 'backup')
+    FileUtils.mkdir_p(root)
+    dirs = 7.times.map do |index|
+      dir = File.join(root, ".partial-2020040#{index + 1}_000000_abcd1234")
+      FileUtils.mkdir_p(dir)
+      File.utime(Time.at(1_600_000_200 + index), Time.at(1_600_000_200 + index), dir)
+      dir
+    end
+    described_class.capture(path: @source, label: 'migration')
+    expect(File).not_to exist(dirs.first)
+    expect(Dir.children(root).count { |name| File.directory?(File.join(root, name)) }).to eq(7)
+  end
+
+  it 'does not expire unknown folders or an interrupted legacy snapshot to free capacity' do
+    root = File.join(@home, '.pwn', 'backup')
+    unknown = 6.times.map do |index|
+      dir = File.join(root, "unknown-#{index}")
+      FileUtils.mkdir_p(dir)
+      dir
+    end
+    interrupted = File.join(root, '20200301_000000')
+    FileUtils.mkdir_p(interrupted)
+    File.write(File.join(interrupted, '.generation.json'), JSON.generate(version: 1, state: 'prepared', pinned: false))
+    expect { described_class.capture(path: @source) }.to raise_error(IOError, /capacity/)
+    expect(unknown.all? { |dir| File.directory?(dir) }).to be(true)
+    expect(File).to exist(interrupted)
   end
 
   it 'tightens an owned group-writable backup directory before writing' do

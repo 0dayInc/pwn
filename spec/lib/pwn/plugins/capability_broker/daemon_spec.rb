@@ -101,7 +101,15 @@ describe 'Native capability broker daemon' do
         Process.setpgrp
         begin
           if account
-            Process.groups = []
+            begin
+              Process.groups = []
+            rescue Errno::EPERM
+              # The root suite bootstrap denies setgroups before writing gid_map.
+              # That parent already cleared supplementary groups, so an empty set
+              # is success. A nonempty set is still a failed drop.
+              denied = File.file?('/proc/self/setgroups') && File.read('/proc/self/setgroups').strip == 'deny'
+              raise unless denied && Process.groups.empty?
+            end
             Process::GID.change_privilege(account.gid)
             Process::UID.change_privilege(account.uid)
             expect(Process.groups).to eq([])
