@@ -482,9 +482,26 @@ module PWN
               options['rsa_mgf1_md'] = @opts.fetch(:mgf1_hash, digest)
               options['rsa_oaep_label'] = @opts[:label].b.unpack1('H*') if @opts[:label]
             end
-            dummy.decrypt(wrapped, options)
+            message = dummy.decrypt(wrapped, options)
+            # OpenSSL 3 may return random bytes instead of raising when PKCS1
+            # padding is invalid. Never treat that as plaintext.
+            if padding == :pkcs1
+              verified = pkcs1_unpad(padded)
+              raise ResponseError, 'RSA decryption failed' unless verified == message
+            end
+            message
           rescue OpenSSL::OpenSSLError
             raise ResponseError, 'RSA decryption failed', cause: nil
+          end
+
+          def pkcs1_unpad(padded)
+            bytes = padded.b.bytes
+            tail = bytes[2..] || []
+            found = tail.index(0)
+            separator = found.nil? ? nil : found + 2
+            raise ResponseError, 'RSA decryption failed' unless bytes[0].zero? && bytes[1] == 2 && separator && separator >= 10
+
+            padded.b.byteslice(separator + 1, padded.bytesize - separator - 1)
           end
 
           def calculate_secret(identifier, peer)
