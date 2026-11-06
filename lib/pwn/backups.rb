@@ -242,7 +242,15 @@ module PWN
       policy = File.join(root, '.retention-policy.json')
       raise IOError, 'Unsafe retention policy' if File.symlink?(policy)
 
-      pins = File.file?(policy) ? JSON.parse(File.binread(policy)).fetch('pins') : []
+      pins = []
+      if File.file?(policy)
+        begin
+          parsed = JSON.parse(File.binread(policy))
+          pins = parsed.fetch('pins', [])
+        rescue JSON::ParserError, EncodingError
+          pin_raw_paths(text: File.binread(policy), root: root, pins: pins)
+        end
+      end
       raise IOError, 'Invalid backup pins' unless pins.is_a?(Array) && pins.all? { |name| name.is_a?(String) && name.match?(/\A\d{8}_\d{6}(?:_[a-f0-9]{8})?\z/) }
 
       pins = pins.dup
@@ -260,23 +268,56 @@ module PWN
           admission = Thread.current[:pwn_maintenance_admission]
           raise IOError, 'Backup reference budget exhausted' if admission && !admission.call(stat.size + 1)
 
-          values = file.end_with?('.jsonl') ? File.foreach(file).reject { |line| line.strip.empty? }.map { |line| JSON.parse(line) } : [JSON.parse(File.binread(file))]
-          values.select! { |value| value.is_a?(Hash) && (%w[prepared interrupted].include?(value['state']) || value['pinned'] == true) } if name == 'maintenance'
-          until values.empty?
-            value = values.pop
-            case value
-            when Hash then values.concat(value.values)
-            when Array then values.concat(value)
-            when String
-              match = value.match(%r{\A(?:#{Regexp.escape(root)}/|backup/)(\d{8}_\d{6}(?:_[a-f0-9]{8})?)(?:/|\z)})
-              pins << match[1] if match
-            end
-          end
+          collect_references(file: file, root: root, pins: pins, maintenance: name == 'maintenance')
         end
       end
       pins.uniq
-    rescue JSON::ParserError, KeyError => e
-      raise IOError, "Unreadable backup references: #{e.class}"
+    end
+
+    private_class_method def self.collect_references(opts = {})
+      file = opts[:file]
+      body = File.binread(file)
+      if file.end_with?('.jsonl')
+        body.split("\n".b).each do |line|
+          next if line.strip.empty?
+
+          begin
+            walk_reference(value: JSON.parse(line), root: opts[:root], pins: opts[:pins], maintenance: opts[:maintenance])
+          rescue JSON::ParserError, EncodingError
+            pin_raw_paths(text: line, root: opts[:root], pins: opts[:pins])
+          end
+        end
+      else
+        begin
+          walk_reference(value: JSON.parse(body), root: opts[:root], pins: opts[:pins], maintenance: opts[:maintenance])
+        rescue JSON::ParserError, EncodingError
+          pin_raw_paths(text: body, root: opts[:root], pins: opts[:pins])
+        end
+      end
+    end
+
+    private_class_method def self.walk_reference(opts = {})
+      values = [opts[:value]]
+      values.select! { |value| value.is_a?(Hash) && (%w[prepared interrupted].include?(value['state']) || value['pinned'] == true) } if opts[:maintenance]
+      root = opts[:root]
+      pins = opts[:pins]
+      until values.empty?
+        value = values.pop
+        case value
+        when Hash then values.concat(value.values)
+        when Array then values.concat(value)
+        when String
+          match = value.match(%r{\A(?:#{Regexp.escape(root)}/|backup/)(\d{8}_\d{6}(?:_[a-f0-9]{8})?)(?:/|\z)})
+          pins << match[1] if match
+        end
+      end
+    end
+
+    private_class_method def self.pin_raw_paths(opts = {})
+      text = opts[:text].to_s.b
+      root = opts[:root].to_s.b
+      pattern = Regexp.new("(?:#{Regexp.escape(root)}/|backup/)(\\d{8}_\\d{6}(?:_[a-f0-9]{8})?)(?:/|\\z)")
+      text.scan(pattern).each { |row| opts[:pins] << row[0] }
     end
 
     # Unreferenced complete generations, published pre-generation snapshots, and

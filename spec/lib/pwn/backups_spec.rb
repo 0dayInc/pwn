@@ -58,11 +58,24 @@ describe PWN::Backups do
     expect(File).not_to exist(copies[1])
   end
 
-  it 'fails admission on malformed reference data without losing any recovery copy' do
+  it 'admits a snapshot when a reference file is not valid JSON' do
     copies = 7.times.map { described_class.capture(path: @source) }
+    generations = copies.map { |path| File.dirname(path, 2) }
+    generations.each_with_index { |dir, index| File.utime(Time.at(1_600_000_300 + index), Time.at(1_600_000_300 + index), dir) }
     File.write(File.join(@home, '.pwn', 'learning.jsonl'), '{broken')
-    expect { described_class.capture(path: @source) }.to raise_error(IOError, /references/)
-    expect(copies.all? { |path| File.file?(path) }).to be(true)
+    described_class.capture(path: @source)
+    expect(File).not_to exist(generations.first)
+    expect(copies[1..].all? { |path| File.file?(path) }).to be(true)
+  end
+
+  it 'keeps a generation named inside unreadable reference text' do
+    copies = 7.times.map { described_class.capture(path: @source) }
+    generations = copies.map { |path| File.dirname(path, 2) }
+    generations.each_with_index { |dir, index| File.utime(Time.at(1_600_000_400 + index), Time.at(1_600_000_400 + index), dir) }
+    File.write(File.join(@home, '.pwn', 'learning.jsonl'), "{not-json #{copies[1]}")
+    described_class.capture(path: @source)
+    expect(File).to exist(copies[1])
+    expect(File).not_to exist(generations.first)
   end
 
   it 'uses one generation for nested producers and preserves failed result recovery' do

@@ -87,7 +87,7 @@ module PWN
           attach_function :openat, %i[int string int uint], :int
           attach_function :mkdirat, %i[int string uint], :int
         end
-        flags = File::RDONLY | File::NOFOLLOW | 0x10000 | 0x80000 # O_DIRECTORY | O_CLOEXEC
+        flags = directory_open_flags
         identities = protected_roots.map do |path|
           stat = File.stat(path)
           [stat.dev, stat.ino]
@@ -112,6 +112,14 @@ module PWN
         yield "/proc/self/fd/#{directory.fileno}"
       ensure
         directory&.close unless directory&.closed?
+      end
+
+      # O_DIRECTORY is 1<<16 on x86_64 and 1<<14 on aarch64/arm. 1<<16 is O_DIRECT
+      # there, and open("/", O_DIRECT) returns EINVAL.
+      private_class_method def self.directory_open_flags(opts = {})
+        platform = opts[:platform] || RUBY_PLATFORM
+        directory = platform.match?(/\Aaarch64|\Aarm-/) ? (1 << 14) : (1 << 16)
+        File::RDONLY | File::NOFOLLOW | directory | (1 << 19)
       end
 
       # Mandatory repository boundary, independent of the optional profile.
