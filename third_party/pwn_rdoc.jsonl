@@ -1898,6 +1898,7 @@
 {"messages":[{"role":"user","content":"PWN::Backups.active? Usage"},{"role":"assistant","content":"`PWN::Backups.active?`: Supported Method Parameters\n\nPWN::Backups.active?\n"}]}
 {"messages":[{"role":"user","content":"PWN::Backups.authors Usage"},{"role":"assistant","content":"`PWN::Backups.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
 {"messages":[{"role":"user","content":"PWN::Backups.capture Usage"},{"role":"assistant","content":"`PWN::Backups.capture`: Supported Method Parameters\n\nPWN::Backups.capture(path: ‘/path/to/source’, label: ‘learning’)\n"}]}
+{"messages":[{"role":"user","content":"PWN::Backups.collect_references Usage"},{"role":"assistant","content":"`PWN::Backups.collect_references`: "}]}
 {"messages":[{"role":"user","content":"PWN::Backups.configure Usage"},{"role":"assistant","content":"`PWN::Backups.configure`: Supported Method Parameters\n\nPWN::Backups.configure(root: nil)\n"}]}
 {"messages":[{"role":"user","content":"PWN::Backups.directory Usage"},{"role":"assistant","content":"`PWN::Backups.directory`: Supported Method Parameters\n\nPWN::Backups.directory(label: ‘maintenance’) Caller must hold transaction through the final source mutation and ledger.\n"}]}
 {"messages":[{"role":"user","content":"PWN::Backups.expirable_name? Usage"},{"role":"assistant","content":"`PWN::Backups.expirable_name?`: "}]}
@@ -1905,11 +1906,13 @@
 {"messages":[{"role":"user","content":"PWN::Backups.legacy_inventory Usage"},{"role":"assistant","content":"`PWN::Backups.legacy_inventory`: "}]}
 {"messages":[{"role":"user","content":"PWN::Backups.legacy_unreferenced Usage"},{"role":"assistant","content":"`PWN::Backups.legacy_unreferenced`: "}]}
 {"messages":[{"role":"user","content":"PWN::Backups.owned_directory? Usage"},{"role":"assistant","content":"`PWN::Backups.owned_directory?`: "}]}
+{"messages":[{"role":"user","content":"PWN::Backups.pin_raw_paths Usage"},{"role":"assistant","content":"`PWN::Backups.pin_raw_paths`: "}]}
 {"messages":[{"role":"user","content":"PWN::Backups.reconcile Usage"},{"role":"assistant","content":"`PWN::Backups.reconcile`: Supported Method Parameters\n\nPWN::Backups.reconcile(generation: ‘name’, expected_sha256: ‘digest’, confirmed: true)\n"}]}
 {"messages":[{"role":"user","content":"PWN::Backups.reference_pins Usage"},{"role":"assistant","content":"`PWN::Backups.reference_pins`: "}]}
 {"messages":[{"role":"user","content":"PWN::Backups.relocate_legacy Usage"},{"role":"assistant","content":"`PWN::Backups.relocate_legacy`: Supported Method Parameters\n\nPWN::Backups.relocate_legacy(paths: [], dry_run: true, writers_stopped: false)\n"}]}
 {"messages":[{"role":"user","content":"PWN::Backups.safe_directory Usage"},{"role":"assistant","content":"`PWN::Backups.safe_directory`: "}]}
 {"messages":[{"role":"user","content":"PWN::Backups.transaction Usage"},{"role":"assistant","content":"`PWN::Backups.transaction`: Supported Method Parameters\n\nPWN::Backups.transaction(root: nil) { … }\n"}]}
+{"messages":[{"role":"user","content":"PWN::Backups.walk_reference Usage"},{"role":"assistant","content":"`PWN::Backups.walk_reference`: "}]}
 {"messages":[{"role":"user","content":"PWN::Backups.write_state Usage"},{"role":"assistant","content":"`PWN::Backups.write_state`: "}]}
 {"messages":[{"role":"user","content":"PWN::Banner.authors Usage"},{"role":"assistant","content":"`PWN::Banner.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
 {"messages":[{"role":"user","content":"PWN::Banner.get Usage"},{"role":"assistant","content":"`PWN::Banner.get`: Supported Method Parameters\n\nPWN::Banner.get(\n\nindex: 'optional - defaults to random banner index'\n\n)\n"}]}
@@ -2465,6 +2468,7 @@
 {"messages":[{"role":"user","content":"PWN::Plugins::AISandbox.collect_worker Usage"},{"role":"assistant","content":"`PWN::Plugins::AISandbox.collect_worker`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::AISandbox.control_directory Usage"},{"role":"assistant","content":"`PWN::Plugins::AISandbox.control_directory`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::AISandbox.controller_state_roots Usage"},{"role":"assistant","content":"`PWN::Plugins::AISandbox.controller_state_roots`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::AISandbox.directory_open_flags Usage"},{"role":"assistant","content":"`PWN::Plugins::AISandbox.directory_open_flags`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::AISandbox.env_mode Usage"},{"role":"assistant","content":"`PWN::Plugins::AISandbox.env_mode`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::AISandbox.eval_ruby Usage"},{"role":"assistant","content":"`PWN::Plugins::AISandbox.eval_ruby`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::AISandbox.exec Usage"},{"role":"assistant","content":"`PWN::Plugins::AISandbox.exec`: "}]}
@@ -4439,6 +4443,7 @@
 {"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::PIV::Session.info Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::PIV::Session.info`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::PIV::Session.metadata Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::PIV::Session.metadata`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::PIV::Session.move_key Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::PIV::Session.move_key`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::PIV::Session.pkcs1_unpad Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::PIV::Session.pkcs1_unpad`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::PIV::Session.read_certificate Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::PIV::Session.read_certificate`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::PIV::Session.read_object Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::PIV::Session.read_object`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::YubiKey::PIV::Session.reset Usage"},{"role":"assistant","content":"`PWN::Plugins::YubiKey::PIV::Session.reset`: "}]}

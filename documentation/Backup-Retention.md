@@ -40,10 +40,12 @@ that has no interrupted generation record, and an unpublished `.partial-`
 copy that was never renamed into a restore name. Those are not certified as
 complete; they are only eligible so one verified snapshot can be published.
 Prepared/interrupted generations, retention-policy pins and current literal
-evidence references remain protected. Malformed reference data fails closed
-when expiry would be needed. If those protected folders occupy the seven-folder
-limit, the next producer fails before modifying its source. Unknown folder
-names still count toward capacity and are not silently expired.
+evidence references remain protected. A reference file that is not valid JSON
+does not abort admission. A generation path found in that unreadable text stays
+pinned; valid JSON still ignores a path that only appears inside quoted prose.
+If protected folders still occupy the seven-folder limit, the next producer fails
+before modifying its source. Unknown folder names still count toward capacity
+and are not silently expired.
 
 Transactions publish `prepared` before payload/source changes and `complete`
 only after successful return. Exceptions, interrupted/blocked results and failed

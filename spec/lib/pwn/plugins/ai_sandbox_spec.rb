@@ -224,6 +224,15 @@ describe PWN::Plugins::AISandbox do
     end
   end
 
+  it 'uses aarch64 directory open bits instead of the x86_64 O_DIRECT bit' do
+    aarch64 = described_class.send(:directory_open_flags, platform: 'aarch64-linux')
+    x86_64 = described_class.send(:directory_open_flags, platform: 'x86_64-linux')
+    expect(aarch64.anybits?(1 << 14)).to be(true)
+    expect(aarch64.anybits?(1 << 16)).to be(false)
+    expect(x86_64.anybits?(1 << 16)).to be(true)
+    expect(x86_64.anybits?(1 << 14)).to be(false)
+  end
+
   it 'pins controller directories across pathname replacement and rejects source ancestry' do
     Dir.mktmpdir('pwn-control-fd') do |root|
       source = File.join(root, 'source')
