@@ -530,7 +530,9 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
         PWN::Plugins::REPL::AIConsole.run(pry: @pry, input: input, output: output, curses: screen, getch: reader)
       end
     rescue expired
-      raise expired, "execution expired phase=#{@launch_phase.inspect} session=#{@pry.config.pwn_ai_session_id} paint=#{@paint.join[-240]}"
+      joined = @paint.join
+      hint = joined[/Workspace busy:[^\n]{0,120}|Session title provider[^\n]{0,80}|Model selection cancelled[^\n]{0,60}|expected .+ to /]
+      raise expired, "execution expired phase=#{@launch_phase.inspect} session=#{@pry.config.pwn_ai_session_id} hint=#{hint.inspect} paint=#{joined[-240]}"
     end
     expect([$stdin, $stdout]).to eq(previous.take(2))
     expect(PWN::Plugins::Log.raw_stderr).to equal(previous[2])
@@ -2678,34 +2680,48 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
     PWN::Sessions.append(session_id: sid, role: 'user', content: 'Previous fixture question')
     PWN::Sessions.append(session_id: sid, role: 'assistant', content: 'Previous fixture answer')
     allow(PWN::Plugins::REPL).to receive(:persist_ai_selection).and_return(false)
+    seen = File.join(@tmp, 'curses-provider-call.json')
+    recorded = false
     allow(PWN::AI::OpenAI).to receive(:chat_with_tools) do |opts|
-      expect(PWN::Env.dig(:ai, :openai, :model)).to eq('console-fixture')
-      expect(opts[:messages]).to include(hash_including(role: 'user', content: 'Previous fixture question'), hash_including(role: 'assistant', content: 'Previous fixture answer'))
+      unless recorded
+        recorded = true
+        messages = Array(opts[:messages]).map { |row| { role: row[:role] || row['role'], content: (row[:content] || row['content']).to_s } }
+        File.write(seen, JSON.generate(model: PWN::Env.dig(:ai, :openai, :model), call_model: opts[:model], messages: messages))
+      end
       { choices: [{ message: { role: 'assistant', content: 'Selected route.', tool_calls: [] } }] }
     end
+    allow(PWN::AI::Router).to receive(:summarize).and_return('{"title":"Resumed console","summary":"Fixture summary."}')
     keys = "/model openai console-fixture\n".chars
     phase = :model
     launch(keys) do
       @launch_phase = phase
       idle = @console && !@console.send(:busy?)
+      prompt = @console&.instance_variable_get(:@model_prompt)
       case phase
       when :model
-        if idle && @paint.join.include?('model=console-fixture')
+        if idle && !prompt && @paint.join.include?('model=console-fixture') && PWN::Env.dig(:ai, :openai, :model) == 'console-fixture'
           phase = :resume
           keys.concat("/sessions resume resumed console\n".chars)
         end
         nil
       when :resume
-        if idle && @pry.config.pwn_ai_session_id == sid
+        if idle && !prompt && @pry.config.pwn_ai_session_id == sid && PWN::Env.dig(:ai, :openai, :model) == 'console-fixture'
           phase = :ask
           keys.concat("what color is a lemon?\n".chars)
         end
         nil
       else
-        "\u0004" if @paint.join.include?('Selected route.')
+        answered = @paint.join.include?('Selected route.')
+        answered ||= PWN::Sessions.load(session_id: sid).any? { |row| row[:content].to_s.include?('Selected route.') }
+        "\u0004" if answered
       end
     end
     expect(@pry.config.pwn_ai_session_id).to eq(sid)
+    observed = JSON.parse(File.read(seen), symbolize_names: true)
+    expect(observed[:model]).to eq('console-fixture')
+    expect(observed[:call_model]).to eq('console-fixture')
+    bodies = observed[:messages].map { |row| row[:content] }.join
+    expect(bodies).to include('Previous fixture question', 'Previous fixture answer', 'what color is a lemon?')
     expect(PWN::Sessions.load(session_id: sid).map { |row| row[:content] }.join).to include('Selected route.')
   end
 
