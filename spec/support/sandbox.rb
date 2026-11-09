@@ -47,7 +47,9 @@ RSpec.shared_context 'pwn tmp sandbox' do
       'PWN::AI::Agent::Policy::TRAJECTORY_FILE' => 'policy_traj.jsonl',
       'PWN::AI::Agent::Extrospection::EXTRO_FILE' => 'extrospection.json',
       'PWN::AI::Agent::Swarm::AGENTS_FILE' => 'agents.yml',
-      'PWN::AI::Agent::Swarm::SWARM_ROOT' => 'swarm'
+      'PWN::AI::Agent::Swarm::SWARM_ROOT' => 'swarm',
+      'PWN::AI::Agent::Mission::ROOT' => 'missions',
+      'PWN::AI::Agent::OpenGoal::GOAL_FILE' => 'open_goal.json'
     }.each do |const, rel|
       owner = const.split('::')[0..-2].join('::')
       stub_const(const, File.join(@tmp, rel)) if Object.const_defined?(owner)
