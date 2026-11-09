@@ -27,6 +27,37 @@ describe 'regex-ReAct mission containment' do
     Pry.config.hooks.get_hook(:after_read, :pwn_ai_hook).call(request, pry)
   end
 
+  def wait_for_descendant_pid(marker)
+    Timeout.timeout(10) do
+      loop do
+        text = File.read(marker) if File.file?(marker)
+        pid = text.to_s[/^NSpid:[ \t]+([1-9]\d*)(?:[ \t]+\d+)+\n/, 1]
+        return pid.to_i if pid
+
+        sleep 0.01
+      end
+    end
+  end
+
+  it 'waits for the descendant PID contents rather than an empty readiness file' do
+    marker = File.join(@tmp, 'partial-ready')
+    File.write(marker, '')
+    read_empty = Queue.new
+    writer = Thread.new do
+      read_empty.pop
+      File.write(marker, "NSpid:\t12345\t1\n")
+    end
+    allow(File).to receive(:read).and_call_original
+    allow(File).to receive(:read).with(marker).and_wrap_original do |original, path|
+      text = original.call(path)
+      read_empty << true if text.empty?
+      text
+    end
+    expect(wait_for_descendant_pid(marker)).to eq(12_345)
+  ensure
+    writer&.kill&.join
+  end
+
   it 'fails closed before calling a provider when mission containment is unavailable' do
     allow(PWN::Plugins::AISandbox::MissionProcess).to receive(:new).and_raise(PWN::Plugins::AISandbox::NotStarted, 'enable user/PID namespaces')
     expect(PWN::AI::Ollama).not_to receive(:chat)
@@ -137,8 +168,7 @@ describe 'regex-ReAct mission containment' do
       nil
     end
     marker = File.join(@tmp, '.pwn', 'workspaces', 'runtime', 'pty-ready')
-    Timeout.timeout(10) { sleep 0.01 until File.exist?(marker) }
-    host_pid = File.read(marker)[/^NSpid:\s+(\d+)/, 1].to_i
+    host_pid = wait_for_descendant_pid(marker)
     writer.write("\x03")
     Timeout.timeout(10) { sleep 0.01 until output.include?('CANCELLED READY') }
     expect { Process.kill(0, host_pid) }.to raise_error(Errno::ESRCH)
@@ -179,8 +209,7 @@ describe 'regex-ReAct mission containment' do
       rescue Interrupt
         :cancelled
       end
-      Timeout.timeout(10) { sleep 0.01 until File.exist?(marker) }
-      host_pid = File.read(marker)[/^NSpid:\s+(\d+)/, 1].to_i
+      host_pid = wait_for_descendant_pid(marker)
       worker.raise(Interrupt)
       expect(Timeout.timeout(10) { worker.value }).to eq(:cancelled)
       expect(repl).to have_received(:ready_tty!)

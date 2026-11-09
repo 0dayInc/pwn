@@ -530,9 +530,9 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
         PWN::Plugins::REPL::AIConsole.run(pry: @pry, input: input, output: output, curses: screen, getch: reader)
       end
     rescue expired
-      joined = @paint.join
-      hint = joined[/Workspace busy:[^\n]{0,120}|Session title provider[^\n]{0,80}|Model selection cancelled[^\n]{0,60}|expected .+ to /]
-      raise expired, "execution expired phase=#{@launch_phase.inspect} session=#{@pry.config.pwn_ai_session_id} hint=#{hint.inspect} paint=#{joined[-240]}"
+      timeline = @console&.instance_variable_get(:@timeline).to_a.last(8).map { |type, text| [type, text.to_s[0, 400]] }
+      paint = @paint.last(120).join
+      raise expired, "execution expired phase=#{@launch_phase.inspect} session=#{@pry.config.pwn_ai_session_id} timeline=#{timeline.inspect} paint=#{paint[-240, 240] || paint}"
     end
     expect([$stdin, $stdout]).to eq(previous.take(2))
     expect(PWN::Plugins::Log.raw_stderr).to equal(previous[2])
@@ -2711,17 +2711,20 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
         end
         nil
       else
-        answered = @paint.join.include?('Selected route.')
-        answered ||= PWN::Sessions.load(session_id: sid).any? { |row| row[:content].to_s.include?('Selected route.') }
-        "\u0004" if answered
+        "\u0004" if idle
       end
     end
     expect(@pry.config.pwn_ai_session_id).to eq(sid)
+    expect(File).to exist(seen), "Mission finished without calling the provider: #{@console.instance_variable_get(:@timeline).inspect}"
     observed = JSON.parse(File.read(seen), symbolize_names: true)
     expect(observed[:model]).to eq('console-fixture')
     expect(observed[:call_model]).to eq('console-fixture')
-    bodies = observed[:messages].map { |row| row[:content] }.join
-    expect(bodies).to include('Previous fixture question', 'Previous fixture answer', 'what color is a lemon?')
+    expect(observed[:messages]).to include(
+      hash_including(role: 'user', content: 'Previous fixture question'),
+      hash_including(role: 'assistant', content: 'Previous fixture answer'),
+      hash_including(role: 'user', content: 'what color is a lemon?')
+    )
+    expect(@paint.join).to include('Selected route.')
     expect(PWN::Sessions.load(session_id: sid).map { |row| row[:content] }.join).to include('Selected route.')
   end
 
