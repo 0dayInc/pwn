@@ -85,9 +85,10 @@ module PWN
           insn = klass.new(base + (i * klass.size))
           insns << { address: insn[:address], mnemonic: insn[:mnemonic].to_s, op_str: insn[:op_str].to_s, size: insn[:size] }
         end
-        cs_free(base, count) unless base.null?
-        cs_close(handle)
         { engine: 'capstone', insns: insns, count: count }
+      ensure
+        cs_free(base, count) if base && !base.null?
+        cs_close(handle) if handle && !handle.read_ulong.zero?
       end
 
       private_class_method def self.insn_class

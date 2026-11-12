@@ -145,6 +145,7 @@ module PWN
             raise
           end
           telemetry = finish_budget(budget: budget, result: result, elapsed: Process.clock_gettime(Process::CLOCK_MONOTONIC) - started)
+          eval_outcome = result.slice(:execution_success, :application_status) if entry.name == 'pwn_eval' && result.is_a?(Hash)
           result = Result.page(value: result, entry: entry, session_id: opts[:session_id])
           result = ToolGuard.quarantine_output(text: result) if defined?(ToolGuard) && result.is_a?(String) && ToolGuard.respond_to?(:quarantine_output)
           note_taint(text: result)
@@ -159,12 +160,14 @@ module PWN
                                  error: 'Vault redaction failed; result withheld. The tool already executed; verify its effects before retrying.')
           end
           response = { success: true, result: result, effect: effect(name: entry.name, args: args) }
+          response.merge!(eval_outcome) if eval_outcome
           response[:success] = false if result.is_a?(Hash) && (result[:error] || result['error'] || result[:success] == false || result['success'] == false || result[:ok] == false || result['ok'] == false || (result.key?(:exit) && result[:exit] != 0) || (result.key?('exit') && result['exit'] != 0))
           response[:budget] = telemetry if telemetry
           if telemetry && telemetry[:remaining_s].zero?
             response[:success] = false
             response[:error] = 'budget_exhausted'
           end
+          response[:informational_exit] = true if entry.name == 'shell' && Reward.semantic_ok(name: entry.name, raw: JSON.generate(Result.utf8_value(value: response)), args: args)[:benign]
           JSON.generate(PWN::AI::Agent::Result.utf8_value(value: response))
         rescue StandardError => e
           JSON.generate(

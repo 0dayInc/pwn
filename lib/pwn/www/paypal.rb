@@ -16,13 +16,25 @@ module PWN
       # )
 
       public_class_method def self.open(opts = {})
-        browser_obj = PWN::Plugins::TransparentBrowser.open(opts)
+        browser_obj = PWN::Plugins::TransparentBrowser.open(opts.dup)
 
         browser = browser_obj[:browser]
         browser.goto('https://www.paypal.com')
 
         browser_obj
       rescue StandardError => e
+        begin
+          if browser_obj
+            # Teardown independently: a driver failure must not strand Tor.
+            begin
+              PWN::Plugins::TransparentBrowser.close(browser_obj: browser_obj.reject { |key| key == :tor_obj })
+            ensure
+              PWN::Plugins::TransparentBrowser.close(browser_obj: { tor_obj: browser_obj[:tor_obj] }) if browser_obj[:tor_obj]
+            end
+          end
+        rescue StandardError => cleanup_error
+          warn "Browser cleanup failed (#{cleanup_error.class}); preserving the navigation error"
+        end
         raise e
       end
 
@@ -57,7 +69,7 @@ module PWN
         if password.nil?
           password = PWN::Plugins::AuthenticationHelper.mask_password
         else
-          password = opts[:password].to_s.scrub.strip.chomp
+          password = opts[:password].to_s
         end
         mfa = opts[:mfa]
 
@@ -71,7 +83,7 @@ module PWN
         browser.text_field(id: 'lastName').wait_until(&:present?).set(last_name)
         browser.text_field(id: 'address1').wait_until(&:present?).set(address)
         browser.text_field(id: 'city').wait_until(&:present?).set(city)
-        browser.select(id: 'state').wait_until(&:present?).select_value(state)
+        browser.select(id: 'state').wait_until(&:present?).select(value: state)
         browser.text_field(id: 'postalCode').wait_until(&:present?).set(zip_code)
         browser.text_field(id: 'phoneNumber').wait_until(&:present?).set(mobile_phone)
         browser.span(index: 7).wait_until(&:present?).click! # Agree to ToS
@@ -106,7 +118,7 @@ module PWN
         if password.nil?
           password = PWN::Plugins::AuthenticationHelper.mask_password
         else
-          password = opts[:password].to_s.scrub.strip.chomp
+          password = opts[:password].to_s
         end
         mfa = opts[:mfa]
 

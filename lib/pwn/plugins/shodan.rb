@@ -382,16 +382,10 @@ module PWN
 
       public_class_method def self.saved_search_queries(opts = {})
         api_key = opts[:api_key].to_s.scrub
-        page = opts[:page].to_i
-        sort = opts[:sort].to_sym
-        order = opts[:order].to_sym
-
-        params = {
-          key: api_key,
-          page: page,
-          sort: sort.to_s,
-          order: order.to_s
-        }
+        params = { key: api_key }
+        params[:page] = opts[:page].to_i if opts[:page]
+        params[:sort] = opts[:sort].to_s if opts[:sort]
+        params[:order] = opts[:order].to_s if opts[:order]
 
         shodan_rest_call(
           api_key: api_key,

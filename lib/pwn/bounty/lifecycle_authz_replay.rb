@@ -516,7 +516,7 @@ module PWN
         path = opts[:path]
         obj = opts[:obj]
         FileUtils.mkdir_p(File.dirname(path))
-        yaml_obj = YAML.dump(obj).gsub(/^\s*:(\w+):/, '\\1:')
+        yaml_obj = YAML.dump(obj, stringify_names: true)
         File.write(path, yaml_obj)
       rescue StandardError => e
         raise e

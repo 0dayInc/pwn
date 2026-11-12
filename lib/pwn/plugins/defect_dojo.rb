@@ -91,7 +91,7 @@ module PWN
               authorization: dd_obj[:authz_header],
               params: params
             },
-            verify_ssl: false,
+            verify_ssl: true,
             timeout: request_timeout,
             open_timeout: request_timeout
           )
@@ -120,7 +120,7 @@ module PWN
               authorization: dd_obj[:authz_header]
             },
             payload: payload,
-            verify_ssl: false,
+            verify_ssl: true,
             timeout: request_timeout,
             open_timeout: request_timeout
           )
@@ -138,6 +138,7 @@ module PWN
         puts "PARAMS: #{params.inspect}"
         puts "HTTP POST BODY: #{http_body.inspect}" if http_body
         puts "#{e}\n#{e.response}\n\n\n"
+        raise e
       rescue StandardError, SystemExit, Interrupt => e
         dd_obj = logout(dd_obj) unless dd_obj.nil?
         raise e
@@ -153,6 +154,7 @@ module PWN
         dd_obj = opts[:dd_obj]
         api_version = dd_obj[:api_version]
         tool_config_name = opts[:tool_config_name].to_s.scrub
+        return nil if tool_config_name.empty?
 
         tool_configuration_list = self.tool_configuration_list(dd_obj: dd_obj)
         if api_version == 'v1'
@@ -218,6 +220,8 @@ module PWN
         )
 
         engagements = JSON.parse(response, symbolize_names: true)
+        return engagements if opts[:id]
+
         total_engagements_avail = engagements[:count]
         total_enagements_aggregated = engagements[:results]
 
@@ -283,7 +287,7 @@ module PWN
 
         http_body[:description] = opts[:description]
 
-        opts[:engagment_type] ? (http_body[:engagement_type] = opts[:engagement_type]) : (http_body[:engagement_type] = 'CI/CD')
+        http_body[:engagement_type] = opts[:engagement_type] || opts[:engagment_type] || 'CI/CD'
 
         status = opts[:status].to_s.strip.chomp.scrub
 

@@ -13,13 +13,15 @@ describe 'Sandbox isolation' do
   end
 
   it 'triages a real isolated crash with GDB without shell argument injection' do
-    marker = '/tmp/pwn-gdb-argument-marker'
-    result = PWN::Plugins::Sandbox.run(binary: '/bin/sh', backend: 'bwrap', argv: ['-c', 'kill -SEGV $$', "$(touch #{marker})"], timeout: 2, memory_mb: 1024)
-    expect(result).to include(ok: true, signal: 'SIGSEGV')
-    expect(result[:gdb]).to include('SIGSEGV')
-    expect(result[:backtrace]).not_to be_empty
-    expect(result[:faulting_address]).to match(/\A0x/)
-    expect(File.exist?(marker)).to be(false)
+    Dir.mktmpdir('pwn-gdb-marker-') do |dir|
+      marker = File.join(dir, 'marker')
+      result = PWN::Plugins::Sandbox.run(binary: '/bin/sh', backend: 'bwrap', argv: ['-c', 'kill -SEGV $$', "$(touch #{marker})"], timeout: 2, memory_mb: 1024)
+      expect(result).to include(ok: true, signal: 'SIGSEGV')
+      expect(result[:gdb]).to include('SIGSEGV')
+      expect(result[:backtrace]).not_to be_empty
+      expect(result[:faulting_address]).to match(/\A0x/)
+      expect(File.exist?(marker)).to be(false)
+    end
   end
 
   it 'snapshots input, rolls it back in isolation and rejects tampering' do

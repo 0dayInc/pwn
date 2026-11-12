@@ -405,24 +405,34 @@ module PWN
         #   trace: 'optional - Array of {name:, args:, result:} or Strings'
         # )
         #
-        # Returns [{idx:, step:, reward: -1|0|1}, ...] and, when session_id
-        # is given, rewrites each tool line in the transcript with a
-        # `[step_reward=N]` prefix so exemplars_for / distill_skill can
-        # keep only reward>0 steps (C4 minimal sufficient trace).
+        # Returns [{idx:, step:, reward: -1|0|1|nil}, ...]. Unknown evidence
+        # stays nil. With session_id, persist step_reward only on the captured
+        # action rows; retained evidence is copy-on-write under its writer protocol.
 
         public_class_method def self.prm(opts = {})
           request = opts[:request].to_s
           trace   = Array(opts[:trace])
           sid     = opts[:session_id]
-          trace   = load_trace(session_id: sid) if trace.empty? && sid
+          snapshot = opts[:snapshot] || Thread.current[:pwn_prm_snapshot]
+          snapshot = nil unless snapshot.is_a?(Hash) && snapshot[:session_id] == sid && snapshot[:request] == request
+          snapshot ||= prm_snapshot(session_id: sid, request: request) if sid
+          trace = snapshot[:trace] if trace.empty? && snapshot
+          # A caller-supplied trace may be scored, but cannot annotate unrelated rows.
+          snapshot = nil unless snapshot && trace == snapshot[:trace]
 
           rewards = llm_prm(request: request, trace: trace)
           rewards ||= heuristic_prm(trace: trace)
+          # A judge cannot recover execution status from incomplete display bytes.
+          trace.each_with_index do |step, index|
+            semantic = semantic_ok(name: 'shell', raw: step.to_s)[:semantic_ok]
+            rewards[index] = nil if semantic.nil?
+            rewards[index] = [rewards[index], 0].min if semantic == false && rewards[index]
+          end
 
           out = trace.each_with_index.map do |s, i|
-            { idx: i + 1, step: s.to_s[0, 200], reward: rewards[i] || 0 }
+            { idx: i + 1, step: s.to_s[0, 200], reward: rewards[i] }
           end
-          annotate_session(session_id: sid, rewards: rewards) if sid
+          annotate_session(session_id: sid, rewards: rewards, binding: snapshot[:binding]) if snapshot
           out
         rescue StandardError
           []
@@ -708,46 +718,51 @@ module PWN
         public_class_method def self.semantic_ok(opts = {})
           name = opts[:name].to_s
           raw  = opts[:raw].to_s
-          ok   = raw.include?('"success":true')
-          err  = raw[/"error":"([^"]{1,300})"/, 1]
-          exit_code = raw[/"exit":(\d+)/, 1]&.to_i
-          stderr    = raw[/"stderr":"([^"]{0,400})"/, 1].to_s
+          envelope = begin
+            JSON.parse(raw.sub(/\A\s*[a-z_][a-z0-9_]*\s*(?:→|->)\s*/i, ''), symbolize_names: true)
+          rescue JSON::ParserError
+            {}
+          end
+          envelope = {} unless envelope.is_a?(Hash)
+          return { ok: nil, semantic_ok: nil, exit: nil, err: nil, benign: false, shape: :unknown } unless [true, false].include?(envelope[:success]) || envelope[:error]
 
+          result = envelope[:result].is_a?(Hash) ? envelope[:result] : envelope
+          ok = envelope[:success] == true
+          err = envelope[:error] || result[:error]
+          exit_code = Integer(result[:exit], exception: false)
+          stderr = result[:stderr].to_s
+          status_text = [err, envelope[:code], result[:code]].compact.join(' ')
           benign = false
           shape  = nil
-          if name == 'shell' && ok && exit_code && exit_code != 0
+          if name == 'shell' && exit_code && exit_code != 0
             cmd = extract_cmd(args: opts[:args])
-            # 2.1 — ONLY BENIGN_EXIT regex × allowed codes. The old global
-            # `stderr.empty? && exit==1 ⇒ benign` laundered real failures
-            # (pipelines without pipefail, bare false, etc.) into "success".
-            # For pipelines, match the LAST stage (post-pipe) first, then any.
-            stages = cmd.split('|').map(&:strip)
-            last   = stages.last.to_s
-            benign = BENIGN_EXIT.any? { |rx, codes| last.match?(rx) && codes.include?(exit_code) }
-            benign ||= stages.length > 1 && BENIGN_EXIT.any? { |rx, codes| stages.any? { |s| s.match?(rx) } && codes.include?(exit_code) && stderr.strip.empty? }
-            shape = recoverable_shape(exit_code: exit_code, stderr: stderr, err: err)
+            # Only a completed informational command with an allowed exit is
+            # benign. An earlier grep cannot launder a failed final pipeline stage.
+            last = cmd.split('|').last.to_s.strip
+            benign = err.to_s.empty? && stderr.strip.empty? && result[:success] != false && result[:ok] != false &&
+                     (envelope[:informational_exit] == true || BENIGN_EXIT.any? { |rx, codes| last.match?(rx) && codes.include?(exit_code) })
+            shape = recoverable_shape(exit_code: exit_code, stderr: stderr, err: err) unless benign
           elsif !ok
-            shape = recoverable_shape(exit_code: exit_code, stderr: stderr, err: err || raw[0, 200])
+            shape = recoverable_shape(exit_code: exit_code, stderr: stderr, err: err)
           end
 
-          if raw.include?('invalid_payload') || err.to_s.include?('invalid_payload')
+          if status_text.include?('invalid_payload')
             semantic = false
             shape = :invalid_payload
             err ||= 'invalid_payload'
-          elsif timeout_result?(err: err, raw: raw)
+          elsif timeout_result?(err: err)
             semantic = false
             shape = :timeout
-            err ||= raw[/timeout after \d+s/i] || 'timeout'
+            err ||= 'timeout'
           else
-            semantic = ok && (exit_code.nil? || exit_code.zero? || benign)
+            semantic = (ok || benign) && result[:success] != false && result[:ok] != false && err.to_s.empty? && (exit_code.nil? || exit_code.zero? || benign)
           end
-          err ||= raw[/"stderr":"([^"]{4,300})"/, 1] unless semantic
+          err ||= stderr[0, 300] unless semantic || stderr.empty?
           { ok: ok, semantic_ok: semantic, exit: exit_code, err: err, benign: benign, shape: shape }
         end
 
         private_class_method def self.timeout_result?(opts = {})
-          blob = "#{opts[:err]} #{opts[:raw]}"
-          blob.match?(/timeout after \d+s/i) || blob.match?(/"error"\s*:\s*"timeout/i)
+          opts[:err].to_s.match?(/\Atimeout|timeout after \d+s/i)
         end
 
         # 2.2 — coarse recoverable shape beside the fingerprint. Paths are
@@ -1579,8 +1594,9 @@ module PWN
         private_class_method def self.heuristic_prm(opts = {})
           opts[:trace].map do |t|
             s = semantic_ok(name: 'shell', raw: t.to_s)
-            if s[:semantic_ok] then 1
+            if s[:semantic_ok].nil? then nil
             elsif s[:benign] then 0
+            elsif s[:semantic_ok] then 1
             else -1
             end
           end
@@ -1655,44 +1671,116 @@ module PWN
           []
         end
 
+        # Capture before any judge/provider/background work. Row indexes alone
+        # are not identity: bind the exact prefix and each action's original bytes.
+        public_class_method def self.prm_snapshot(opts = {})
+          sid = opts[:session_id]
+          request = opts[:request].to_s
+          rows = PWN::Sessions.load(session_id: sid)
+          user_at = rows.rindex { |row| row[:role].to_s == 'user' && row[:content].to_s == request }
+          return nil unless user_at
+
+          stop = ((user_at + 1)...rows.length).find { |index| rows[index][:role].to_s == 'user' } || rows.length
+          actions = (user_at...stop).filter_map do |index|
+            next unless rows[index][:role].to_s == 'tool'
+
+            { row_index: index, sha256: prm_rows_digest(rows: [rows[index]]).freeze }.freeze
+          end.freeze
+          binding = {
+            version: 1, session_id: sid.to_s.dup.freeze, turn_index: user_at,
+            request_sha256: Digest::SHA256.hexdigest(request).freeze,
+            prefix_length: stop, prefix_sha256: prm_rows_digest(rows: rows.first(stop)).freeze,
+            actions: actions
+          }.freeze
+          { session_id: sid.to_s.dup.freeze, request: request.dup.freeze, binding: binding,
+            trace: actions.map { |action| rows[action[:row_index]][:content].to_s.dup.freeze }.freeze }.freeze
+        rescue StandardError
+          nil
+        end
+
+        # Also used by retained-evidence writers while holding their publication lock.
+        public_class_method def self.prm_binding_valid?(opts = {})
+          binding = opts[:binding]
+          rows = opts[:transcript]
+          return false unless binding.is_a?(Hash) && binding[:version] == 1 && binding[:session_id] == opts[:session_id] && rows.is_a?(Array)
+
+          length = binding[:prefix_length]
+          index = binding[:turn_index]
+          return false unless length.is_a?(Integer) && index.is_a?(Integer) && index >= 0 && length > index && rows.length >= length
+          return false unless rows[index][:role].to_s == 'user' && Digest::SHA256.hexdigest(rows[index][:content].to_s) == binding[:request_sha256]
+          return false unless prm_rows_digest(rows: rows.first(length)) == binding[:prefix_sha256]
+
+          expected = (index...length).select { |at| rows[at][:role].to_s == 'tool' }
+          actions = binding[:actions]
+          return false unless actions.is_a?(Array) && actions.map { |action| action[:row_index] } == expected
+
+          actions.all? { |action| prm_rows_digest(rows: [rows[action[:row_index]]]) == action[:sha256] }
+        rescue StandardError
+          false
+        end
+
+        private_class_method def self.prm_rows_digest(opts = {})
+          Digest::SHA256.hexdigest(JSON.generate(opts[:rows].map { |row| row.except(:step_reward) }))
+        end
+
         private_class_method def self.annotate_session(opts = {})
           sid = opts[:session_id]
           rewards = opts[:rewards]
-          return unless sid && defined?(PWN::Sessions)
+          binding = opts[:binding]
+          return unless sid && binding && defined?(PWN::Sessions)
+          return unless rewards.is_a?(Array) && rewards.length == binding[:actions].length && rewards.all? { |reward| reward.nil? || [-1, 0, 1].include?(reward) }
 
           path = File.join(PWN::Sessions.sessions_dir, "#{sid}.jsonl")
           unless File.exist?(path)
-            result = Learning.annotate_evidence(session_id: sid, rewards: rewards)
-            if result[:annotated]
-              PWN::Sessions.load(session_id: sid).select { |row| row[:role].to_s == 'tool' }.each_with_index do |row, index|
-                fold_step_reward_to_metrics(content: row[:content], reward: rewards[index]) unless rewards[index].nil?
-              end
+            # Older writers ignore unknown options; never invoke one with a bound
+            # annotation, since it could publish credit onto a different turn.
+            return { annotated: false, reason: :binding_unsupported } unless Learning.const_defined?(:EVIDENCE_ANNOTATION_VERSION, false) && Learning::EVIDENCE_ANNOTATION_VERSION >= 2
+
+            result = Learning.annotate_evidence(session_id: sid, rewards: rewards, binding: binding)
+            if result[:annotated] && result[:binding_sha256] == Digest::SHA256.hexdigest(JSON.generate(binding))
+              rows = PWN::Sessions.load(session_id: sid)
+              fold_bound_rewards(binding: binding, transcript: rows, rewards: rewards, session_id: sid)
             end
             return result
           end
 
           lease = PWN::Sessions.activate(session_id: sid)
-          lines = File.readlines(path)
-          ti = -1
-          lines.map! do |l|
-            j = JSON.parse(l, symbolize_names: true)
-            if j[:role].to_s == 'tool'
-              ti += 1
-              if rewards[ti]
-                j[:step_reward] = rewards[ti]
-                # P18 — fold step_reward into Metrics so Registry.rank can bias
-                fold_step_reward_to_metrics(content: j[:content], reward: rewards[ti])
+          File.open("#{path}.write.lock", File::RDWR | File::CREAT | File::NOFOLLOW, 0o600) do |writer|
+            writer.flock(File::LOCK_EX)
+            File.open(path, File::RDWR | File::NOFOLLOW) do |file|
+              lines = file.readlines
+              rows = lines.map { |line| JSON.parse(line, symbolize_names: true) }
+              return { annotated: false, reason: :stale_binding } unless prm_binding_valid?(binding: binding, transcript: rows, session_id: sid)
+
+              binding[:actions].each_with_index do |action, index|
+                next if rewards[index].nil?
+
+                at = action[:row_index]
+                rows[at][:step_reward] = rewards[index]
+                lines[at] = "#{JSON.generate(rows[at])}\n"
               end
+              file.rewind
+              file.write(lines.join)
+              file.truncate(file.pos)
+              file.flush
+              file.fsync
+              fold_bound_rewards(binding: binding, transcript: rows, rewards: rewards, session_id: sid)
             end
-            "#{JSON.generate(j)}\n"
-          rescue StandardError
-            l
           end
-          File.write(path, lines.join)
+          { annotated: true }
         rescue StandardError
           nil
         ensure
           PWN::Sessions.deactivate(lease: lease)
+        end
+
+        private_class_method def self.fold_bound_rewards(opts = {})
+          return unless prm_binding_valid?(opts)
+
+          opts[:binding][:actions].each_with_index do |action, index|
+            reward = opts[:rewards][index]
+            fold_step_reward_to_metrics(content: opts[:transcript][action[:row_index]][:content], reward: reward) unless reward.nil?
+          end
         end
 
         # Extract tool name from "name → …" session content and record PRM.
@@ -1899,7 +1987,7 @@ module PWN
           a = opts[:args]
           h = a.is_a?(String) ? JSON.parse(a, symbolize_names: true) : a
           # Leading env-vars / sudo / pipes: match any segment.
-          h.is_a?(Hash) ? h[:command].to_s.strip : a.to_s
+          h.is_a?(Hash) ? (h[:command] || h['command']).to_s.strip : a.to_s
         rescue StandardError
           opts[:args].to_s
         end
@@ -2033,7 +2121,21 @@ module PWN
             #{self}.prm(
               request: 'required - user goal',
               session_id: 'optional - session to score in place',
-              trace: 'optional - Array of {name:, args:, result:} or Strings'
+              trace: 'optional - Array of {name:, args:, result:} or Strings',
+              snapshot: 'optional - immutable host snapshot from prm_snapshot, captured before background work'
+            )
+
+            # Capture original request and exact action identities before scoring.
+            #{self}.prm_snapshot(
+              session_id: 'required - session with the original user turn',
+              request: 'required - original user request'
+            )
+
+            # Validate a captured binding under the transcript writer lock.
+            #{self}.prm_binding_valid?(
+              binding: 'required - binding from prm_snapshot',
+              transcript: 'required - current parsed transcript rows',
+              session_id: 'required - exact captured session identity'
             )
 
             # Plan-quality soft signal (W3 feature / Learning tag)

@@ -14,7 +14,7 @@ with a **tool-calling AI agent** on top that can run the same methods.
 |---|---|---|
 | `PWN::Plugins::*` | **108** | Wrappers for external and native tooling (Burp, Nmap, Metasploit, Shodan, browsers, serial, YubiKey, ...) |
 | `PWN::SAST::*` | **48** | Static-analysis rules across C/Java/Go/Python/Ruby/Scala/PHP/TS |
-| `PWN::AWS::*` | **90** | One module per AWS service for cloud enumeration |
+| `PWN::AWS::*` | **85** | One module per AWS service for cloud enumeration |
 | `PWN::WWW::*` | **22** | Site-specific browser automations (HackerOne, BugCrowd, GitHub, Google, LinkedIn, ...) |
 | `PWN::SDR::*` | **6** (+ **21** protocol decoders + Base/DSP) | GQRX, FlipperZero, RFIDler, SonMicro, band tables, `Decoder::{ADSB,POCSAG,RDS,LoRa,...}` |
 | `PWN::FFI::*` | **11** | Native bindings (including DSPNative, Capstone and Keystone): Volk · Liquid · FFTW · RTLSdr · HackRF · AdalmPluto · SoapySDR · Stdio |

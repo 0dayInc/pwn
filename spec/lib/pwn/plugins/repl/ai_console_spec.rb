@@ -4,6 +4,117 @@ require 'spec_helper'
 require 'stringio'
 require 'pry'
 
+describe 'buffered mission event delivery' do
+  include_context 'pwn tmp sandbox'
+
+  it 'publishes the assistant event before a blocked title refresh on a reopened descriptor' do
+    input, input_writer = IO.pipe
+    reader, original_writer = IO.pipe
+    commands, command_writer = IO.pipe
+    command_writer.close
+    original_writer.autoclose = false
+    writer = PWN::AI::Agent::MissionNamespace.io(original_writer.fileno)
+    expect(writer.sync).to be(false)
+    entered = Queue.new
+    release = Queue.new
+    pry = Pry.new
+    controller = PWN::Plugins::REPL::AIConsole::Console.new(pry: pry, input: input, curses: nil, getch: nil)
+    allow(PWN::Sessions).to receive(:provisional_title).and_return(nil)
+    allow(PWN::AI::Agent::Loop).to receive(:run).and_return('answer before title')
+    allow(PWN::Sessions).to receive(:refresh_title) do
+      entered << true
+      release.pop
+      { id: 'buffered-session', title: 'Finished title' }
+    end
+    previous = [$stdin, $stdout, $stderr]
+    Dir.chdir(@tmp) do
+      worker = Thread.new do
+        controller.send(:mission_request_child, { request: 'fixture', generation: 'generation', session_id: 'buffered-session', title_config: {} }, writer, commands)
+      end
+      Timeout.timeout(5) { entered.pop }
+      expect(worker).to be_alive
+      ready = reader.wait_readable(0.5)
+      expect(ready).not_to be_nil, 'assistant event remained buffered while title refresh was blocked'
+      rows = reader.read_nonblock(16_384).lines.map { |line| JSON.parse(line) }
+      expect(rows).to include(['generation', 'assistant', 'answer before title'])
+      expect(rows).not_to include(['generation', 'session_title', { 'id' => 'buffered-session', 'title' => 'Finished title' }])
+    ensure
+      release << true
+      worker&.join(5)
+      worker&.kill if worker&.alive?
+      worker&.join
+    end
+  ensure
+    $stdin, $stdout, $stderr = previous if previous
+    [input, input_writer, reader, writer, commands, command_writer].compact.each { |io| io.close unless io.closed? }
+  end
+end
+
+describe 'tool input admission' do
+  it 'rejects an oversized line without delivering any prefix to the tool' do
+    reader, writer = IO.pipe
+    console = PWN::Plugins::REPL::AIConsole::Console.new(pry: Pry.new, input: reader, curses: nil, getch: nil)
+    console.instance_variable_set(:@tool_input, writer)
+    console.send(:send_tool_input, "/input #{'x' * 4096}")
+    expect(reader.read_nonblock(8192, exception: false)).to eq(:wait_readable)
+    expect(console.instance_variable_get(:@timeline).last[1]).to include('not sent', '4096')
+    console.send(:send_tool_input, '/input accepted')
+    expect(reader.read_nonblock(8192)).to eq("accepted\n")
+  ensure
+    [reader, writer].compact.each { |io| io.close unless io.closed? }
+  end
+end
+
+describe 'terminal decoder EOF' do
+  ["\e", "\e[", "\e[13;"].each do |prefix|
+    it "drains truncated escape prefix #{prefix.inspect} before reporting EOF" do
+      source, writer = IO.pipe
+      keyboard = PWN::Plugins::REPL::AIConsole::Keyboard.new(source)
+      writer.write(prefix)
+      writer.close
+      keys = Array.new(prefix.bytesize + 3) { keyboard.call }.compact
+      expect(keys.last).to eq(:eof)
+      expect(keys.grep(String).join).to eq(prefix)
+    ensure
+      [source, writer].compact.each { |io| io.close unless io.closed? }
+    end
+  end
+
+  it 'consumes a truncated UTF-8 character at EOF instead of polling forever' do
+    source, writer = IO.pipe
+    keyboard = PWN::Plugins::REPL::AIConsole::Keyboard.new(source)
+    writer.write("\xe7\x95".b)
+    writer.close
+    keys = Array.new(4) { keyboard.call }
+    expect(keys).to include('�', :eof)
+    expect(keyboard.call).to eq(:eof)
+  ensure
+    [source, writer].compact.each { |io| io.close unless io.closed? }
+  end
+end
+
+describe 'frozen configuration command handoff' do
+  it 'applies a model command through mission IPC with Config-style frozen outer Env' do
+    Dir.mktmpdir('console-frozen-env-') do |root|
+      ai = { active: :grok, grok: { model: 'before-fixture' } }
+      stub_const('PWN::Env', { ai: ai, driver_opts: { pwn_env_path: File.join(root, 'absent.yaml') } }.freeze)
+      allow(Dir).to receive(:home).and_return(root)
+      input, sender = IO.pipe
+      console = PWN::Plugins::REPL::AIConsole::Console.new(pry: Pry.new, input: input, curses: nil, getch: nil)
+      console.start_request('/model grok after-fixture', command: true)
+      expect(console.instance_variable_get(:@worker).join(10)).not_to be_nil
+      expect { console.drain }.not_to raise_error
+      expect(PWN::Env).to be_frozen
+      expect(PWN::Env[:ai]).to equal(ai)
+      expect(PWN::Env.dig(:ai, :grok, :model)).to eq('after-fixture')
+      expect(console).not_to be_busy
+    ensure
+      console&.stop_worker
+      [input, sender, console&.instance_variable_get(:@tool_input)].compact.each { |io| io.close unless io.closed? }
+    end
+  end
+end
+
 describe 'mission configuration handoff' do
   include_context 'pwn tmp sandbox'
 

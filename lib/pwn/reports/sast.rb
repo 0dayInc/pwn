@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'json'
+require 'uri'
 
 module PWN
   module Reports
@@ -18,12 +19,11 @@ module PWN
 
       public_class_method def self.generate(opts = {})
         dir_path = opts[:dir_path] ||= '.'
+        report_name = opts[:report_name] ||= File.basename(Dir.pwd)
         results_hash = opts[:results_hash] ||= {
-          report_name: HTMLEntities.new.encode(report_name.to_s.scrub.strip.chomp),
+          report_name: report_name.to_s,
           data: []
         }
-
-        report_name = opts[:report_name] ||= File.basename(Dir.pwd)
         File.write(
           "#{dir_path}/#{report_name}.json",
           ::JSON.pretty_generate(results_hash)
@@ -64,7 +64,7 @@ module PWN
                       oldStart = info.start;
                     }
                   },
-                  "ajax": "#{report_name}.json",
+                  "ajax": #{::JSON.generate(URI.encode_www_form_component("#{report_name}.json").gsub('+', '%20'))},
                   "deferRender": false,
                   "layout": {
                   },

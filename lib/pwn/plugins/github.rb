@@ -2,6 +2,7 @@
 
 require 'json'
 require 'open3'
+require 'shellwords'
 
 module PWN
   module Plugins
@@ -76,10 +77,11 @@ module PWN
           url: "#{base_api_uri}/#{rest_call}",
           headers: headers,
           payload: http_body,
-          verify_ssl: false
+          verify_ssl: true
         )
 
         return response if raw
+        return {} if response.code == 204
 
         JSON.parse(response.body, symbolize_names: true)
       rescue RestClient::Forbidden, RestClient::Unauthorized => e
@@ -256,17 +258,20 @@ module PWN
 
       # Supported Method Parameters::
       # PWN::Plugins::Github.gh(
-      #   cmd: 'required - gh subcommand string, e.g. "run list -R 0dayinc/pwn -L 5 --json databaseId,status"',
+      #   cmd: 'required - argv Array or shellword-quoted subcommand string; no shell expansion',
       #   token: 'optional - PAT (default PWN::Env[:plugins][:github][:personal_access_token])'
       # )
       # Thin wrapper around the `gh` CLI with GH_TOKEN injected from PWN::Env so
       # `gh auth login` is never required.
 
       public_class_method def self.gh(opts = {})
-        cmd = opts[:cmd].to_s
+        cmd = opts[:cmd]
+        argv = cmd.is_a?(Array) ? cmd : Shellwords.split(cmd.to_s)
+        raise ArgumentError, 'cmd must contain a gh subcommand and string arguments' if argv.empty? || !argv.all?(String)
+
         gh_bin = ENV['PATH'].to_s.split(File::PATH_SEPARATOR)
                             .map { |d| File.join(d, 'gh') }
-                            .find { |f| File.executable?(f) }
+                            .find { |f| File.file?(f) && File.executable?(f) }
         # Run api and return its result
         raise "ERROR: gh CLI not found on PATH - use #{self}.api(path:) instead, or install gh (https://cli.github.com)" unless gh_bin
 
@@ -274,7 +279,7 @@ module PWN
         raise 'ERROR: no GitHub token - set plugins.github.personal_access_token in ~/.pwn/pwn.yaml' unless token
 
         env = { 'GH_TOKEN' => token, 'GH_PROMPT_DISABLED' => '1', 'NO_COLOR' => '1' }
-        stdout, stderr, status = Open3.capture3(env, "#{gh_bin} #{cmd}")
+        stdout, stderr, status = Open3.capture3(env, [gh_bin, gh_bin], *argv)
         { stdout: stdout, stderr: stderr, exit: status.exitstatus }
       rescue StandardError => e
         raise e
@@ -348,7 +353,7 @@ module PWN
 
           # Thin wrapper around the `gh` CLI with GH_TOKEN injected from PWN::Env so
           #{self}.gh(
-            cmd: 'required - gh subcommand string, e.g. run list -R 0dayinc/pwn -L 5 --json databaseId,status',
+            cmd: 'required - argv Array or shellword-quoted gh subcommand string; metacharacters are literal, never shell-expanded',
             token: 'optional - PAT (default PWN::Env[:plugins][:github][:personal_access_token])'
           )
 

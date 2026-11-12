@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'json'
+require 'rest-client'
 require 'uri'
 require 'yaml'
 
@@ -15,13 +16,25 @@ module PWN
       # )
 
       public_class_method def self.open(opts = {})
-        browser_obj = PWN::Plugins::TransparentBrowser.open(opts)
+        browser_obj = PWN::Plugins::TransparentBrowser.open(opts.dup)
 
         browser = browser_obj[:browser]
         browser.goto('https://www.hackerone.com')
 
         browser_obj
       rescue StandardError => e
+        begin
+          if browser_obj
+            # Teardown independently: a driver failure must not strand Tor.
+            begin
+              PWN::Plugins::TransparentBrowser.close(browser_obj: browser_obj.reject { |key| key == :tor_obj })
+            ensure
+              PWN::Plugins::TransparentBrowser.close(browser_obj: { tor_obj: browser_obj[:tor_obj] }) if browser_obj[:tor_obj]
+            end
+          end
+        rescue StandardError => cleanup_error
+          warn "Browser cleanup failed (#{cleanup_error.class}); preserving the navigation error"
+        end
         raise e
       end
 
@@ -77,6 +90,7 @@ module PWN
 
         programs_arr = []
         cursor = nil
+        seen_cursors = []
 
         loop do
           payload = {
@@ -90,10 +104,11 @@ module PWN
             url: graphql_endpoint,
             headers: headers,
             payload: payload.to_json.delete("\n"),
-            verify_ssl: false
+            verify_ssl: true
           )
 
           data = JSON.parse(rest_response.body, symbolize_names: true)
+          raise "ERROR: HackerOne GraphQL: #{data[:errors].map { |error| error[:message] }.join('; ')}" if data[:errors]&.any?
 
           teams = data[:data][:teams][:edges]
           teams.each do |edge|
@@ -128,17 +143,23 @@ module PWN
           end
 
           page_info = data[:data][:teams][:pageInfo]
-          cursor = page_info[:endCursor]
           break unless page_info[:hasNextPage]
+
+          cursor = page_info[:endCursor]
+          raise 'ERROR: HackerOne pagination returned a missing or repeated cursor' if cursor.to_s.empty? || seen_cursors.include?(cursor)
+
+          seen_cursors << cursor
         end
         puts "\n"
 
         programs_arr.sort_by! { |p| -p[:min_payout].gsub('$', '').gsub(',', '').to_f }
 
-        ai_analysis = PWN::AI::Agent::HackerOne.analyze(
-          request: programs_arr.to_json,
-          type: :bounty_programs
-        )
+        ai_analysis = if PWN::Env.dig(:ai, :module_reflection)
+                        PWN::AI::Agent::HackerOne.analyze(
+                          request: programs_arr.to_json,
+                          type: :bounty_programs
+                        )
+                      end
         puts "\n\n#{ai_analysis}" unless ai_analysis.nil?
 
         programs_arr
@@ -263,25 +284,57 @@ module PWN
           '
         }
 
-        rest_response = rest_request.execute(
-          method: :post,
-          url: graphql_endpoint,
-          headers: headers,
-          payload: payload.to_json.delete("\n"),
-          verify_ssl: false
-        )
+        json_resp_hash = nil
+        scope_nodes = []
+        seen_ids = {}
+        total_count = nil
+        loop do
+          rest_response = rest_request.execute(
+            method: :post,
+            url: graphql_endpoint,
+            headers: headers,
+            payload: payload.to_json.delete("\n"),
+            verify_ssl: true
+          )
+          page = JSON.parse(rest_response.body, symbolize_names: true)
+          raise "ERROR: HackerOne GraphQL: #{page[:errors].map { |error| error[:message] }.join('; ')}" if page[:errors]&.any?
 
-        json_resp_hash = JSON.parse(rest_response.body, symbolize_names: true)
+          search = page.fetch(:data).fetch(:team).fetch(:structured_scopes_search)
+          total_count ||= search.fetch(:total_count)
+          raise 'ERROR: HackerOne scope pagination total_count changed during collection' unless search.fetch(:total_count) == total_count
+
+          nodes = search.fetch(:nodes)
+          nodes.each do |node|
+            id = node.fetch(:id)
+            raise 'ERROR: HackerOne pagination returned repeated result IDs' if seen_ids.key?(id)
+
+            seen_ids[id] = true
+          end
+          json_resp_hash ||= page
+          scope_nodes.concat(nodes)
+          result_search = json_resp_hash[:data][:team][:structured_scopes_search]
+          result_search[:nodes] = scope_nodes
+          result_search[:pageInfo] = search[:pageInfo]
+          has_next_page = search.fetch(:pageInfo).fetch(:hasNextPage)
+          raise 'ERROR: HackerOne scope pagination count contradicts total_count/pageInfo' if scope_nodes.length > total_count || (!has_next_page && scope_nodes.length != total_count) || (has_next_page && scope_nodes.length == total_count)
+          break unless has_next_page
+
+          raise 'ERROR: HackerOne scope pagination returned an empty page' if nodes.empty?
+
+          payload[:variables][:from] = scope_nodes.length
+        end
 
         json_resp = {
           name: program_name,
           scope_details: json_resp_hash
         }
 
-        ai_analysis = PWN::AI::Agent::HackerOne.analyze(
-          request: json_resp.to_json,
-          type: :scope_details
-        )
+        ai_analysis = if PWN::Env.dig(:ai, :module_reflection)
+                        PWN::AI::Agent::HackerOne.analyze(
+                          request: json_resp.to_json,
+                          type: :scope_details
+                        )
+                      end
         puts "\n\n#{ai_analysis}" unless ai_analysis.nil?
 
         json_resp
@@ -409,25 +462,54 @@ module PWN
           '
         }
 
-        rest_response = rest_request.execute(
-          method: :post,
-          url: graphql_endpoint,
-          headers: headers,
-          payload: payload.to_json.delete("\n"),
-          verify_ssl: false
-        )
+        json_resp_hash = nil
+        reports = []
+        seen_ids = {}
+        total_count = nil
+        loop do
+          rest_response = rest_request.execute(
+            method: :post,
+            url: graphql_endpoint,
+            headers: headers,
+            payload: payload.to_json.delete("\n"),
+            verify_ssl: true
+          )
+          page = JSON.parse(rest_response.body, symbolize_names: true)
+          raise "ERROR: HackerOne GraphQL: #{page[:errors].map { |error| error[:message] }.join('; ')}" if page[:errors]&.any?
 
-        json_resp_hash = JSON.parse(rest_response.body, symbolize_names: true)
+          search = page.fetch(:data).fetch(:search)
+          total_count ||= search.fetch(:total_count)
+          raise 'ERROR: HackerOne hacktivity pagination total_count changed during collection' unless search.fetch(:total_count) == total_count
+
+          nodes = search.fetch(:nodes)
+          nodes.each do |node|
+            id = node.fetch(:id)
+            raise 'ERROR: HackerOne pagination returned repeated result IDs' if seen_ids.key?(id)
+
+            seen_ids[id] = true
+          end
+          json_resp_hash ||= page
+          reports.concat(nodes)
+          json_resp_hash[:data][:search][:nodes] = reports
+          raise 'ERROR: HackerOne hacktivity pagination count exceeds total_count' if reports.length > total_count
+          break if reports.length == total_count
+
+          raise 'ERROR: HackerOne hacktivity pagination returned an empty page' if nodes.empty?
+
+          payload[:variables][:from] = reports.length
+        end
 
         json_resp = {
           name: program_name,
           hacktivity: json_resp_hash
         }
 
-        ai_analysis = PWN::AI::Agent::HackerOne.analyze(
-          request: json_resp.to_json,
-          type: :hacktivity
-        )
+        ai_analysis = if PWN::Env.dig(:ai, :module_reflection)
+                        PWN::AI::Agent::HackerOne.analyze(
+                          request: json_resp.to_json,
+                          type: :hacktivity
+                        )
+                      end
         puts "\n\n#{ai_analysis}" unless ai_analysis.nil?
 
         json_resp
@@ -463,7 +545,7 @@ module PWN
         raise 'ERROR: browser_opts should be a hash' unless browser_opts.nil? ||
                                                             browser_opts.is_a?(Hash)
 
-        browser_opts ||= {}
+        browser_opts = (browser_opts || {}).dup
         browser_opts[:browser_type] = :rest
 
         name = opts[:name]
@@ -514,6 +596,8 @@ module PWN
         puts 'complete.'
       rescue StandardError => e
         raise e
+      ensure
+        PWN::Plugins::TransparentBrowser.close(browser_obj: rest_obj) if rest_obj
       end
 
       # Supported Method Parameters::
@@ -533,7 +617,7 @@ module PWN
         if password.nil?
           password = PWN::Plugins::AuthenticationHelper.mask_password
         else
-          password = opts[:password].to_s.scrub.strip.chomp
+          password = opts[:password].to_s
         end
 
         browser.goto('https://hackerone.com/users/sign_in')

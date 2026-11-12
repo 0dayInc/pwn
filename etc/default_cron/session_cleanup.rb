@@ -954,7 +954,7 @@ module PWN
             next unless File.file?(backup_path)
             raise IOError, 'Invalid session recovery backup' unless verified_backup?(backup_path, info['sha256'])
 
-            path = name.end_with?('.meta.json') ? PWN::Sessions.support_path(kind: :metadata, session_id: id) : File.join(PWN::Sessions.sessions_dir, name)
+            path = name.end_with?('.meta.json') ? PWN::Sessions.support_path(kind: :metadata, session_id: id, read_only: dry_run) : File.join(PWN::Sessions.sessions_dir(read_only: dry_run), name)
             next if verified_backup?(path, info['sha256'])
             raise IOError, 'Refusing existing recovery destination' if File.exist?(path) || File.symlink?(path)
             next if dry_run
@@ -1054,7 +1054,7 @@ module PWN
     end
 
     def self.classify(path, id)
-      return :unknown unless path == File.join(PWN::Sessions.sessions_dir, "#{id}.jsonl")
+      return :unknown unless path == File.join(PWN::Sessions::SESSIONS_DIR, "#{id}.jsonl")
 
       PWN::Sessions.title_status(session_id: id)[:classification]
     end
@@ -1139,7 +1139,7 @@ module PWN
 
     # Fingerprints include inode identity and nanosecond timestamps, not bodies.
     def self.snapshot(path)
-      [path, PWN::Sessions.support_path(kind: :metadata, session_id: File.basename(path, '.jsonl'))].to_h do |file|
+      [path, PWN::Sessions.support_path(kind: :metadata, session_id: File.basename(path, '.jsonl'), read_only: true)].to_h do |file|
         raise 'Refusing symlink' if File.symlink?(file)
         next [File.basename(file), nil] unless File.exist?(file)
 
@@ -1264,28 +1264,11 @@ module PWN
     end
 
     def self.with_dependency_lock(id, dry_run: false)
-      return yield if dry_run
+      PWN::Sessions.with_dependency_locks(dry_run: dry_run) do
+        rows = invalid_dependencies(id)
+        raise 'Unresolved dependency remediation' unless rows.empty? || remediable?(id)
 
-      rows = invalid_dependencies(id)
-      raise 'Unresolved dependency remediation' unless rows.empty? || remediable?(id)
-
-      # Lock even absent stores: a concurrent writer can introduce the first
-      # reference between the final index and unlink. These inodes are permanent.
-      root = File.join(Dir.home, '.pwn')
-      paths = %w[.learning-write.lock .swarm-continuations.lock memory.json.write.lock mistakes.json.write.lock].map { |name| File.join(root, name) }.sort
-      locks = []
-      begin
-        paths.each do |path|
-          owner = Thread.current[:pwn_learning_write_lock]
-          next if File.basename(path) == '.learning-write.lock' && owner && owner[:pid] == Process.pid && owner[:thread] == Thread.current
-
-          lock = File.open(path, File::RDWR | File::CREAT | File::NOFOLLOW, 0o600) # rubocop:disable Style/FileOpen -- closed together in ensure
-          locks << lock
-          raise 'Dependency writer active' unless lock.flock(File::LOCK_EX | File::LOCK_NB)
-        end
         yield
-      ensure
-        locks.reverse_each(&:close)
       end
     end
 
@@ -1369,6 +1352,22 @@ module PWN
       (control.respond_to?(:stopping?) && control.stopping?) || (budget && (budget[:remaining] <= 0 || budget[:bytes] <= 0 || Process.clock_gettime(Process::CLOCK_MONOTONIC) >= budget[:deadline]))
     end
 
+    # Child receipts may contain prepared per-file records even if their own
+    # envelope missed the failure. Do not promote any such work to committed.
+    def self.maintenance_incomplete?(value)
+      case value
+      when Hash
+        state = value[:state] || value['state']
+        %w[prepared interrupted blocked].include?(state.to_s) ||
+          %i[incomplete aborted apply_blocked].any? { |key| value[key] == true || value[key.to_s] == true } ||
+          value.any? { |key, child| !%w[usage diagnostics].include?(key.to_s) && maintenance_incomplete?(child) }
+      when Array
+        value.any? { |child| maintenance_incomplete?(child) }
+      else
+        false
+      end
+    end
+
     # Fresh schedules use one coordinator. Existing split jobs keep maintain
     # until an operator explicitly replaces their schedules after deployment.
     # Preserve evidence before retention can remove its last source edge.
@@ -1383,14 +1382,23 @@ module PWN
         begin
           maintenance = maintain(dry_run: dry_run, current_session_id: current_session_id, proc_root: proc_root)
           result[:phases][:maintenance] = maintenance
-          if maintenance[:apply_blocked] || maintenance[:incomplete] || stopping?
+          if maintenance[:apply_blocked] || (!dry_run && maintenance_incomplete?(maintenance)) || stopping?
             result[:state] = maintenance[:apply_blocked] ? 'blocked' : 'interrupted'
           else
-            result[:phases][:memory_consolidation] = dry_run ? { planned: true } : PWN::AI::Agent::Learning.consolidate
-            result[:phases][:learning_retention] = PWN::AI::Agent::Learning.prune_outcomes!(dry_run: dry_run)
-            result[:phases][:mistakes_retention] = PWN::AI::Agent::Mistakes.lean!(dry_run: dry_run)
-            result[:phases][:policy_retention] = PWN::AI::Agent::Policy.lean!(dry_run: dry_run)
+            phases = {
+              memory_consolidation: -> { dry_run ? { planned: true } : PWN::AI::Agent::Learning.consolidate },
+              learning_retention: -> { PWN::AI::Agent::Learning.prune_outcomes!(dry_run: dry_run) },
+              # The legacy Mistakes preview acquires a creating writer lock.
+              mistakes_retention: -> { dry_run ? { planned: true } : PWN::AI::Agent::Mistakes.lean!(dry_run: false) },
+              policy_retention: -> { PWN::AI::Agent::Policy.lean!(dry_run: dry_run) }
+            }
+            phases.each do |name, operation|
+              break if stopping? || (!dry_run && maintenance_incomplete?(result[:phases]))
+
+              result[:phases][name] = operation.call
+            end
             result[:state] = dry_run ? 'planned' : 'committed'
+            result[:state] = 'interrupted' if stopping? || (!dry_run && maintenance_incomplete?(result[:phases]))
           end
           result[:transaction_ledger] = ledger if ledger
           publish(ledger, JSON.generate(result)) if ledger
@@ -1417,18 +1425,23 @@ module PWN
         end
         begin
           result = maintenance_transaction(dry_run: dry_run, current_session_id: current_session_id, proc_root: proc_root)
-          result[:storage] = clean_disposables(dry_run: dry_run || result[:apply_blocked] == true)
-          result[:quarantine] = prune_quarantine(dry_run: dry_run || result[:apply_blocked] == true)
-          unless stopping?
-            result[:atomic_temps] = recover_atomic_temps(dry_run: dry_run || result[:apply_blocked] == true, expired_only: true)
-            result[:legacy_backups] = prune_legacy_backups(dry_run: dry_run || result[:apply_blocked] == true)
+          phases = {
+            storage: -> { clean_disposables(dry_run: dry_run) },
+            quarantine: -> { prune_quarantine(dry_run: dry_run) },
+            atomic_temps: -> { recover_atomic_temps(dry_run: dry_run, expired_only: true) },
+            legacy_backups: -> { prune_legacy_backups(dry_run: dry_run) },
+            migration_backups: -> { PWN::Migrate.prune_backups(dry_run: dry_run, admission: method(:admit?)) }
+          }
+          phases.each do |name, operation|
+            break if stopping? || (!dry_run && maintenance_incomplete?(result))
+
+            result[name] = operation.call
           end
-          result[:migration_backups] = PWN::Migrate.prune_backups(dry_run: dry_run || result[:apply_blocked] == true, admission: method(:admit?)) unless stopping?
           result[:usage] = status unless stopping?
-          result[:incomplete] = true if stopping? || result[:storage][:incomplete]
+          result[:incomplete] = true if stopping? || (!dry_run && maintenance_incomplete?(result) && !result[:apply_blocked])
           result[:state] = if dry_run
                              'planned'
-                           elsif result[:incomplete] || result[:storage][:state] == 'interrupted'
+                           elsif result[:incomplete]
                              'interrupted'
                            elsif result[:apply_blocked]
                              'blocked'
@@ -1479,7 +1492,7 @@ module PWN
       return preflight.merge(incomplete: true, apply_blocked: true) if stopping?
 
       migration = PWN::AI::Agent::Learning.migrate_evidence(dry_run: dry_run || blocked, max_sessions: policy['batch_size'], stop: method(:stopping?), nonblocking: true)
-      blocked = true if migration[:deferred]
+      blocked = true if migration[:deferred] || (!dry_run && maintenance_incomplete?(migration))
       result = if dry_run || blocked
                  preflight
                else
@@ -1488,11 +1501,15 @@ module PWN
       result[:dry_run] = dry_run
       result[:apply_blocked] = true if blocked
       result[:evidence_migration] = migration
-      result[:remaining_sessions] = Dir.glob(File.join(PWN::Sessions.sessions_dir, '*.jsonl')).length
+      result[:remaining_sessions] = Dir.glob(File.join(PWN::Sessions::SESSIONS_DIR, '*.jsonl')).length
       result[:visible_sessions] = PWN::Sessions.list.length
       if ledger
         result[:maintenance_ledger] = ledger
-        publish(ledger, JSON.pretty_generate(state: blocked ? 'blocked' : 'committed', inventory: preflight, result: result))
+        publish(ledger, JSON.pretty_generate(state: if result[:incomplete]
+                                                      'interrupted'
+                                                    else
+                                                      (blocked ? 'blocked' : 'committed')
+                                                    end, inventory: preflight, result: result))
       end
       result
     end
@@ -1504,8 +1521,8 @@ module PWN
       raise ArgumentError, 'All writers and schedulers must be stopped' unless dry_run || writers_stopped
 
       with_maintenance_lock(dry_run: dry_run) do
-        root = PWN::Sessions.sessions_dir
-        plan = Dir.children(root).sort.filter_map do |name|
+        root = PWN::Sessions::SESSIONS_DIR
+        plan = (File.directory?(root) ? Dir.children(root) : []).sort.filter_map do |name|
           target = case name
                    when /\A\d{8}_\d{6}_[a-f0-9]{8}\.meta\.json\z/ then File.join('support', 'metadata', name)
                    when /\A\..+\.cleanup\.lock\z/ then File.join('support', 'leases', name)
@@ -1624,7 +1641,7 @@ module PWN
     def self.sweep_transaction(dry_run:, current_session_id:, proc_root:, approved_candidates:)
       raise 'Session cleanup requires the updated Sessions activity API; load the updated source or deploy it before running this helper' unless PWN::Sessions.respond_to?(:activate)
 
-      root = PWN::Sessions.sessions_dir
+      root = PWN::Sessions::SESSIONS_DIR
       raise 'Refusing symlinked session directory' if File.symlink?(root)
 
       current = current_session_id || (PWN::Env.dig(:ai, :session_id) if defined?(PWN::Env))
@@ -1641,6 +1658,8 @@ module PWN
       dependencies = references[:dependencies]
       pins = dependencies.keys
       Dir.glob(File.join(root, '*.jsonl')).each do |path|
+        break if !dry_run && result[:incomplete]
+
         unless admit?
           result[:incomplete] = true
           break
@@ -1716,13 +1735,13 @@ module PWN
         lock_path = PWN::Sessions.support_path(kind: :lease, session_id: id)
         raise 'Refusing symlinked cleanup lock' if File.symlink?(lock_path)
 
-        File.open(lock_path, File::RDWR | File::CREAT | File::NOFOLLOW, 0o600) do |lock|
-          unless lock.flock(File::LOCK_EX | File::LOCK_NB)
-            result[:skipped][:locked] += 1
-            record[:skip] = :locked
-            next
-          end
-          with_dependency_lock(id) do
+        with_dependency_lock(id) do
+          File.open(lock_path, File::RDWR | File::CREAT | File::NOFOLLOW, 0o600) do |lock|
+            unless lock.flock(File::LOCK_EX | File::LOCK_NB)
+              result[:skipped][:locked] += 1
+              record[:skip] = :locked
+              next
+            end
             File.open(path, File::RDONLY | File::NOFOLLOW) do |transcript|
               unless transcript.flock(File::LOCK_EX | File::LOCK_NB)
                 result[:skipped][:locked] += 1
@@ -1748,15 +1767,29 @@ module PWN
               remove_invalid_dependencies(id, result)
               raise 'Dependencies changed after remediation' unless pins_known? && !referenced_session_ids.include?(id) && invalid_dependencies(id).empty? && snapshot(path) == expected
 
-              PWN::Sessions.delete(session_id: id, current_session_id: current, force: true, cleanup_lock: lock)
+              progress = lambda do |deletion|
+                deletion[:ledger] = File.join(result[:archive_dir], 'ledger.json')
+                record[:deletion] = deletion
+                result[:deleted_ids] |= [id] if deletion[:deleted_paths].include?(path)
+                if deletion[:state] == 'interrupted'
+                  result[:state] = 'interrupted'
+                  result[:incomplete] = true
+                end
+                publish(deletion[:ledger], JSON.pretty_generate(result))
+              end
+              PWN::Sessions.delete(session_id: id, current_session_id: current, force: true, cleanup_lock: lock, deletion_progress: progress)
               raise 'Deletion did not remove both session records' if File.exist?(path) || File.exist?(PWN::Sessions.support_path(kind: :metadata, session_id: id))
 
-              result[:deleted_ids] << id
+              result[:deleted_ids] |= [id]
               record[:deleted] = true
               publish(File.join(result[:archive_dir], 'ledger.json'), JSON.pretty_generate(result))
             end
           end
         end
+      rescue PWN::Sessions::PartialDeletion => e
+        result[:state] = 'interrupted'
+        result[:incomplete] = true
+        record[:deletion] = e.result
       rescue StandardError => e
         result[:skipped][:error] += 1
         record[:error] = e.class.name if record

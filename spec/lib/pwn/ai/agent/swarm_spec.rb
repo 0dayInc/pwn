@@ -242,9 +242,9 @@ describe PWN::AI::Agent::Swarm do
   end
 
   it 'maps several ports and returns a merged result set' do
+    expect(PWN::Plugins::Packet).to receive(:tcp_connect_scan).with(hosts: ['127.0.0.1'], ports: [1, 9, 22, 80]).and_return(results: [1, 9, 22, 80].map { |port| { host: '127.0.0.1', port: port, open: false } })
     rows = described_class.map_targets(targets: '127.0.0.1', ports: '1,9,22,80')
-    expect(rows.length).to eq(4)
-    expect(rows.map { |r| r[:port] }.uniq.length).to eq(4)
+    expect(rows).to eq([1, 9, 22, 80].map { |port| { host: '127.0.0.1', port: port, open: false } })
   end
 
   it 'allows only one live claim per unit' do

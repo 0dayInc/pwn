@@ -319,7 +319,7 @@ module PWN
         # On :refuted  -> Mistakes.record(tool:'assumption', error:claim) so the
         #                 KNOWN MISTAKES block warns every future run.
         # On :confirmed-> observe(category::intel, ttl:30d) reinforces w/ freshness.
-        # On :unknown  -> Learning.note_outcome(success:false, tags:['needs_human']).
+        # On :unknown  -> Learning.note_outcome with a nil training decision.
         #
         # This is the extrospective mirror of Mistakes: a PROACTIVE trigger that
         # catches the model being wrong about the world before a human does.
@@ -344,8 +344,11 @@ module PWN
                 fp = fingerprint_page(browser_obj: bo, url: u)
                 evidence << fp if fp
               end
-              body = evidence.map { |e| e[:text].to_s }.join(' ')
-              if evidence.empty? || evidence.all? { |e| e[:status].to_i >= 400 } || body =~ /could not be found|does not exist|reserved but/i
+              pages = evidence.select { |page| canonical_cve_page?(page: page, cve: cve) }
+              next if pages.empty?
+
+              body = pages.map { |page| page[:text].to_s }.join(' ')
+              if body =~ /could not be found|does not exist|reserved but/i
                 verdict = :refuted
                 conf = 0.8
               else
@@ -363,7 +366,10 @@ module PWN
               u = opts[:url] || claim[URI::DEFAULT_PARSER.make_regexp(%w[http https])]
               fp = fingerprint_page(browser_obj: bo, url: u)
               evidence << fp if fp
-              if fp.nil? || fp[:status].to_i >= 400 || fp[:reachable] == false
+              next unless fp && (fp[:status].to_i.between?(200, 299) || [404, 410].include?(fp[:status].to_i))
+              next if fp[:reachable] == false && fp[:status].to_i < 400
+
+              if fp[:status].to_i >= 400
                 verdict = :refuted
                 conf = 0.7
               else
@@ -406,7 +412,10 @@ module PWN
           action = commit ? commit_verdict(claim: claim, kind: kind, verdict: verdict, confidence: conf, evidence: evidence) : nil
           { claim: claim, kind: kind, verdict: verdict, confidence: conf.round(2), evidence: evidence, action_taken: action }
         rescue StandardError => e
-          { claim: claim, kind: kind, verdict: :unknown, confidence: 0.0, evidence: evidence, error: "#{e.class}: #{e.message}", action_taken: nil }
+          evidence = Array(evidence).map { |page| page.except(:text) }
+          evidence << { reachable: false, error: e.class.name }
+          action = commit ? commit_verdict(claim: claim, kind: kind, verdict: :unknown, confidence: 0.0, evidence: evidence) : nil
+          { claim: claim, kind: kind, verdict: :unknown, confidence: 0.0, evidence: evidence, error: "#{e.class}: #{e.message}", action_taken: action }
         end
 
         # Supported Method Parameters::
@@ -733,10 +742,10 @@ module PWN
               stop_bits: (opts[:stop_bits] || 1).to_i,
               parity: (opts[:parity] || :none).to_sym
             )
-            PWN::Plugins::Serial.flush_session_data
+            PWN::Plugins::Serial.flush_session_data(serial_obj: serial_obj)
             PWN::Plugins::Serial.request(serial_obj: serial_obj, payload: payload) if payload
             sleep settle
-            raw = Array(PWN::Plugins::Serial.dump_session_data)
+            raw = Array(PWN::Plugins::Serial.dump_session_data(serial_obj: serial_obj))
             text = raw.join.force_encoding('UTF-8').scrub
             hex  = raw.map do |b|
               case b
@@ -1626,6 +1635,26 @@ module PWN
           end
         end
 
+        private_class_method def self.canonical_cve_page?(opts = {})
+          page = opts[:page]
+          return false unless page[:reachable] != false && page[:status].to_i.between?(200, 299)
+
+          url = URI.parse((page[:final_url] || page[:url]).to_s)
+          return false unless url.scheme == 'https' && %w[nvd.nist.gov www.cve.org cve.org].include?(url.host)
+          return false if page[:title].to_s.match?(/\bmaintenance|\blogin\b|sign in|access denied|service unavailable|\berror\b|\bchallenge\b/i)
+
+          text = page[:text].to_s
+          return false unless text.match?(/\b#{Regexp.escape(opts[:cve].to_s)}\b/i)
+          return false if text.match?(/temporarily unavailable|checking your browser|sign in to continue|under maintenance|verify you are human/i)
+
+          # Record identity alone is also present on empty JS shells and login
+          # pages. Require rendered canonical description content, not HTTP 200.
+          description = text[/\bDescription\b\s*:?\s*(.+)/im, 1].to_s.strip
+          description.length >= 20 && description.match?(/[a-z]{3}/i)
+        rescue URI::InvalidURIError
+          false
+        end
+
         private_class_method def self.fingerprint_page(opts = {})
           bo  = opts[:browser_obj]
           url = opts[:url].to_s
@@ -1637,8 +1666,9 @@ module PWN
             resp = b.get(url) { |r, _rq, _res| r }
             body = resp.body.to_s
             require 'nokogiri'
-            doc  = Nokogiri::HTML.parse(body)
-            text = doc.text.to_s
+            doc = Nokogiri::HTML.parse(body)
+            doc.css('script, style').remove
+            text = doc.xpath('//text()').map(&:text).join(' ')
             cfp, cna = tls_fingerprint(url: url)
             return { url: url, final_url: url, status: resp.code.to_i, title: doc.title.to_s,
                      server: resp.headers[:server].to_s, generator: doc.at('meta[name="generator"]')&.[]('content').to_s,
@@ -1756,7 +1786,14 @@ module PWN
             if junk_unknown
               :skipped_junk
             else
-              Learning.note_outcome(task: "extro_verify: #{claim[0, 120]}", success: false, details: 'verdict :unknown - needs human review', tags: %w[needs_human extro_verify]) if defined?(Learning) && Learning.respond_to?(:note_outcome)
+              if defined?(Learning) && Learning.respond_to?(:note_outcome)
+                Learning.note_outcome(
+                  task: "extro_verify: #{claim[0, 120]}", success: nil,
+                  details: 'verdict :unknown - needs human review', tags: %w[needs_human extro_verify],
+                  outcome: { score: nil, confidence: opts[:confidence], source: :extro_verify,
+                             grounded: { verdict: :unknown, kind: opts[:kind], evidence: opts[:evidence] } }
+                )
+              end
               :learning_note
             end
           end
@@ -2570,10 +2607,10 @@ module PWN
                     else 'unknown'
                     end
           nanp = nil
-          if digits.match?(/\A1?(\d{3})(\d{3})(\d{4})\z/)
-            area = Regexp.last_match(1)
+          if (match = digits.match(/\A1?(\d{3})(\d{3})(\d{4})\z/))
+            area = match[1]
             # Area-code → region via public NPA style (best-effort subset)
-            nanp = { area_code: area, nxx: Regexp.last_match(2), station: Regexp.last_match(3) }
+            nanp = { area_code: area, nxx: match[2], station: match[3] }
           end
           # OpenCNAM-style public CNAM is largely paywalled; expose format + link targets for deeper manual/keyed lookup.
           {

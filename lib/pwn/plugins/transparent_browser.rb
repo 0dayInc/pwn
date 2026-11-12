@@ -335,6 +335,8 @@ module PWN
               TCPSocket.socks_server = tor_obj[:ip]
               TCPSocket.socks_port = tor_obj[:port]
             else
+              browser_obj[:previous_proxy] = RestClient.proxy
+              browser_obj[:proxy] = proxy
               browser_obj[:browser].proxy = proxy
             end
           end
@@ -371,13 +373,17 @@ module PWN
           # if it doesn't work, try the first window handle.  In chrome they
           # get reversed sometimes ¯\_(ツ)_/¯
           target_window_handle = browser_obj[:browser].driver.window_handles.last
+          navigation_attempts = 0
           begin
+            navigation_attempts += 1
             browser_obj[:browser].driver.switch_to.window(target_window_handle)
 
             url = 'about:about'
             url = 'chrome://chrome-urls' if chrome_types.include?(browser_type)
             browser_obj[:browser].goto(url)
           rescue Selenium::WebDriver::Error::WebDriverError
+            raise if navigation_attempts >= 2
+
             target_window_handle = browser_obj[:browser].driver.window_handles.first
             retry
           end
@@ -396,8 +402,20 @@ module PWN
         apply_driver_timeouts!(browser_obj: browser_obj)
         browser_obj
       rescue StandardError => e
+        release_partial_browser(browser_obj: browser_obj)
         puts e.backtrace
         raise e
+      end
+
+      private_class_method def self.release_partial_browser(opts = {})
+        browser_obj = opts[:browser_obj]
+        browser = browser_obj.is_a?(Hash) ? browser_obj[:browser] : nil
+        return :absent unless browser && browser != RestClient && browser.respond_to?(:close)
+
+        browser.close
+        :closed
+      rescue StandardError
+        :close_failed
       end
 
       # Supported Method Parameters::
@@ -523,6 +541,8 @@ module PWN
         rescue Timeout::Error, Timeout::ExitException
           console_resp
         rescue Selenium::WebDriver::Error::JavascriptError
+          raise if script == js
+
           script = js
           retry
         end
@@ -929,6 +949,9 @@ module PWN
         keyword = opts[:keyword]
 
         tabs_arr_hash = list_tabs(browser_obj: browser_obj)
+        return tabs_arr_hash if index && tabs_arr_hash.none? { |tab| tab[:index] == index }
+        return tabs_arr_hash if keyword && tabs_arr_hash.none? { |tab| tab[:title].include?(keyword) || tab[:url].include?(keyword) }
+
         browser_ready_to_close = true if tabs_arr_hash.length == 1
 
         if browser_ready_to_close
@@ -1138,7 +1161,7 @@ module PWN
         page_state = runtime_resp['result']['result']['value']
         JSON.parse(page_state, symbolize_names: true)
       rescue JSON::ParserError => e
-        raise "Failed to parse state JSON: #{e.message}. Raw output: #{state_json.inspect}"
+        raise "Failed to parse state JSON: #{e.message}"
       rescue StandardError => e
         raise e
       end
@@ -1555,6 +1578,7 @@ module PWN
         tor_obj = browser_obj[:tor_obj]
 
         PWN::Plugins::Tor.stop(tor_obj: browser_obj[:tor_obj]) if tor_obj
+        RestClient.proxy = browser_obj[:previous_proxy] if browser == RestClient && browser_obj.key?(:previous_proxy)
 
         # Close the browser unless browser.nil? (thus the &)
         browser&.close unless browser == RestClient
@@ -1743,8 +1767,9 @@ module PWN
         end
         entries = Array(@intercepted) if entries.empty?
         url = opts[:url].to_s
+        browser = browser_handle(opts)
         html = html_body(opts)
-        if entries.empty? && !url.empty?
+        if entries.empty? && !url.empty? && browser.respond_to?(:goto)
           entries = [{
             'startedDateTime' => Time.now.utc.iso8601,
             'request' => { 'method' => 'GET', 'url' => url, 'headers' => [] },
@@ -1783,6 +1808,18 @@ module PWN
         pack = evidence!(opts) unless pack.is_a?(Hash)
         url = opts[:url].to_s
         arts = [pack[:screenshot], pack[:har], pack[:dom]].select { |path| File.file?(path.to_s) }
+        browser = browser_handle(opts)
+        observed = browser.respond_to?(:goto) || opts[:screenshot] || opts[:har]
+        unless observed
+          return {
+            title: opts[:title].to_s,
+            severity: 'info',
+            poc_artifacts: arts,
+            evidence: 'captures unavailable; screenshot and HAR were not observed navigation',
+            recorded: false
+          }
+        end
+
         evidence = "pixel=#{pack[:screenshot]} har=#{pack[:har]} url=#{url} screenshot PNG and HAR log prove the navigation"
         PWN::Plugins::Findings.record(
           title: opts[:title].to_s,
@@ -1909,7 +1946,10 @@ module PWN
             const index = rows.length + 1;
             el.setAttribute('data-pwn-jev', String(index));
             const name = (el.getAttribute('aria-label') || el.innerText || el.getAttribute('placeholder') || el.getAttribute('name') || '').replace(/\s+/g, ' ').trim().slice(0, 80);
-            const row = { index: index, role: el.getAttribute('role') || el.tagName.toLowerCase(), name: name, value: String(el.value || '').slice(0, 80) };
+            const type = String(el.type || el.getAttribute('type') || '').toLowerCase();
+            const autocomplete = String(el.getAttribute('autocomplete') || '').toLowerCase();
+            const secret = type === 'password' || type === 'hidden' || /password|passwd|secret|token|otp|cvv|cvc|cc-number|cc-csc/.test(name + ' ' + autocomplete);
+            const row = { index: index, role: el.getAttribute('role') || el.tagName.toLowerCase(), name: name, value: secret ? '' : String(el.value || '').slice(0, 80) };
             if (el.tagName === 'SELECT') row.options = [...el.options].slice(0, 12).map((option, n) => ({ index: n, text: option.text.slice(0, 40) }));
             rows.push(row);
           });

@@ -19,18 +19,14 @@ module PWN
         dir_path = opts[:dir_path]
         git_repo_root_uri = opts[:git_repo_root_uri].to_s.scrub
 
+        # Lexical candidates, not proven injections: punctuation alone cannot
+        # establish binding or rule out mixed bound/unbound query construction.
         test_case_filter = "
           grep -in \
           -e 'select .*from ' \
           -e 'insert into .*values' \
           -e 'update .*set ' \
-          -e 'delete from ' {PWN_SAST_SRC_TARGET} 2> /dev/null | \
-          grep -ivE \
-          -e '^[0-9]:.*\\?.*$' \
-          -e '^[0-9]:.*@.*$' \
-          -e '^[0-9]:.*\\$[0-9].*$' \
-          -e '^[0-9]:.*:[0-9].*$' \
-          -e '^[0-9]:.*:[a-zA-Z_][a-zA-Z0-9_].*$'
+          -e 'delete from ' {PWN_SAST_SRC_TARGET} 2> /dev/null
         "
 
         PWN::SAST::TestCaseEngine.execute(

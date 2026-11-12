@@ -11,7 +11,7 @@ module PWN
       # Supported Method Parameters::
       # PWN::Plugins::Assembly.opcodes_to_asm(
       #   opcodes: 'required - hex escaped opcode(s) (e.g. "\x90\x90\x90")',
-      #   opcodes_always_string_obj: 'optional - always interpret opcodes passed in as a string object (defaults to false)',
+      #   opcodes_always_string_obj: 'optional - interpret binary-tagged input as textual hex (default false; binary Strings are raw bytes)',
       #   arch: 'optional - architecture returned from objdump --info (defaults to PWN::Plugins::DetectOS.arch)',
       #   endian: 'optional - endianess :big|:little (defaults to current system endianess)'
       # )
@@ -75,46 +75,13 @@ module PWN
           raise "Unsupported architecture: #{arch}"
         end
 
-        # TOOD: Still needs a fix if opcodes are passed in as:
-        # '\x90\x90\x90' (not to be confused w/ "\x90\x90\x90")
-        # '909090'
-        opcodes_orig_len = opcodes.length
-        opcodes = opcodes.join(',') if opcodes.is_a?(Array)
-        # puts opcodes.inspect
-        opcodes = CGI.escape(opcodes)
-        # puts opcodes.inspect
-        # known to work (when method is called directly) with:
-        # 'ffe4'
-        # 'ff,e4'
-        # 'ff e4'
-        # "ff,e4"
-        # "ff e4"
-        # ['ff', 'e4']
-        # ["ff", "e4"]
-        # '\xff\xe4'
-        # "\xff\xe4"
-        # "'ff', 'e4'"
-        # '"ff", "e4"'
-        # only known to work in pwn REPL driver with:
-        # ffe4
-        # ff e4
-        # puts opcodes.inspect
-        #  More stripping if passed in via pwn REPL driver
-        # if opcodes_always_string_obj
-        # end
-
-        opcodes.delete!('%5B')
-        opcodes.delete!('%5D')
-        opcodes.delete!('%5Cx')
-        opcodes.delete!('%2C')
-        opcodes.delete!('%22')
-        opcodes.delete!('%27')
-        opcodes.delete!('+')
-        opcodes.delete!('%')
-
-        # puts opcodes.inspect
-        opcodes = [opcodes].pack('H*')
-        # puts opcodes.inspect
+        raw = opcodes.is_a?(String) && opcodes.encoding == Encoding::BINARY && !opcodes_always_string_obj
+        unless raw
+          opcodes = opcodes.join(',') if opcodes.is_a?(Array)
+          # Remove whole textual separators, never individual hexadecimal digits.
+          hex = opcodes.b.gsub(/\\x/i, '').gsub(/[\s,\[\]'" ]/, '')
+          opcodes = [hex].pack('H*') if hex.match?(/\A(?:[0-9a-fA-F]{2})+\z/)
+        end
 
         "#{ai_analysis}\n\n* Assembly Instructions >>>#{Metasm::Shellcode.disassemble(arch_obj, opcodes).to_s.squeeze("\n")}\n"
       rescue StandardError => e
@@ -314,7 +281,7 @@ module PWN
           # Run opcodes to asm and return its result
           #{self}.opcodes_to_asm(
             opcodes: 'required - hex escaped opcode(s) (e.g. \\x90\\x90\\x90)',
-            opcodes_always_string_obj: 'optional - always interpret opcodes passed in as a string object (defaults to false)',
+            opcodes_always_string_obj: 'optional - interpret binary-tagged input as textual hex (default false; binary Strings are raw bytes)',
             arch: 'optional - architecture returned from objdump --info (defaults to PWN::Plugins::DetectOS.arch)',
             endian: 'optional - endianess :big|:little (defaults to current system endianess)'
           )

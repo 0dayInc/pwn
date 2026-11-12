@@ -15,27 +15,57 @@ module PWN
       # )
       private_class_method def self.irc_cmd(opts = {})
         irc_obj = opts[:irc_obj]
-        cmd = opts[:cmd].to_s.scrub
-        max_timeout = opts[:max_timeout] ||= 0.009
-
-        readl_timeout = 0.001
-        irc_obj.puts(cmd)
+        frame = command_frame(cmd: opts[:cmd])
+        deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + opts.fetch(:max_timeout, 0.009)
+        irc_obj.write(frame)
         response = []
+        loop do
+          line = read_frame(irc_obj: irc_obj, deadline: deadline)
+          break if line.nil? || line == :timeout
 
-        begin
-          response.push(irc_obj.readline.chomp) while irc_obj.wait_readable(readl_timeout) && irc_obj.ready? && !irc_obj.eof?
-          raise IOError if response.empty?
-        rescue IOError
-          readl_timeout += 0.001
-          retry if readl_timeout < max_timeout
-          return response if readl_timeout >= max_timeout
+          response << line.chomp
+          break if response.length >= 128
         end
-
         response
-      rescue StandardError => e
-        raise e
-      ensure
-        irc_obj.flush
+      end
+
+      private_class_method def self.read_frame(opts = {})
+        irc_obj = opts[:irc_obj]
+        buffer = irc_obj.instance_variable_get(:@pwn_irc_buffer)
+        unless buffer
+          buffer = ''.b
+          irc_obj.instance_variable_set(:@pwn_irc_buffer, buffer)
+        end
+        loop do
+          newline = buffer.index("\n")
+          return buffer.slice!(0, newline + 1) if newline && newline < 512
+          raise IOError, 'Oversized IRC response frame' if buffer.bytesize >= 512
+
+          remaining = opts[:deadline] - Process.clock_gettime(Process::CLOCK_MONOTONIC)
+          return :timeout unless remaining.positive?
+
+          chunk = irc_obj.read_nonblock(512 - buffer.bytesize, exception: false)
+          case chunk
+          when :wait_readable then return :timeout unless irc_obj.wait_readable(remaining)
+          when :wait_writable then return :timeout unless irc_obj.wait_writable(remaining)
+          when nil then return nil
+          else buffer << chunk
+          end
+        end
+      end
+
+      private_class_method def self.command_frame(opts = {})
+        cmd = opts[:cmd].to_s.scrub
+        raise ArgumentError, 'Invalid IRC command frame' if cmd.match?(/[\r\n\x00]/) || cmd.bytesize > 510
+
+        "#{cmd}\r\n"
+      end
+
+      private_class_method def self.parameter(opts = {})
+        value = opts[:value].to_s.scrub
+        raise ArgumentError, 'Invalid IRC parameter' if value.empty? || value.match?(/[\s\x00:]/)
+
+        value
       end
 
       # Supported Method Parameters::
@@ -50,9 +80,13 @@ module PWN
       public_class_method def self.connect(opts = {})
         host = opts[:host] ||= '127.0.0.1'
         port = opts[:port] ||= 6667
-        nick = opts[:nick].to_s.scrub
+        nick = parameter(value: opts[:nick])
         real = opts[:real] ||= nick
         tls = opts[:tls] || false
+
+        parameter(value: host)
+        command_frame(cmd: "NICK #{nick}")
+        command_frame(cmd: "USER #{nick} #{host} #{host} :#{real}")
 
         irc_obj = PWN::Plugins::Sock.connect(
           target: host,
@@ -81,11 +115,12 @@ module PWN
       # )
       public_class_method def self.join(opts = {})
         irc_obj = opts[:irc_obj]
-        nick = opts[:nick].to_s.scrub
-        chan = opts[:chan].to_s.scrub
+        nick = parameter(value: opts[:nick])
+        chan = parameter(value: opts[:chan])
+        command_frame(cmd: "PRIVMSG #{chan} :#{nick} joined.")
 
         irc_cmd(irc_obj: irc_obj, cmd: "JOIN #{chan}")
-        privmsg(irc_obj: irc_obj, message: "#{nick} joined.")
+        privmsg(irc_obj: irc_obj, chan: chan, message: "#{nick} joined.")
       rescue StandardError => e
         raise e
       end
@@ -97,15 +132,16 @@ module PWN
       # )
       public_class_method def self.names(opts = {})
         irc_obj = opts[:irc_obj]
-        chan = opts[:chan].to_s.scrub
+        chan = parameter(value: opts[:chan])
 
         resp = irc_cmd(irc_obj: irc_obj, cmd: "NAMES #{chan}", max_timeout: 0.01)
-        names = []
-        raw_names = resp.first.to_s.split[5..-1]
-        # Strip out colons and @ from names
-        names = raw_names.map { |name| name.gsub(/[@:]/, '') } if raw_names.is_a?(Array)
+        resp.flat_map do |line|
+          fields, trailing = line.split(' :', 2)
+          header = fields.split
+          next [] unless header[1] == '353' && header[4] == chan && trailing
 
-        names
+          trailing.split.map { |name| name.sub(/\A[~&@%+]+/, '') }
+        end.uniq
       rescue StandardError => e
         raise e
       end
@@ -119,24 +155,14 @@ module PWN
       # )
       public_class_method def self.privmsg(opts = {})
         irc_obj = opts[:irc_obj]
-        chan = opts[:chan].to_s.scrub
+        chan = parameter(value: opts[:chan])
         message = opts[:message].to_s.scrub
         nick = opts[:nick].to_s.scrub
 
-        message_newline_tot = message.split("\n").length
-        if message_newline_tot.positive?
-          message.split("\n") do |message_chunk|
-            this_message = "PRIVMSG #{chan} :#{message_chunk}"
-            if message_chunk.length.positive?
-              irc_cmd(
-                irc_obj: irc_obj,
-                cmd: this_message
-              )
-            end
-          end
-        else
-          irc_cmd(irc_obj: irc_obj, cmd: "PRIVMSG #{chan} :#{message}")
-        end
+        commands = message.split("\n").reject(&:empty?).map { |chunk| "PRIVMSG #{chan} :#{chunk}" }
+        commands.each { |cmd| command_frame(cmd: cmd) }
+        # Prevalidate the whole batch before the first frame leaves the socket.
+        commands.each { |cmd| irc_cmd(irc_obj: irc_obj, cmd: cmd) } # rubocop:disable Style/CombinableLoops
       rescue StandardError => e
         raise e
       end
@@ -177,7 +203,7 @@ module PWN
       # )
       public_class_method def self.part(opts = {})
         irc_obj = opts[:irc_obj]
-        chan = opts[:chan].to_s.scrub
+        chan = parameter(value: opts[:chan])
         message = opts[:message].to_s.scrub
 
         irc_cmd(irc_obj: irc_obj, cmd: "PART #{chan} :#{message}")
@@ -212,9 +238,11 @@ module PWN
         verbose = opts[:verbose] ||= false
 
         loop do
-          message = irc_obj.gets
+          message = read_frame(irc_obj: irc_obj, deadline: Process.clock_gettime(Process::CLOCK_MONOTONIC) + 0.1)
+          break if message.nil?
+          next if message == :timeout
+
           @@logger.info(message.to_s.chomp) if verbose
-          irc_obj.flush
           next unless block_given?
 
           yield message

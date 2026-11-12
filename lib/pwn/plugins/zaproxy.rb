@@ -66,7 +66,7 @@ module PWN
 
         response
       rescue StandardError, SystemExit, Interrupt => e
-        stop(zap_obj: zap_obj) unless zap_obj.nil? && !skip_stop
+        stop(zap_obj: zap_obj) unless zap_obj.nil? || skip_stop
         raise e
       end
 
@@ -162,8 +162,7 @@ module PWN
         openapi_spec = opts[:openapi_spec]
         raise "ERROR: openapi_spec file #{openapi_spec} does not exist" unless File.exist?(openapi_spec)
 
-        openapi_spec_root = File.dirname(openapi_spec)
-        Dir.chdir(openapi_spec_root)
+        openapi_spec = File.expand_path(openapi_spec)
 
         additional_http_headers = opts[:additional_http_headers] ||= {}
         raise 'ERROR: additional_http_headers must be a Hash' unless additional_http_headers.is_a?(Hash)
@@ -232,7 +231,7 @@ module PWN
         end
 
         if keyword
-          entries = har_sitemap.select do |site|
+          entries = entries.select do |site|
             json_request = site[:request].to_json
             json_request.include?(keyword)
           end

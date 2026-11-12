@@ -471,7 +471,7 @@ module PWN
               method: http_method,
               url: "#{base_uri}/#{rest_call}",
               headers: headers,
-              verify_ssl: oauth_selected,
+              verify_ssl: true,
               max_redirects: oauth_selected ? 0 : 10,
               timeout: timeout
             )
@@ -485,7 +485,7 @@ module PWN
                 url: "#{base_uri}/#{rest_call}",
                 headers: headers,
                 payload: http_body,
-                verify_ssl: oauth_selected,
+                verify_ssl: true,
                 max_redirects: oauth_selected ? 0 : 10,
                 timeout: timeout
               )
@@ -495,7 +495,7 @@ module PWN
                 url: "#{base_uri}/#{rest_call}",
                 headers: headers,
                 payload: http_body.to_json,
-                verify_ssl: oauth_selected,
+                verify_ssl: true,
                 max_redirects: oauth_selected ? 0 : 10,
                 timeout: timeout
               )
@@ -545,20 +545,8 @@ module PWN
       rescue RestClient::ExceptionWithResponse => e
         raise e if oauth_selected || e.is_a?(RestClient::TooManyRequests) || Thread.current[:pwn_provider_attempt_owner]
 
-        puts "ERROR: #{e.message}: #{e.response}" unless opts[:quiet]
-        "#{e.message}: #{e.response}" if opts[:quiet]
-      rescue StandardError => e
-        raise e if oauth_selected
-        raise e if Thread.current[:pwn_provider_attempt_owner]
-
-        case e.message
-        when '400 Bad Request', '404 Resource Not Found'
-          nil
-        else
-          raise e unless opts[:quiet]
-
-        end
-        "#{e.message}: #{e.response}"
+        e.message = "OpenAI HTTP #{e.http_code} (#{http_method.to_s.upcase} #{rest_call}): #{e.response&.body}"
+        raise
       ensure
         PWN::Plugins::TTYSpinner.stop(spin: spin)
       end
@@ -1440,7 +1428,7 @@ module PWN
         file = opts[:file]
         timeout = opts[:timeout]
 
-        response = list_files(token: token)
+        response = list_files(timeout: timeout)
         file_id = response[:data].select { |f| f if f[:filename] == File.basename(file) }.first[:id]
 
         rest_call = "files/#{file_id}"
@@ -1468,7 +1456,7 @@ module PWN
 
         timeout = opts[:timeout]
 
-        response = list_files(token: token)
+        response = list_files(timeout: timeout)
         file_id = response[:data].select { |f| f if f[:filename] == File.basename(file) }.first[:id]
 
         rest_call = "files/#{file_id}"

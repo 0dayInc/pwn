@@ -33,7 +33,7 @@ module PWN
 
         require 'method_source'
         MethodSource::CodeHelpers.module_eval do
-          alias_method :original_complete_expression?, :complete_expression?
+          alias_method :original_complete_expression?, :complete_expression? unless method_defined?(:original_complete_expression?)
 
           def complete_expression?(expression)
             original_complete_expression?(expression)

@@ -147,7 +147,8 @@ module PWN
         end
         roots.concat(controller_state_roots)
         explicit = prepare_write_roots(paths: opts[:write_roots])
-        writable = [scratch, '/dev/null', '/dev/zero', '/dev/random', '/dev/urandom'] + explicit
+        pinned = pin_named_files(paths: opts[:write_roots], protected: roots)
+        writable = [scratch, '/dev/null', '/dev/zero', '/dev/random', '/dev/urandom'] + explicit + pinned
         writable += prepare_write_roots(paths: state_write_roots) unless opts.dig(:handler, :name).to_s == 'shell'
         writable = writable.filter_map { |path| File.realpath(path) if File.exist?(path) && !File.symlink?(path) }.uniq
         writable.reject! { |path| %w[/ /proc /sys /dev].include?(path) }
@@ -163,7 +164,7 @@ module PWN
             Thread.current[:pwn_swarm_controller] = client if opts[:runtime]
             Signal.trap('TERM') { raise Interrupt, 'runtime worker cancelled' }
             begin
-              repository_restrict!(roots: roots + aliases, writable: writable, explicit: explicit)
+              repository_restrict!(roots: roots + aliases, writable: writable, explicit: explicit, protected: roots)
               repository_metadata_restrict!(roots: roots + aliases, identities: identities)
               Dir.chdir(task_dir)
               ENV['TMPDIR'] = scratch
@@ -363,6 +364,33 @@ module PWN
         end.uniq
       end
 
+      # Pre-create a named file when its parent contains a protected deny.
+      # A file grant can then be added without a parent directory write rule.
+      private_class_method def self.pin_named_files(opts = {})
+        protected = Array(opts[:protected])
+        Array(opts[:paths]).filter_map do |literal|
+          path = File.expand_path(literal.to_s)
+          next if File.directory?(path) && !File.symlink?(path)
+          next if protected_path?(path: path, roots: protected)
+
+          parent = File.dirname(path)
+          next unless protected.any? { |root| root.start_with?("#{parent}/") }
+          next if protected_path?(path: parent, roots: protected) || File.symlink?(parent)
+
+          create_pinned_file(parent: parent, name: File.basename(path))
+          path
+        end
+      end
+
+      private_class_method def self.create_pinned_file(opts = {})
+        flags = File::WRONLY | File::CREAT | File::NOFOLLOW
+        control_directory(path: opts[:parent]) do |directory|
+          fd = IO.sysopen(File.join(directory, opts[:name]), flags, 0o600)
+          IO.new(fd).close
+        end
+        :created
+      end
+
       # Detect both the conventional checkout and the loaded package source.
       public_class_method def self.protected_roots
         ['/opt/pwn', File.expand_path('../../..', __dir__)].select { |path| File.directory?(path) }.map { |path| File.realpath(path) }.uniq
@@ -537,7 +565,7 @@ module PWN
           opts.fetch(:writable).each do |path|
             next if roots.any? { |root| path == root || path.start_with?("#{root}/") }
 
-            repository_allow!(path: path, denied: denied, ancestors: ancestors, ruleset: ruleset, rights: rights, force: opts[:explicit]&.include?(path))
+            repository_allow!(path: path, denied: denied, ancestors: ancestors, ruleset: ruleset, rights: rights, explicit: opts[:explicit], protected: opts[:protected])
           end
           prctl = RUBY_PLATFORM.start_with?('aarch64') ? 167 : 157
           syscall(prctl, 38, 1, 0, 0, 0)
@@ -553,7 +581,12 @@ module PWN
         return if opts.fetch(:denied).key?(path)
         return if File.symlink?(path)
 
-        if opts.fetch(:ancestors).key?(path) && !opts[:force]
+        protected = Array(opts[:protected])
+        covers_protected = protected.any? { |root| root == path || root.start_with?("#{path}/") }
+        # Landlock grants are additive. Force a named parent only when its ancestor
+        # status comes from an unscannable alias, never across a source or controller deny.
+        force = Array(opts[:explicit]).include?(path) && !covers_protected
+        if opts.fetch(:ancestors).key?(path) && !force
           Dir.children(path).each { |name| repository_allow!(opts.merge(path: File.join(path, name), force: false)) }
         else
           rights = opts.fetch(:rights)
@@ -632,7 +665,7 @@ module PWN
 
           # Run shell or Ruby in a forked worker under the selected profile.
           #{self}.exec(
-            kind: 'optional - shell or ruby (defaults to shell)',
+            kind: 'optional - shell or ruby (defaults to shell); strict mode refuses execution until both isolation profiles are implemented',
             payload: 'optional - command or Ruby source',
             command: 'optional - alias for payload',
             code: 'optional - alias for payload',
@@ -754,7 +787,7 @@ module PWN
         $stdout = buf
         # rubocop:disable-next Security/Eval
         val = eval(opts[:payload].to_s, TOPLEVEL_BINDING, '(pwn_eval)', 1)
-        { stdout: buf.string, value: val.inspect, sandbox: mode(opts).to_s }
+        PWN::AI::Agent::ToolGuard.eval_outcome(value: val).merge(stdout: buf.string, value: val.inspect, sandbox: mode(opts).to_s)
       ensure
         $stdout = old
       end
@@ -762,10 +795,9 @@ module PWN
       private_class_method def self.apply_profile(opts = {})
         return unless mode(opts) == :strict
 
-        landlock_restrict!(opts)
-        seccomp_restrict!(opts)
-      rescue StandardError
-        nil
+        landlock = landlock_restrict!(opts)
+        seccomp = seccomp_restrict!(opts)
+        raise IOError, 'strict sandbox profile is unavailable; refusing unisolated execution' unless landlock == :restricted && seccomp == :restricted
       end
 
       private_class_method def self.landlock_restrict!(opts = {})

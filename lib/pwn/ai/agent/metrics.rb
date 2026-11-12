@@ -172,7 +172,7 @@ module PWN
         public_class_method def self.record_tokens(opts = {})
           n = opts[:tokens].to_i
           cost = opts[:cost].to_f
-          model = opts[:model].to_s
+          model = opts[:model].to_s.to_sym
           m = load
           m[:usage] ||= { tokens: 0, cost: 0.0, calls: 0, by_model: {} }
           m[:usage][:tokens] += n

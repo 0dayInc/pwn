@@ -1,11 +1,10 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
-require 'pwn'
+version_path = './lib/pwn/version.rb'
+old_rev = File.read(version_path)[/^\s*VERSION\s*=\s*['"](\d+\.\d+\.\d+)['"]\s*$/, 1]
+raise ArgumentError, 'Invalid checkout version' unless old_rev
 
-old_rev = PWN::VERSION
-readme_md_path = './README.md'
-current_ruby = './.ruby-version'
 placeholder_arr = old_rev.split('.')
 major = placeholder_arr[0].to_i
 minor = placeholder_arr[1].to_i
@@ -29,7 +28,7 @@ end
 new_rev = placeholder_arr.join('.')
 
 puts "Upgrading to #{new_rev}..."
-File.open('./lib/pwn/version.rb', 'w') do |f|
+File.open(version_path, 'w') do |f|
   f.puts '# frozen_string_literal: true'
   f.puts "\n"
   f.puts 'module PWN'

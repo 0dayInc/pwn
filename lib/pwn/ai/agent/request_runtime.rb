@@ -393,7 +393,7 @@ module PWN
           before = TurnFinalizer.artifact_snapshot(paths: @contract[:required_artifacts])
           begin
             result = provider_attempt(&)
-            failed = result.is_a?(Hash) && (result[:error] || result['error'] || result[:success] == false || result['success'] == false || result[:ok] == false || (result.key?(:exit) && result[:exit] != 0))
+            failed = result.is_a?(Hash) && (result[:error] || result['error'] || result[:success] == false || result['success'] == false || result[:ok] == false || result['ok'] == false || (result.key?(:exit) && result[:exit] != 0) || (result.key?('exit') && result['exit'] != 0))
             timed_out = result.is_a?(Hash) && (result[:error] || result['error']).to_s.match?(/timeout/i)
             # A returned timeout still may have applied. Only a finished
             # command (exit/stdout, no timeout) is an observation.

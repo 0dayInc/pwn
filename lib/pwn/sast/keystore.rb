@@ -30,7 +30,7 @@ module PWN
           git_repo_root_uri: git_repo_root_uri
         )
       rescue StandardError => e
-        raise e.mesasge
+        raise e
       end
 
       # Used primarily to map NIST 800-53 Revision 4 Security Controls
@@ -47,7 +47,7 @@ module PWN
           cwe_uri: 'https://cwe.mitre.org/data/definitions/522.html'
         }
       rescue StandardError => e
-        raise e.mesasge
+        raise e
       end
 
       # Author(s):: 0day Inc. <support@0dayinc.com>

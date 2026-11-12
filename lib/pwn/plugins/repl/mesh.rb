@@ -784,6 +784,14 @@ class << PWN::Plugins::REPL # rubocop:disable Metrics/ClassLength
       kwargs[:ack_timeout] = mqtt[:ack_timeout] unless mqtt[:ack_timeout].nil?
       mesh_mqtt_connect(options: kwargs)
     end
+  rescue StandardError, Interrupt => e
+    begin
+      mesh_disconnect(env: env, obj: obj, transport: opts[:transport]) if obj
+    rescue StandardError
+      # Preserve the handshake/cancellation error if cleanup also fails.
+      nil
+    end
+    raise e
   end
 
   # mqtt 0.7 raises reader failures asynchronously into the thread that
@@ -3326,7 +3334,7 @@ class << PWN::Plugins::REPL # rubocop:disable Metrics/ClassLength
       unless state[:last_line] == current_line
         rx_body_win = PWN.const_get(:MeshRxBodyWin)
         state[:detail_rows] ||= []
-        index = state[:detail_rows].size
+        index = (state[:detail_rows].last&.fetch(:index) || -1) + 1
         focused = mesh_focus == :conversation
         mutex.synchronize do
           width = [rx_body_win.maxx - 2, 1].max
@@ -3872,7 +3880,7 @@ class << PWN::Plugins::REPL # rubocop:disable Metrics/ClassLength
       sub = choice
     end
 
-    case mesh_transport(env: env)
+    case mesh_bound_transport(env: env)
     when :serial
       env[:serial] ||= {}
       env[:serial][:port] = sub

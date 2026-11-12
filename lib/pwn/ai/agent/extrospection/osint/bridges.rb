@@ -49,6 +49,8 @@ module PWN
         private_class_method def self.bridge_domain(opts = {})
           q = opts[:query].to_s.strip.sub(%r{\Ahttps?://}i, '').sub(%r{/.*\z}, '')
           q = q.split('@').last if q.include?('@')
+          return '' unless q.length <= 253 && q.match?(/\A[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+\.?\z/i)
+
           q
         end
 

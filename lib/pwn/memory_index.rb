@@ -118,18 +118,20 @@ module PWN
     public_class_method def self.refresh(opts = {})
       mem = opts[:mem] || PWN::Memory.load
       idx = load_index
+      original_keys = idx.keys
       idx.delete_if { |k, _| !mem.key?(k) }
 
-      todo = mem.reject { |k, v| idx.dig(k, :sha) == sha(text: v[:value].to_s) }
+      texts = mem.transform_values { |v| "#{v[:category]}: #{v[:value]}" }
+      todo = mem.reject { |k, _| idx.dig(k, :sha) == sha(text: texts[k]) }
       unless todo.empty?
-        vecs = embed(texts: todo.values.map { |v| "#{v[:category]}: #{v[:value]}" })
+        vecs = embed(texts: todo.keys.map { |key| texts[key] })
         todo.keys.each_with_index do |k, i|
           next unless vecs[i]
 
-          idx[k] = { sha: sha(text: mem[k][:value].to_s), vec: vecs[i] }
+          idx[k] = { sha: sha(text: texts[k]), vec: vecs[i] }
         end
-        save_index(idx: idx)
       end
+      save_index(idx: idx) if !todo.empty? || idx.keys != original_keys
       idx
     rescue StandardError
       idx || {}

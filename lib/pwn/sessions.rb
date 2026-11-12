@@ -2,6 +2,7 @@
 
 require 'json'
 require 'fileutils'
+require 'tmpdir'
 require 'time'
 require 'securerandom'
 require 'digest'
@@ -28,6 +29,16 @@ module PWN
     GOLD_MIN_SCORE = 0.6
     TITLE_WORD_MAX = 7
     METADATA_MUTEX = Mutex.new
+
+    # A checked unlink can fail after earlier files have already disappeared.
+    class PartialDeletion < IOError
+      attr_reader :result
+
+      def initialize(result)
+        @result = result
+        super('Session deletion interrupted; inspect the recovery ledger before retrying')
+      end
+    end
 
     SESSION_ID = /\A\d{8}_\d{6}_[0-9a-f]{8}\z/
     # Selectors follow writer-owned schemas only; never recurse through payloads.
@@ -68,8 +79,8 @@ module PWN
 
     # Supported Method Parameters::
     #   dir = PWN::Sessions.sessions_dir
-    public_class_method def self.sessions_dir
-      FileUtils.mkdir_p(SESSIONS_DIR)
+    public_class_method def self.sessions_dir(opts = {})
+      FileUtils.mkdir_p(SESSIONS_DIR) unless opts[:read_only]
       SESSIONS_DIR
     end
 
@@ -88,7 +99,7 @@ module PWN
                      when :trace then ['traces', File.join(id, 'trace.jsonl')]
                      else raise ArgumentError, 'Invalid session support kind'
                      end
-      directory = opts[:read_only] ? SESSIONS_DIR : sessions_dir
+      directory = sessions_dir(read_only: opts[:read_only] == true)
       legacy = File.join(directory, name)
       return legacy if File.exist?(legacy) || File.symlink?(legacy)
 
@@ -105,7 +116,7 @@ module PWN
     # Supported Method Parameters::
     #   sessions = PWN::Sessions.list
     public_class_method def self.list(opts = {})
-      dir = sessions_dir
+      dir = sessions_dir(read_only: true)
       references = opts[:references] || dependency_index
       Dir.glob(File.join(dir, '*.jsonl')).reverse.filter_map do |f|
         naming = retention_status(session_id: File.basename(f, '.jsonl'), references: references)
@@ -641,13 +652,13 @@ module PWN
     # this effective title. Explicit titles follow the same seven-word limit.
     public_class_method def self.metadata(opts = {})
       sid = opts[:session_id].to_s
-      path = support_path(kind: :metadata, session_id: sid)
+      path = support_path(kind: :metadata, session_id: sid, read_only: true)
       if File.file?(path)
         stored = JSON.parse(File.read(path), symbolize_names: true)
         return stored.merge(id: sid, title: bounded_title(title: stored[:title])) if stored.is_a?(Hash) && !bounded_title(title: stored[:title]).empty?
       end
 
-      first = File.open(File.join(sessions_dir, "#{sid}.jsonl"), &:gets)
+      first = File.open(File.join(SESSIONS_DIR, "#{sid}.jsonl"), &:gets)
       row = JSON.parse(first.to_s, symbolize_names: true)
       title = row[:content].to_s.delete_prefix('Session started: ') if row[:role] == 'system' && row[:content].to_s.start_with?('Session started: ')
       { id: sid, title: bounded_title(title: title.to_s.empty? ? "pwn-ai session #{sid}" : title) }
@@ -663,10 +674,10 @@ module PWN
       status = { title_source: nil, is_summarized: false, classification: :unknown, title_reason: 'invalid_session' }
       return status unless sid.match?(SESSION_ID)
 
-      path = File.join(sessions_dir, "#{sid}.jsonl")
+      path = File.join(SESSIONS_DIR, "#{sid}.jsonl")
       return status.merge(title_reason: 'invalid_transcript') unless cleanup_transcript_valid?(path: path)
 
-      meta_path = support_path(kind: :metadata, session_id: sid)
+      meta_path = support_path(kind: :metadata, session_id: sid, read_only: true)
       return status.merge(classification: :unnamed, title_reason: 'missing_summary_provenance') unless File.exist?(meta_path) || File.symlink?(meta_path)
       return status.merge(title_reason: 'unsafe_metadata') unless File.file?(meta_path) && !File.symlink?(meta_path)
 
@@ -887,11 +898,14 @@ module PWN
     # Supported Method Parameters::
     #   transcript = PWN::Sessions.load(session_id: 'required')
     public_class_method def self.load(opts = {})
-      sid = opts[:session_id]
+      sid = opts[:session_id].to_s
+      raise ArgumentError, 'Invalid session ID' if sid.empty? || File.basename(sid) != sid || sid.include?("\0") || %w[. ..].include?(sid)
+
       path = File.join(sessions_dir, "#{sid}.jsonl")
+      raise IOError, 'Unsafe session transcript' if File.symlink?(path) || (File.exist?(path) && File.realpath(path) != File.expand_path(path))
       return PWN::AI::Agent::Learning.session_evidence(session_id: sid) || [] unless File.exist?(path)
 
-      File.readlines(path).map { |l| JSON.parse(l, symbolize_names: true) }
+      File.open(path, File::RDONLY | File::NOFOLLOW) { |file| file.each_line.map { |line| JSON.parse(line, symbolize_names: true) } }
     end
 
     # Newest session that is not exclude_session_id (the prior pwn-ai run).
@@ -1064,6 +1078,53 @@ module PWN
       []
     end
 
+    # Store locks precede transcript leases and transcript writer locks. All
+    # maintenance acquisitions are nonblocking, including initially absent stores.
+    # Learning precedes Backups (the coordinator already owns both). Producers
+    # take their store lock then a nonblocking shared source lease before reading
+    # or publishing references; a publisher losing deletion must reject the source.
+    public_class_method def self.with_dependency_locks(opts = {})
+      return yield if opts[:dry_run] || dependency_locks_owned?
+
+      locks = []
+      previous = Thread.current[:pwn_session_dependency_locks]
+      learning = PWN::AI::Agent::Learning.send(:learning_lock, nonblocking: true)
+      raise IOError, 'Dependency writer active: Learning' if learning == :busy
+
+      return PWN::Backups.transaction { with_dependency_locks(opts.merge(backup: false)) { yield } } if opts[:backup] && !PWN::Backups.active? # rubocop:disable Style/ExplicitBlockArgument -- public module contract accepts only the options hash
+
+      root = File.join(Dir.home, '.pwn')
+      paths = [File.join(File.dirname(PWN::Plugins::Findings::FILE), '.findings-write.lock'),
+               File.join(root, '.swarm-continuations.lock'), "#{PWN::Memory::MEMORY_FILE}.write.lock",
+               "#{PWN::AI::Agent::Mistakes::MISTAKES_FILE}.write.lock"]
+      # The index scans HOME; explicit writer paths may be overridden by callers.
+      paths.concat(%w[.findings-write.lock memory.json.write.lock mistakes.json.write.lock].map { |name| File.join(root, name) })
+      paths << File.join(root, '.learning-write.lock') unless File.dirname(PWN::AI::Agent::Learning::LEARNING_FILE) == root
+      paths = paths.uniq.sort
+      paths.each do |path|
+        FileUtils.mkdir_p(File.dirname(path), mode: 0o700)
+        raise IOError, 'Unsafe dependency lock directory' unless File.realpath(File.dirname(path)) == File.expand_path(File.dirname(path))
+
+        lock = File.open(path, File::RDWR | File::CREAT | File::NOFOLLOW, 0o600) # rubocop:disable Style/FileOpen -- transaction owns all handles
+        locks << lock
+        raise IOError, 'Dependency writer active' unless lock.flock(File::LOCK_EX | File::LOCK_NB)
+      end
+      Thread.current[:pwn_session_dependency_locks] = { pid: Process.pid, thread: Thread.current, root: root, locks: locks }
+      yield
+    ensure
+      if locks
+        Thread.current[:pwn_session_dependency_locks] = previous
+        locks.reverse_each(&:close)
+        PWN::AI::Agent::Learning.send(:learning_unlock, lock: learning) if learning && learning != :busy
+      end
+    end
+
+    private_class_method def self.dependency_locks_owned?
+      owner = Thread.current[:pwn_session_dependency_locks]
+      owner && owner[:pid] == Process.pid && owner[:thread] == Thread.current &&
+        owner[:root] == File.join(Dir.home, '.pwn') && owner[:locks].none?(&:closed?)
+    end
+
     # Supported Method Parameters::
     #   PWN::Sessions.delete(
     #     session_id: 'required',
@@ -1071,6 +1132,8 @@ module PWN
     #   )
     # Refuses deletion of pinned sessions (hot/gold/mistake/current) unless force:true.
     public_class_method def self.delete(opts = {})
+      return with_dependency_locks(backup: true) { delete(opts) } unless dependency_locks_owned?
+
       sid = opts[:session_id].to_s
       raise 'ERROR: session_id required' if sid.to_s.empty?
       raise ArgumentError, 'Invalid session ID' if File.basename(sid) != sid || sid.include?("\0") || sid == '.' || sid == '..'
@@ -1082,15 +1145,84 @@ module PWN
       raise IOError, "Session #{sid} is active" unless File.identical?(lock, lock_path) && lock.flock(File::LOCK_EX | File::LOCK_NB)
 
       unless force
-        pins = protected_session_ids(current_session_id: opts[:current_session_id])
+        pins = protected_session_ids(current_session_id: opts[:current_session_id], hot_days: opts[:hot_days], include_activity: false)
         raise "ERROR: refusing to delete protected session #{sid.inspect} (pinned by HOT_DAYS/gold/mistakes/current; pass force:true)" if pins.include?(sid.to_s)
       end
 
-      FileUtils.rm_f(path)
-      FileUtils.rm_f(support_path(kind: :metadata, session_id: sid))
+      paths = [path, support_path(kind: :metadata, session_id: sid, read_only: true)].select { |file| File.exist?(file) || File.symlink?(file) }
+      return true if paths.empty?
+
+      progress = { session_id: sid, state: 'prepared', deleted_paths: [], remaining_paths: paths.dup }
+      journal = opts[:deletion_progress] || deletion_journal(session_id: sid, paths: paths)
+      journal.call(progress)
+      paths.each do |file|
+        File.unlink(file)
+        progress[:deleted_paths] << file
+        progress[:remaining_paths].delete(file)
+        journal.call(progress)
+      end
+      progress[:state] = 'committed'
+      journal.call(progress)
       true
+    rescue StandardError, Interrupt, SystemExit => e
+      if progress && journal
+        progress[:state] = 'interrupted'
+        progress[:error] = e.class.name
+        begin
+          journal.call(progress)
+        rescue StandardError => journal_error
+          progress[:journal_error] = journal_error.class.name
+        end
+        raise PartialDeletion, progress if e.is_a?(StandardError) && progress[:deleted_paths].any?
+      end
+      raise
     ensure
       lock&.close unless opts[:cleanup_lock]
+    end
+
+    # The callback form lets the coordinator use its already verified backup
+    # without duplicating payload I/O or overwriting its multi-session ledger.
+    private_class_method def self.deletion_journal(opts = {})
+      id = opts[:session_id]
+      directory = PWN::Backups.directory(label: 'session-delete')
+      record = { id: id, files: {} }
+      opts[:paths].each do |path|
+        raise IOError, 'Unsafe deletion source' unless File.file?(path) && File.realpath(path) == File.expand_path(path)
+
+        bytes = File.binread(path)
+        digest = Digest::SHA256.hexdigest(bytes)
+        target = File.join(directory, File.basename(path))
+        atomic_publish(path: target, bytes: bytes)
+        raise IOError, 'Deletion backup mismatch' unless Digest::SHA256.file(target).hexdigest == digest && File.binread(path) == bytes
+
+        record[:files][File.basename(path)] = { sha256: digest, size: bytes.bytesize }
+      end
+      ledger = File.join(directory, 'ledger.json')
+      lambda do |progress|
+        progress[:ledger] = ledger
+        record[:deletion] = progress
+        record[:deleted] = progress[:state] == 'committed'
+        deleted = progress[:deleted_paths].any? { |path| path.end_with?("/#{id}.jsonl") }
+        atomic_publish(path: ledger, bytes: JSON.generate(state: progress[:state], dry_run: false, records: [record], deleted_ids: deleted ? [id] : []))
+      end
+    end
+
+    private_class_method def self.atomic_publish(opts = {})
+      path = opts[:path]
+      temporary = "#{path}.#{SecureRandom.hex(12)}.tmp"
+      identity = nil
+      File.open(temporary, File::WRONLY | File::CREAT | File::EXCL | File::NOFOLLOW, 0o600) do |file|
+        identity = [file.stat.dev, file.stat.ino]
+        file.write(opts[:bytes])
+        file.flush
+        file.fsync
+        raise IOError, 'Atomic temporary changed' unless File.identical?(file, temporary)
+
+        File.rename(temporary, path)
+        File.open(File.dirname(path), File::RDONLY, &:fsync)
+      end
+    ensure
+      remove_owned_temporary(path: temporary, identity: identity) if identity
     end
 
     # Supported Method Parameters::
@@ -1127,7 +1259,7 @@ module PWN
       current = opts[:current_session_id].to_s
       current = PWN::Env.dig(:ai, :session_id).to_s if current.empty? && defined?(PWN::Env)
 
-      dir = sessions_dir
+      dir = SESSIONS_DIR
       files = Dir.glob(File.join(dir, '*.jsonl'))
       before_bytes = files.sum { |f| File.size(f) }
       now = Time.now.utc
@@ -1142,6 +1274,17 @@ module PWN
       deleted = []
       compacted = []
       protected_n = 0
+      skipped = {}
+      partial_deletions = []
+      remove = lambda do |entry|
+        delete(session_id: entry[:id], current_session_id: current, hot_days: hot_days) unless dry
+        deleted << entry[:id]
+      rescue PartialDeletion => e
+        partial_deletions << e.result
+        deleted << entry[:id] if e.result[:deleted_paths].include?(entry[:path])
+      rescue IOError, RuntimeError, SystemCallError => e
+        skipped[entry[:id]] = e.class.name
+      end
 
       # Classify
       entries = files.map do |path|
@@ -1162,8 +1305,7 @@ module PWN
         aged = e[:age] > retain_days
         next unless stub || aged
 
-        deleted << e[:id]
-        FileUtils.rm_f([e[:path], support_path(kind: :metadata, session_id: e[:id])]) unless dry
+        remove.call(e)
       end
 
       # Refresh remaining after deletes
@@ -1174,9 +1316,8 @@ module PWN
         unpinned = remaining.reject { |e| e[:pinned] }.sort_by { |e| e[:mtime] }
         over = remaining.size - max_files
         unpinned.first(over).each do |e|
-          deleted << e[:id]
-          FileUtils.rm_f([e[:path], support_path(kind: :metadata, session_id: e[:id])]) unless dry
-          remaining.delete(e)
+          remove.call(e)
+          remaining.delete(e) if deleted.include?(e[:id])
         end
       end
 
@@ -1199,10 +1340,17 @@ module PWN
       after_bytes = after_files.sum { |f| File.size(f) }
 
       {
+        state: if partial_deletions.empty?
+                 dry ? 'planned' : 'committed'
+               else
+                 'interrupted'
+               end,
+        partial_deletions: partial_deletions,
         deleted: deleted.length,
         deleted_ids: deleted.first(30),
         compacted: compacted.length,
         compacted_ids: compacted.first(30),
+        skipped: skipped,
         protected: protected_n,
         remaining: after_files.size,
         bytes_before: before_bytes,
@@ -1222,10 +1370,12 @@ module PWN
       Dir.glob(File.join(SESSIONS_DIR, '*.jsonl')).each { |path| pins[File.basename(path, '.jsonl')] = true } if references[:errors].any?
       pins[opts[:current_session_id].to_s] = true unless opts[:current_session_id].to_s.empty?
 
-      # Hot by mtime
-      Dir.glob(File.join(sessions_dir, '*.jsonl')).each do |path|
+      # Activity is a pin, but callers already holding the exclusive cleanup
+      # lease omit their own lock from this probe and still recheck dependencies.
+      Dir.glob(File.join(SESSIONS_DIR, '*.jsonl')).each do |path|
+        id = File.basename(path, '.jsonl')
         age = (now - File.mtime(path).utc) / 86_400.0
-        pins[File.basename(path, '.jsonl')] = true if age <= hot_days
+        pins[id] = true if age <= hot_days || (opts[:include_activity] != false && active?(session_id: id))
       end
 
       # Learning gold
@@ -1271,15 +1421,26 @@ module PWN
     end
 
     private_class_method def self.compact_transcript!(opts = {})
+      return with_dependency_locks { compact_transcript!(opts) } unless opts[:dry_run] || dependency_locks_owned?
+
       path = opts[:path]
       tool_max = opts[:tool_max] || TOOL_CONTENT_MAX
       asst_max = opts[:assistant_content_max] || opts[:asst_max] || ASSISTANT_CONTENT_MAX
       dry = opts[:dry_run] ? true : false
       return false unless File.exist?(path)
 
-      lease = activate(session_id: File.basename(path, '.jsonl'))
-      writer = File.open("#{path}.write.lock", File::RDWR | File::CREAT | File::NOFOLLOW, 0o600) # rubocop:disable Style/FileOpen -- held through atomic replace; ensure closes it
-      writer.flock(File::LOCK_EX)
+      id = File.basename(path, '.jsonl')
+      return false if dry && active?(session_id: id)
+
+      unless dry
+        lease = File.open(support_path(kind: :lease, session_id: id), File::RDWR | File::CREAT | File::NOFOLLOW, 0o600) # rubocop:disable Style/FileOpen -- exclusive maintenance lease closed in ensure
+        return false unless lease.flock(File::LOCK_EX | File::LOCK_NB)
+
+        writer = File.open("#{path}.write.lock", File::RDWR | File::CREAT | File::NOFOLLOW, 0o600) # rubocop:disable Style/FileOpen -- held through atomic replace; ensure closes it
+        writer.flock(File::LOCK_EX)
+      end
+      return false if protected_session_ids(hot_days: 0, include_activity: dry).include?(id)
+
       lines = File.readlines(path)
       rows = lines.map { |line| JSON.parse(line, symbolize_names: true) }
       return false if rows.empty?
@@ -1307,7 +1468,9 @@ module PWN
       return changed if dry || !changed
 
       tmp = "#{path}.#{SecureRandom.hex(12)}.tmp"
+      identity = nil
       File.open(tmp, File::WRONLY | File::CREAT | File::EXCL | File::NOFOLLOW, 0o600) do |f|
+        identity = [f.stat.dev, f.stat.ino]
         f.flock(File::LOCK_EX)
         rows.each { |e| f.puts(JSON.generate(e)) }
         f.flush
@@ -1317,7 +1480,7 @@ module PWN
       File.open(File.dirname(path), File::RDONLY, &:fsync)
       true
     ensure
-      FileUtils.rm_f(tmp) if defined?(tmp) && tmp && File.exist?(tmp)
+      remove_owned_temporary(path: tmp, identity: identity) if identity
       writer&.close
       deactivate(lease: lease)
     end
@@ -1334,7 +1497,13 @@ module PWN
 
       dir = File.join(Dir.home, '.pwn', 'exports')
       FileUtils.mkdir_p(dir)
+      raise IOError, 'Unsafe session export directory' unless File.realpath(dir) == File.expand_path(dir)
+
       dest = File.join(dir, "#{sid}.tar.gz")
+      archive = File.join(dir, ".#{sid}.#{SecureRandom.hex(12)}.tmp")
+      archive_file = File.open(archive, File::RDWR | File::CREAT | File::EXCL | File::NOFOLLOW, 0o600) # rubocop:disable Style/FileOpen -- reserved through tar and atomic publication
+      archive_identity = [archive_file.stat.dev, archive_file.stat.ino]
+      archive_file.flock(File::LOCK_EX)
       manifest = {}
       Dir.mktmpdir do |tmp|
         lines = transcript.map { |row| JSON.generate(PWN::Redaction.redact(value: row)) }
@@ -1351,35 +1520,128 @@ module PWN
           end
         end
         File.write(File.join(tmp, 'manifest.json'), JSON.generate(manifest))
-        system('tar', '-czf', dest, '-C', tmp, '.')
+        raise IOError, 'Session export tar failed' unless system('tar', '-czf', '-', '-C', tmp, '.', out: archive_file)
+        raise IOError, 'Session export temporary changed' unless File.identical?(archive_file, archive)
+
+        archive_file.flush
+        archive_file.fsync
+        File.rename(archive, dest)
       end
       { path: dest, session_id: sid, manifest: manifest }
+    ensure
+      archive_file&.close
+      remove_owned_temporary(path: archive, identity: archive_identity) if archive_identity
     end
 
     public_class_method def self.retain(opts = {})
+      return with_dependency_locks { retain(opts) } unless dependency_locks_owned?
+
       days = (opts[:days] || 90).to_i
       cutoff = Time.now - (days * 86_400)
-      gzipped = 0
+      records = []
       pins = protected_session_ids(hot_days: 0)
       Dir[File.join(sessions_dir, '*.jsonl')].each do |path|
-        next if pins.include?(File.basename(path, '.jsonl'))
-        next if File.mtime(path) > cutoff
-
         id = File.basename(path, '.jsonl')
+        next if pins.include?(id) || File.mtime(path) > cutoff
+
         File.open(support_path(kind: :lease, session_id: id), File::RDWR | File::CREAT | File::NOFOLLOW, 0o600) do |lock|
           next unless lock.flock(File::LOCK_EX | File::LOCK_NB)
           next unless File.file?(path) && File.mtime(path) <= cutoff
+          next if protected_session_ids(hot_days: 0, include_activity: false).include?(id)
 
-          lines = File.readlines(path)
-          keep = lines.first(20) + lines.last(20)
-          Zlib::GzipWriter.open("#{path}.gz") do |gz|
-            keep.each { |line| gz.write("#{JSON.generate(PWN::Redaction.redact(value: JSON.parse(line)))}\n") }
-          end
-          File.delete(path)
-          gzipped += 1
+          records << retain_transcript(path: path, session_id: id)
         end
       end
-      { deleted: 0, gzipped: gzipped, days: days }
+      { deleted: 0, gzipped: records.count { |row| row[:state] == 'committed' }, days: days, records: records }
+    end
+
+    private_class_method def self.retain_transcript(opts = {})
+      path = opts[:path]
+      id = opts[:session_id]
+      archive = "#{path}.gz"
+      directory = File.join(Dir.home, '.pwn', 'maintenance', 'retention')
+      ancestor = directory
+      ancestor = File.dirname(ancestor) until File.exist?(ancestor) || File.symlink?(ancestor)
+      raise IOError, 'Unsafe retention journal directory' unless File.realpath(ancestor) == File.expand_path(ancestor)
+
+      FileUtils.mkdir_p(directory, mode: 0o700)
+      ledger = File.join(directory, "#{Digest::SHA256.hexdigest(path)}.json")
+      source_hash = Digest::SHA256.file(path).hexdigest
+      report = { id: id, state: 'prepared', ledger: ledger }
+      if File.exist?(archive) || File.symlink?(archive)
+        raise IOError, 'Unowned retention archive' unless File.file?(ledger) && !File.symlink?(ledger)
+
+        record = JSON.parse(File.binread(ledger), symbolize_names: true)
+        raise IOError, 'Unverified retention archive' unless record[:version] == 1 && record[:path] == path && record[:source_sha256] == source_hash &&
+                                                             record[:archive] == archive && !File.symlink?(archive) && File.file?(archive) &&
+                                                             [File.stat(archive).dev, File.stat(archive).ino] == record[:identity] && Digest::SHA256.file(archive).hexdigest == record[:sha256]
+
+        owned_record = true
+      else
+        lines = File.readlines(path)
+        keep = lines.length <= 40 ? lines : lines.first(20) + lines.last(20)
+        temporary = "#{path}.#{SecureRandom.hex(12)}.tmp"
+        identity = nil
+        File.open(temporary, File::WRONLY | File::CREAT | File::EXCL | File::NOFOLLOW, 0o600) do |file|
+          identity = [file.stat.dev, file.stat.ino]
+          file.flock(File::LOCK_EX)
+          gz = Zlib::GzipWriter.new(file)
+          begin
+            keep.each { |line| gz.write("#{JSON.generate(PWN::Redaction.redact(value: JSON.parse(line)))}\n") }
+            gz.finish
+            file.flush
+            file.fsync
+          ensure
+            gz.close unless gz.closed?
+          end
+        end
+        record = { version: 1, state: 'prepared', path: path, source_sha256: source_hash, archive: archive,
+                   temporary: temporary, identity: identity, sha256: Digest::SHA256.file(temporary).hexdigest }
+        atomic_publish(path: ledger, bytes: JSON.generate(record))
+        owned_record = true
+        File.link(temporary, archive) # No-clobber publication, even for unrelated valid gzip files.
+        File.open(File.dirname(archive), File::RDONLY, &:fsync)
+      end
+      record[:state] = 'published'
+      atomic_publish(path: ledger, bytes: JSON.generate(record))
+      raise IOError, 'Retention source changed' unless Digest::SHA256.file(path).hexdigest == source_hash
+
+      File.delete(path)
+      File.open(File.dirname(path), File::RDONLY, &:fsync)
+      record[:state] = 'committed'
+      atomic_publish(path: ledger, bytes: JSON.generate(record))
+      report.merge(state: 'committed')
+    rescue StandardError => e
+      # A published verified archive is recoverable; unknown/preexisting archives
+      # are explicit conflicts. Neither outcome may starve later candidates.
+      state = owned_record ? 'interrupted' : 'conflict'
+      if owned_record
+        record[:state] = 'interrupted'
+        record[:error] = e.class.name
+        begin
+          atomic_publish(path: ledger, bytes: JSON.generate(record))
+        rescue StandardError => journal_error
+          report[:journal_error] = journal_error.class.name
+        end
+      end
+      (report || { id: id, ledger: ledger }).merge(state: state, error: e.class.name)
+    ensure
+      remove_owned_temporary(path: temporary, identity: identity) if identity
+      remove_owned_temporary(path: record[:temporary], identity: record[:identity]) if owned_record && record[:state] == 'committed' && record[:temporary].to_s.match?(/\A#{Regexp.escape(path)}\.[0-9a-f]{24}\.tmp\z/)
+    end
+
+    private_class_method def self.remove_owned_temporary(opts = {})
+      path = opts[:path]
+      identity = opts[:identity]
+      return unless path && identity && File.exist?(path) && !File.symlink?(path)
+
+      File.open(path, File::RDONLY | File::NOFOLLOW) do |file|
+        next unless file.flock(File::LOCK_EX | File::LOCK_NB) && File.identical?(file, path) && [file.stat.dev, file.stat.ino] == identity
+
+        File.unlink(path)
+      end
+    rescue IOError, SystemCallError
+      nil
     end
 
     public_class_method def self.redact(opts = {})
@@ -1394,7 +1656,7 @@ module PWN
     public_class_method def self.help
       puts "USAGE:
         # Run sessions dir and return its result
-        #{self}.sessions_dir
+        #{self}.sessions_dir(read_only: 'optional - resolve the session directory without creating it')
 
         # Run list and return its result
         #{self}.list(include_hidden: 'optional - include unretained sessions for diagnostics and explicit resume', current_session_id: 'optional - include this active session regardless of naming classification', references: 'optional - precomputed structural dependency index')
@@ -1410,6 +1672,9 @@ module PWN
 
         # Index exact dependency file paths and uncertain stores for cleanup and listing.
         #{self}.dependency_index
+
+        # Serialize reference checks and mutation with cooperating publishers.
+        #{self}.with_dependency_locks(dry_run: 'optional - yield without creating or acquiring locks for read-only plans', backup: 'optional - acquire the backup transaction before other dependency locks') { ... }
 
         # Hold a shared per-session OS lease until deactivate or process exit.
         #{self}.activate(
@@ -1494,7 +1759,9 @@ module PWN
           session_id: 'required - session id value consumed by #delete',
           force: 'optional - Boolean bypass pin policy (default false)',
           current_session_id: 'optional - current session id value consumed by #delete',
-          cleanup_lock: 'optional - already-held per-session exclusive cleanup lock'
+          hot_days: 'optional - hot-file protection window, defaults HOT_DAYS',
+          cleanup_lock: 'optional - already-held per-session exclusive cleanup lock',
+          deletion_progress: 'optional - coordinator callback persisting prepared and per-file deletion states with its verified recovery backup'
         )
 
         # Run stats and return its result
@@ -1516,6 +1783,7 @@ module PWN
           now: 'optional - now value consumed by #protected_session_ids (defaults to Time.now.utc)',
           hot_days: 'optional - hot days value consumed by #protected_session_ids',
           retain_days: 'optional - retain days value consumed by #protected_session_ids',
+          include_activity: 'optional - include held activity leases; default true, false only while the caller holds an exclusive cleanup lease',
           current_session_id: 'optional - current session id value consumed by #protected_session_ids'
         )
 

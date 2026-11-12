@@ -3,6 +3,7 @@
 require 'base64'
 require 'cgi'
 require 'htmlentities'
+require 'timeout'
 
 module PWN
   module Plugins
@@ -123,12 +124,20 @@ module PWN
           this_socket_fuzz_result[:request_encoding] = this_request.encoding.name
           this_socket_fuzz_result[:request_len] = this_request.length
 
-          # Send Fuzz Payload in its rawest form (as long as it will undump first)
-          sock_obj.write(this_request.encode('ASCII-8BIT', undef: :replace).undump)
+          # Send the template bytes without interpreting Ruby string-literal escapes.
+          sock_obj.write(this_request.b)
 
           does_respond = sock_obj.wait_readable(response_timeout)
           if does_respond
-            response = sock_obj.read
+            response = +''.b
+            begin
+              Timeout.timeout(response_timeout) do
+                loop { response << sock_obj.readpartial(16_384) }
+              end
+            rescue EOFError, Timeout::Error
+              # Preserve bytes already received when the peer closes or stays open.
+              nil
+            end
             response_len = response.length
             this_socket_fuzz_result[:response] = response.to_s.inspect
             this_socket_fuzz_result[:response_len] = response_len

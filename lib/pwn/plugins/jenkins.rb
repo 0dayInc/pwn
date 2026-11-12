@@ -23,12 +23,12 @@ module PWN
 
       public_class_method def self.connect(opts = {})
         ip = opts[:ip]
-        port = opts[:port].to_i ||= 8888
+        port = (opts[:port] || 8080).to_i
         username = opts[:username].to_s.scrub
         base_jenkins_api_uri = "https://#{ip}/ase/services".to_s.scrub
         api_key = opts[:api_key].to_s.scrub
         identity_file = opts[:identity_file].to_s.scrub
-        ssl_bool = true if opts[:ssl] ||= false
+        ssl_bool = opts.fetch(:ssl, true)
 
         if opts[:proxy]
           proxy = URI(opts[:proxy])

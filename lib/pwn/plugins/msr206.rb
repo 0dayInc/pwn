@@ -10,7 +10,7 @@ module PWN
     module MSR206
       # Logger instance for auditing and debugging
       private_class_method def self.logger
-        @logger ||= Logger.new('/tmp/pwn-msr206.log')
+        @logger ||= Logger.new(File::NULL)
       end
 
       # Supported Method Parameters::
@@ -24,12 +24,7 @@ module PWN
       # )
 
       public_class_method def self.connect(opts = {})
-        opts[:block_dev] ||= '/dev/ttyUSB0'
-        opts[:baud] ||= 19_200 # Align with device default
-        opts[:data_bits] ||= 8
-        opts[:stop_bits] ||= 1
-        opts[:parity] ||= :none
-        opts[:flow_control] ||= :soft
+        opts = { block_dev: '/dev/ttyUSB0', baud: 19_200, data_bits: 8, stop_bits: 1, parity: :none, flow_control: :soft }.merge(opts)
 
         logger.info("Connecting to #{opts[:block_dev]} at baud #{opts[:baud]}")
         msr206_obj = PWN::Plugins::Serial.connect(opts)
@@ -429,7 +424,7 @@ module PWN
         logger.error("Error parsing response for command #{cmd}: #{e.message}")
         raise e
       ensure
-        PWN::Plugins::Serial.flush_session_data
+        PWN::Plugins::Serial.flush_session_data(serial_obj: msr206_obj) if msr206_obj
       end
 
       # Supported Method Parameters::
@@ -441,6 +436,8 @@ module PWN
       public_class_method def self.set_protocol(opts = {})
         msr206_obj = opts[:msr206_obj]
         protocol = opts[:protocol] || :usi0
+        raise ArgumentError, 'protocol must be :usi0 or :usi1' unless %i[usi0 usi1].include?(protocol)
+
         cmd = protocol == :usi0 ? :proto_usi0 : :proto_usi1
         logger.info("Setting protocol to #{protocol}")
         exec(msr206_obj: msr206_obj, cmd: cmd)
@@ -462,7 +459,7 @@ module PWN
         params = opts[:params]
         raise 'ERROR: params argument must be a byte array (e.g. [0x41]).' if params && !params.instance_of?(Array)
 
-        logger.info("Executing command: #{cmd} with params: #{params.inspect}")
+        logger.info('Executing device command')
 
         params_bytes = []
         case cmd.to_sym
@@ -594,13 +591,13 @@ module PWN
           cmd: cmd.to_sym,
           cmd_bytes: cmd_bytes
         )
-        logger.info("Response for #{cmd}: #{response.inspect}")
+        logger.info('Device command response received')
         response
       rescue StandardError => e
         logger.error("Error executing command #{cmd}: #{e.message}")
         raise e
       ensure
-        PWN::Plugins::Serial.flush_session_data
+        PWN::Plugins::Serial.flush_session_data(serial_obj: msr206_obj) if msr206_obj
       end
 
       # Supported Method Parameters::
@@ -616,6 +613,8 @@ module PWN
         type = opts[:type].to_s.scrub.strip.chomp.to_sym
         encoding = opts[:encoding].to_s.scrub.strip.chomp.to_sym
         track_data = opts[:track_data]
+        plan = opts[:write_plan]
+        plan ||= write_plan(encoding: encoding, track_data: track_data) if type.to_s.start_with?('arm_to_write')
 
         logger.info("Waiting for swipe: type=#{type}, encoding=#{encoding}")
 
@@ -635,7 +634,7 @@ module PWN
         case type
         when :arm_to_read, :arm_to_read_w_speed_prompts
           exec_resp = exec(msr206_obj: msr206_obj, cmd: type)
-          logger.info("Arm to read response: #{exec_resp.inspect}")
+          logger.info('Reader armed')
 
           print 'Reader Activated. Please Swipe Card...'
           loop do
@@ -644,149 +643,26 @@ module PWN
             break if exec_resp[:msg] == :ack_command_completed
           end
 
-          case encoding
-          when :iso
-            cmds_arr = %i[
-              tx_iso_std_data_track1
-              tx_iso_std_data_track2
-              tx_iso_std_data_track3
-            ]
-            cmds_arr.each do |cmd|
-              puts "\n*** #{cmd.to_s.gsub('_', ' ').upcase} #{'*' * 17}"
-              exec_resp = exec(msr206_obj: msr206_obj, cmd: cmd)
+          read_commands(encoding: encoding).each_with_index do |cmd, index|
+            formats = opts[:track_formats] ? [opts[:track_formats][index]] : available_formats(encoding: encoding)
+            formats.each do |format|
+              exec_resp = exec(msr206_obj: msr206_obj, cmd: cmd, params: format)
               exec_resp[:encoding] = encoding
-              puts exec_resp[:decoded]
-              puts exec_resp.inspect
+              exec_resp[:track] = index + 1
+              exec_resp[:track_format] = format.dup
               track_data_arr.push(exec_resp)
             end
-          when :iso_alt
-            cmds_arr = %i[
-              alt_tx_iso_std_data_track1
-              alt_tx_iso_std_data_track2
-              alt_tx_iso_std_data_track3
-            ]
-            cmds_arr.each do |cmd|
-              params_arr = [0x31, 0x32, 0x33]
-              params_arr.each do |param|
-                puts "\n*** #{cmd.to_s.gsub('_', ' ').upcase} #{'*' * 17}"
-                exec_resp = exec(msr206_obj: msr206_obj, cmd: cmd, params: [param])
-                exec_resp[:encoding] = encoding
-                exec_resp[:track_format] = [param]
-                puts exec_resp[:decoded]
-                puts exec_resp.inspect
-                track_data_arr.push(exec_resp)
-              end
-            end
-          when :raw
-            cmds_arr = %i[
-              tx_custom_data_forward_track1
-              tx_custom_data_forward_track2
-              tx_custom_data_forward_track3
-            ]
-            cmds_arr.each do |cmd|
-              params_arr = [0x33, 0x34, 0x35, 0x36, 0x37]
-              params_arr.each do |param|
-                puts "\n*** #{cmd.to_s.gsub('_', ' ').upcase} #{'*' * 17}"
-                exec_resp = exec(msr206_obj: msr206_obj, cmd: cmd, params: [param])
-                exec_resp[:encoding] = encoding
-                exec_resp[:track_format] = [param]
-                puts exec_resp[:decoded]
-                puts exec_resp.inspect
-                track_data_arr.push(exec_resp)
-
-                param = [0x5f] + [param]
-                exec_resp = exec(msr206_obj: msr206_obj, cmd: cmd, params: param)
-                exec_resp[:encoding] = encoding
-                exec_resp[:track_format] = param
-                puts exec_resp[:decoded]
-                puts exec_resp.inspect
-                track_data_arr.push(exec_resp)
-              end
-            end
-          else
-            logger.error("Unsupported encoding: #{encoding}")
-            raise "Unsupported encoding: #{encoding}"
           end
 
         when :arm_to_write_no_raw, :arm_to_write_with_raw, :arm_to_write_with_raw_speed_prompts
-          unless track_data.is_a?(Array) && track_data.all? { |t| t.is_a?(Hash) && t.key?(:decoded) }
-            logger.error('Invalid track_data: must be an array of hashes with :decoded key')
-            raise 'Invalid track_data: must be an array of hashes with :decoded key'
-          end
-
-          case encoding
-          when :iso
-            cmds_arr = %i[
-              load_iso_std_data_for_writing_track1
-              load_iso_std_data_for_writing_track2
-              load_iso_std_data_for_writing_track3
-            ]
-            cmds_arr.each_with_index do |cmd, track|
-              puts "\n*** #{cmd.to_s.gsub('_', ' ').upcase} #{'*' * 17}"
-              # next unless track_data[track]&.key?(:decoded) && track_data[track][:decoded]&.strip&.length&.positive?
-
-              this_track = track_data[track][:decoded].chars.map do |c|
-                c.unpack1('H*').to_i(16)
-              end
-              track_eot = [0x04]
-              track_payload = this_track + track_eot
-              puts track_payload.inspect
-              exec_resp = exec(msr206_obj: msr206_obj, cmd: cmd, params: track_payload)
-              exec_resp[:encoding] = encoding
-              puts exec_resp.inspect
-              track_data_arr.push(exec_resp)
-            end
-          when :iso_alt
-            cmds_arr = %i[
-              alt_load_iso_std_data_for_writing_track1
-              alt_load_iso_std_data_for_writing_track2
-              alt_load_iso_std_data_for_writing_track3
-            ]
-            cmds_arr.each_with_index do |cmd, track|
-              puts "\n*** #{cmd.to_s.gsub('_', ' ').upcase} #{'*' * 17}"
-              # next unless track_data[track]&.key?(:decoded) && track_data[track][:decoded]&.strip&.length&.positive?
-
-              this_track = track_data[track][:decoded].chars.map do |c|
-                c.unpack1('H*').to_i(16)
-              end
-              track_format = track_data[track][:track_format] || [0x31]
-              track_eot = [0x04]
-              track_payload = track_format + this_track + track_eot
-              puts track_payload.inspect
-              exec_resp = exec(msr206_obj: msr206_obj, cmd: cmd, params: track_payload)
-              exec_resp[:encoding] = encoding
-              puts exec_resp.inspect
-              track_data_arr.push(exec_resp)
-            end
-          when :raw
-            cmds_arr = %i[
-              load_custom_data_for_writing_track1
-              load_custom_data_for_writing_track2
-              load_custom_data_for_writing_track3
-            ]
-            cmds_arr.each_with_index do |cmd, track|
-              puts "\n*** #{cmd.to_s.gsub('_', ' ').upcase} #{'*' * 17}"
-              # next unless track_data[track]&.key?(:decoded) && track_data[track][:decoded]&.strip&.length&.positive?
-
-              this_track = track_data[track][:decoded].chars.map do |c|
-                c.unpack1('H*').to_i(16)
-              end
-              track_format = track_data[track][:track_format] || [0x33]
-              track_eot = [0x04]
-              track_payload = track_format + this_track + track_eot
-              puts track_payload.inspect
-              exec_resp = exec(msr206_obj: msr206_obj, cmd: cmd, params: track_payload)
-              exec_resp[:encoding] = encoding
-              puts exec_resp.inspect
-              track_data_arr.push(exec_resp)
-            end
-          else
-            logger.error("Unsupported encoding: #{encoding}")
-            raise "Unsupported encoding: #{encoding}"
+          plan.each do |track|
+            exec_resp = exec(msr206_obj: msr206_obj, cmd: track[:load_cmd], params: track[:payload])
+            exec_resp[:encoding] = encoding
+            track_data_arr.push(exec_resp)
           end
 
           exec_resp = exec(msr206_obj: msr206_obj, cmd: type)
-          logger.info("Arm to write response: #{exec_resp.inspect}")
+          logger.info('Writer armed')
 
           print 'Writer Activated. Please Swipe Card...'
           loop do
@@ -803,7 +679,90 @@ module PWN
         logger.error("Error in wait_for_swipe: #{e.message}")
         raise e
       ensure
-        exec(msr206_obj: msr206_obj, cmd: :green_off)
+        exec(msr206_obj: msr206_obj, cmd: :green_off) if exec_resp
+      end
+
+      private_class_method def self.available_formats(opts = {})
+        case opts[:encoding]
+        when :iso then [[]]
+        when :iso_alt then [[0x31], [0x32], [0x33]]
+        when :raw then (0x33..0x37).flat_map { |byte| [[byte], [0x5f, byte]] }
+        else raise ArgumentError, 'encoding must be iso, iso_alt or raw'
+        end
+      end
+
+      private_class_method def self.read_commands(opts = {})
+        prefix = { iso: 'tx_iso_std_data', iso_alt: 'alt_tx_iso_std_data', raw: 'tx_custom_data_forward' }.fetch(opts[:encoding])
+        (1..3).map { |track| :"#{prefix}_track#{track}" }
+      end
+
+      private_class_method def self.selected_formats(opts = {})
+        formats = opts[:track_formats]
+        raise ArgumentError, 'track_formats must select exactly three formats' unless formats.is_a?(Array) && formats.length == 3
+
+        formats.map { |format| track_format(encoding: opts[:encoding], value: format) }.freeze
+      end
+
+      private_class_method def self.track_format(opts = {})
+        encoding = opts[:encoding]
+        allowed = available_formats(encoding: encoding)
+        value = opts.fetch(:value, allowed.first)
+        raise ArgumentError, 'Invalid track_format for selected encoding' unless value.is_a?(Array) && value.all?(Integer) && allowed.include?(value)
+
+        value.dup.freeze
+      end
+
+      private_class_method def self.select_tracks(opts = {})
+        tracks = opts[:track_data]
+        return tracks unless tracks.is_a?(Array) && tracks.length > 3
+
+        encoding = opts[:encoding]
+        formats = opts[:track_formats]
+        raise ArgumentError, 'Candidate backups require explicit track_formats for three tracks' unless formats
+
+        commands = read_commands(encoding: encoding)
+        identities = tracks.map do |track|
+          raise ArgumentError, 'Malformed track candidate' unless track.is_a?(Hash) && track[:decoded].is_a?(String) && commands.map(&:to_s).include?(track[:cmd].to_s)
+
+          format = track_format(encoding: encoding, value: track[:track_format])
+          [track[:cmd].to_s, format]
+        end
+        raise ArgumentError, 'Duplicate track format candidates' unless identities.uniq.length == identities.length
+
+        commands.each_with_index.map do |cmd, index|
+          match = identities.index([cmd.to_s, formats[index]])
+          raise ArgumentError, 'Selected track format is absent from backup' unless match
+
+          tracks[match]
+        end
+      end
+
+      private_class_method def self.write_plan(opts = {})
+        tracks = opts[:track_data]
+        encoding = opts[:encoding]
+        formats = selected_formats(opts) if opts.key?(:track_formats)
+        tracks = select_tracks(track_data: tracks, encoding: encoding, track_formats: formats)
+        raise ArgumentError, 'track_data must contain exactly three tracks with decoded Strings' unless tracks.is_a?(Array) && tracks.length == 3 && tracks.all? { |track| track.is_a?(Hash) && track[:decoded].is_a?(String) }
+
+        prefix = { iso: 'load_iso_std_data_for_writing', iso_alt: 'alt_load_iso_std_data_for_writing', raw: 'load_custom_data_for_writing' }.fetch(encoding)
+        tracks.each_with_index.map do |track, index|
+          format_options = { encoding: encoding }
+          format_options[:value] = formats[index] if formats
+          format_options[:value] = track[:track_format] if track.key?(:track_format)
+          format = track_format(format_options)
+          raise ArgumentError, 'track_formats conflicts with track_data' if formats && formats[index] != format
+          raise ArgumentError, 'Track command identity does not match its position' if track[:cmd] && track[:cmd].to_s != read_commands(encoding: encoding)[index].to_s
+          raise ArgumentError, 'Track encoding does not match selected encoding' if track[:encoding] && track[:encoding].to_s != encoding.to_s
+
+          decoded = track[:decoded].b.freeze
+          # This decoded-text API is not a binary-track passthrough. Bound the
+          # supported host payload and reject wire terminators before any IO.
+          maximum = encoding == :iso ? [79, 40, 107][index] : 255
+          raise ArgumentError, 'Invalid or oversized decoded track payload' unless decoded.bytesize <= maximum && decoded.bytes.all? { |byte| byte.between?(0x20, 0x7e) }
+
+          { decoded: decoded, track_format: format, load_cmd: :"#{prefix}_track#{index + 1}",
+            payload: (format + decoded.bytes + [0x04]).freeze }.freeze
+        end.freeze
       end
 
       # Supported Method Parameters::
@@ -815,8 +774,9 @@ module PWN
         msr206_obj = opts[:msr206_obj]
         logger.info('Starting read_card')
 
-        encoding = :waiting_for_selection
-        loop do
+        encoding = opts.key?(:encoding) ? opts[:encoding].to_s.to_sym : :waiting_for_selection
+        available_formats(encoding: encoding) unless encoding == :waiting_for_selection
+        while encoding == :waiting_for_selection
           puts "\nENCODING OPTIONS:"
           puts '[(I)SO Standard]'
           puts '[(A)LT ISO Standard]'
@@ -837,12 +797,14 @@ module PWN
           end
         end
 
+        formats = selected_formats(encoding: encoding, track_formats: opts[:track_formats]) if opts.key?(:track_formats)
         track_data = wait_for_swipe(
           msr206_obj: msr206_obj,
           type: :arm_to_read,
-          encoding: encoding
+          encoding: encoding,
+          track_formats: formats
         )
-        logger.info("Read card successful: #{track_data.inspect}")
+        logger.info('Read card completed')
         track_data
       rescue StandardError => e
         logger.error("Error reading card: #{e.message}")
@@ -890,13 +852,19 @@ module PWN
       # PWN::Plugins::MSR206.write_card(
       #   msr206_obj: 'required - msr206_obj returned from #connect method',
       #   encoding: 'required - :iso || :iso_alt || :raw',
-      #   track_data: 'required - track data to write (see #backup_card for structure)'
+      #   track_data: 'required - three printable decoded tracks, or backup candidates with explicit track_formats',
+      #   track_formats: 'optional - three selected format arrays: ISO [], alternate [0x31..0x33], raw [0x33..0x37] optionally prefixed by 0x5f; required for candidate backups'
       # )
 
       public_class_method def self.write_card(opts = {})
         msr206_obj = opts[:msr206_obj]
         encoding = opts[:encoding].to_s.scrub.strip.chomp.to_sym
         track_data = opts[:track_data]
+        raise ArgumentError, 'encoding must be iso, iso_alt or raw' unless %i[iso iso_alt raw].include?(encoding)
+
+        plan_options = { encoding: encoding, track_data: track_data }
+        plan_options[:track_formats] = opts[:track_formats] if opts.key?(:track_formats)
+        plan = write_plan(plan_options)
 
         logger.info("Starting write_card with encoding: #{encoding}")
         puts 'IN ORDER TO GET BLANK TRACKS, A STRONG MAGNETIC FIELD MUST BE PRESENT TO FIRST WIPE THE CARD TARGETED FOR WRITING.'
@@ -949,32 +917,31 @@ module PWN
 
         exec(msr206_obj: msr206_obj, cmd: :set_temp_write_current, params: coercivity)
 
-        track_data = wait_for_swipe(
+        wait_for_swipe(
           msr206_obj: msr206_obj,
-          type: :arm_to_write_no_raw,
+          type: encoding == :raw ? :arm_to_write_with_raw : :arm_to_write_no_raw,
           encoding: encoding,
-          track_data: track_data
+          write_plan: plan
         )
 
         # Verify write
         exec_resp = exec(msr206_obj: msr206_obj, cmd: :write_verify)
-        if exec_resp[:msg] == :ack_command_completed
-          puts 'Write verification successful.'
-          logger.info('Write verification successful')
-        else
-          puts "Write verification failed: #{exec_resp[:msg]}"
-          logger.error("Write verification failed: #{exec_resp[:msg]}")
-        end
+        raise IOError, 'Card write verification failed; inspect the device before retrying' unless exec_resp[:msg] == :ack_command_completed
+
+        puts 'Write verification successful.'
+        logger.info('Write verification successful')
 
         # Re-read card to confirm
-        read_data = read_card(msr206_obj: msr206_obj)
-        if read_data.map { |t| t[:decoded] } == track_data.map { |t| t[:decoded] }
-          puts 'Card data matches written data.'
-          logger.info('Card data matches written data')
-        else
-          puts 'ERROR: Written data does not match read data.'
-          logger.error('Written data does not match read data')
+        read_data = read_card(msr206_obj: msr206_obj, encoding: encoding, track_formats: plan.map { |track| track[:track_format] })
+        commands = read_commands(encoding: encoding)
+        matches = read_data.length == 3 && read_data.each_with_index.all? do |track, index|
+          track[:msg] == :response && track[:cmd] == commands[index] && track[:encoding] == encoding &&
+            track[:track_format] == plan[index][:track_format] && track[:decoded].b == plan[index][:decoded]
         end
+        raise IOError, 'Card write readback mismatch; inspect the device before retrying' unless matches
+
+        puts 'Card data matches written data.'
+        logger.info('Card data matches written data')
 
         exec(msr206_obj: msr206_obj, cmd: :simulate_power_cycle_warm_reset)
         track_data
@@ -993,9 +960,10 @@ module PWN
         logger.info('Starting clone_card')
 
         track_data = backup_card(msr206_obj: msr206_obj)
-        encoding = track_data.first[:encoding] if track_data.length == 3
+        encoding = track_data.first[:encoding]
         write_card(
           msr206_obj: msr206_obj,
+          **(opts.key?(:track_formats) ? { track_formats: opts[:track_formats] } : {}),
           encoding: encoding,
           track_data: track_data
         )
@@ -1034,6 +1002,7 @@ module PWN
         encoding = track_data.first[:encoding] || :iso
         write_card(
           msr206_obj: msr206_obj,
+          **(opts.key?(:track_formats) ? { track_formats: opts[:track_formats] } : {}),
           encoding: encoding,
           track_data: track_data
         )
@@ -1068,14 +1037,14 @@ module PWN
         # Update each track's decoded value
         track_data.each_with_index do |track, index|
           decoded = track[:decoded]
-          puts "\nTrack #{index + 1} Current Value: #{decoded}"
+          puts "\nTrack #{index + 1} (current value withheld)"
           print 'Enter Updated Value (press Enter to keep original): '
           updated_value = gets.scrub.chomp.strip
 
           # Retain original value if empty
           if updated_value.empty?
-            puts "Keeping original value: #{decoded}"
-            logger.info("Track #{index + 1}: Keeping original value: #{decoded}")
+            puts 'Keeping original value.'
+            logger.info("Track #{index + 1}: Keeping original value")
             updated_value = decoded
           else
             # Validate input for ISO encoding
@@ -1094,15 +1063,14 @@ module PWN
                 raise "Track #{index + 1}: Invalid characters for ISO encoding"
               end
             end
-            logger.info("Track #{index + 1}: Updated value: #{updated_value}")
+            logger.info("Track #{index + 1}: Updated value supplied")
           end
 
           track[:decoded] = updated_value
         end
 
         # Confirm changes
-        puts "\nUpdated Track Data:"
-        track_data.each_with_index { |t, i| puts "Track #{i + 1}: #{t[:decoded]}" }
+        puts "\nUpdated track values are withheld from diagnostics."
         print 'Confirm writing these changes to the card? [y/N]: '
         unless gets.chomp.strip.upcase == 'Y'
           logger.info('Update cancelled by user')
@@ -1114,11 +1082,12 @@ module PWN
         encoding = track_data.first[:encoding] || :iso
         track_data = write_card(
           msr206_obj: msr206_obj,
+          **(opts.key?(:track_formats) ? { track_formats: opts[:track_formats] } : {}),
           encoding: encoding,
           track_data: track_data
         )
 
-        logger.info("Update card successful: #{track_data.inspect}")
+        logger.info('Update card completed')
         puts 'Card updated successfully.'
         track_data
       rescue StandardError => e
@@ -1221,7 +1190,9 @@ module PWN
 
           # Run read card and return its result
           #{self}.read_card(
-            msr206_obj: 'required - msr206_obj returned from #connect method'
+            msr206_obj: 'required - msr206_obj returned from #connect method',
+            encoding: 'optional - iso, iso_alt or raw; otherwise prompt for selection',
+            track_formats: 'optional - three explicit format byte arrays; otherwise return all format candidates'
           )
 
           # Run backup card and return its result
@@ -1233,22 +1204,26 @@ module PWN
           #{self}.write_card(
             msr206_obj: 'required - msr206_obj returned from #connect method',
             encoding: 'required - :iso || :iso_alt || :raw',
-            track_data: 'required - track data to write (see #backup_card for structure)'
+            track_data: 'required - three printable decoded tracks, or backup candidates with explicit track_formats',
+            track_formats: 'optional - three selected format arrays: ISO [], alternate [0x31..0x33], raw [0x33..0x37] optionally prefixed by 0x5f; required for candidate backups'
           )
 
           # Run clone card and return its result
           #{self}.clone_card(
-            msr206_obj: 'required - msr206_obj returned from #connect method'
+            msr206_obj: 'required - msr206_obj returned from #connect method',
+            track_formats: 'optional - three explicit format byte arrays for selecting candidate backups'
           )
 
           # Run load card from file and return its result
           #{self}.load_card_from_file(
-            msr206_obj: 'required - msr206_obj returned from #connect method'
+            msr206_obj: 'required - msr206_obj returned from #connect method',
+            track_formats: 'optional - three explicit format byte arrays for selecting candidate backups'
           )
 
           # Run update card and return its result
           #{self}.update_card(
-            msr206_obj: 'required - msr206_obj returned from #connect method'
+            msr206_obj: 'required - msr206_obj returned from #connect method',
+            track_formats: 'optional - three explicit format byte arrays for selecting candidate backups'
           )
 
           # Run get config and return its result

@@ -104,19 +104,21 @@ module PWN
       public_class_method def self.run_to_crash(opts = {})
         sid = opts[:session] || PWN::Plugins::GDBMI.open(opts)
         begin
-          run(opts.merge(session: sid))
+          execution = run(opts.merge(session: sid))
+          raise IOError, "GDB execution failed: #{execution[:raw]}" unless execution[:ok]
+
           regs = registers(session: sid)
           stack = backtrace(session: sid)
           fault = evaluate(session: sid, expr: '$_siginfo._sifields._sigfault.si_addr')
-          stopped = regs[:stopped] || stack[:stopped] || {}
+          stopped = [execution[:stopped], regs[:stopped], stack[:stopped]].find { |record| record && !record.empty? } || {}
           pc = regs[:registers]['rip'] || regs[:registers]['eip'] || regs[:registers]['pc'] || stopped[:addr]
-          signal = stopped[:signal] || 'SIGSEGV'
+          signal = stopped[:signal]
           fault_addr = fault || stopped[:addr]
           crash = {
             signal: signal,
             pc: pc,
             fault_addr: fault_addr,
-            exploitability: classify(signal: signal, pc: pc),
+            exploitability: classify(signal: signal, pc: pc, reason: stopped[:reason]),
             registers: regs[:registers],
             backtrace: stack[:frames],
             interpreter: 'mi3',
@@ -318,7 +320,7 @@ module PWN
           mem = { addr: m[1], hex: m[2], bytes: [m[2]].pack('H*') }
         end
         {
-          ok: raw.match?(/\^(?:done|running|exit)|\*stopped/),
+          ok: !raw.match?(/^\d*\^error(?:,|\s|$)/) && raw.match?(/\^(?:done|running|exit)|\*stopped/),
           raw: raw,
           registers: regs,
           frames: frames,
@@ -337,12 +339,14 @@ module PWN
       end
 
       private_class_method def self.classify(opts = {})
+        return 'none' if %w[exited-normally exited].include?(opts[:reason])
+        return 'unknown' if opts[:signal].to_s.empty?
+
         pc = opts[:pc].to_s.sub(/\A0x/, '')
         bytes = [pc].pack('H*')
         return 'pc_control' if bytes.bytesize >= 4 && bytes.bytes.all? { |byte| byte.between?(0x20, 0x7e) }
         return 'exploitable' if opts[:signal].to_s.match?(/SEGV|ILL|BUS/)
         return 'abort' if opts[:signal].to_s.include?('ABRT')
-        return 'none' if opts[:signal].to_s.empty?
 
         'unknown'
       rescue StandardError

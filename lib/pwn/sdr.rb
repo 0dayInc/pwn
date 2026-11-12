@@ -21,7 +21,7 @@ module PWN
       str_hz = freq.to_s
       # Nuke leading zeros
       # E.g., 002450000000 -> 2450000000
-      str_hz = str_hz.sub(/^0+/, '') unless str_hz == '0'
+      str_hz = str_hz.sub(/^0+(?=\d)/, '') unless str_hz == '0'
       # Insert dots every 3 digits from the right
       str_hz.reverse.scan(/.{1,3}/).join('.').reverse
     end

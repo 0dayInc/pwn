@@ -64,6 +64,44 @@ describe PWN::Plugins::REPL::AI do
   end
 end
 
+describe 'buffered line-mode mission delivery' do
+  include_context 'pwn tmp sandbox'
+
+  it 'delivers tool events while the provider is still blocked' do
+    input, input_writer = IO.pipe
+    reader, original_writer = IO.pipe
+    original_writer.autoclose = false
+    writer = PWN::AI::Agent::MissionNamespace.io(original_writer.fileno)
+    expect(writer.sync).to be(false)
+    allow(PWN::AI::Agent::MissionNamespace).to receive(:io).with(4).and_return(writer)
+    allow(PWN::AI::Agent::MissionNamespace).to receive(:io).with(0).and_return(input)
+    entered = Queue.new
+    release = Queue.new
+    allow(PWN::AI::Agent::Loop).to receive(:run) do |opts|
+      opts[:on_tool].call('fixture-tool', 'fixture-argument', 'fixture-result')
+      entered << true
+      release.pop
+      'final answer'
+    end
+    Dir.chdir(@tmp) do
+      worker = Thread.new do
+        PWN::Plugins::REPL.pwn_ai_mission_entry(operation: :steerable, config: {}, options: { request: 'fixture' })
+      end
+      Timeout.timeout(5) { entered.pop }
+      expect(reader.wait_readable(0.5)).not_to be_nil, 'tool event remained buffered until mission completion'
+      event = JSON.parse(reader.read_nonblock(16_384))
+      expect(event).to eq('event' => 'tool', 'args' => %w[fixture-tool fixture-argument fixture-result])
+    ensure
+      release << true
+      worker&.join(5)
+      worker&.kill if worker&.alive?
+      worker&.join
+    end
+  ensure
+    [input, input_writer, reader, writer].compact.each { |io| io.close unless io.closed? }
+  end
+end
+
 describe 'menu command result routes' do
   include_context 'pwn tmp sandbox'
 

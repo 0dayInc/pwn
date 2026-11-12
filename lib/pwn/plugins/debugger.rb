@@ -257,7 +257,7 @@ module PWN
         PWN::Plugins::ProcessTube.write_line(id: sess[:handle], line: opts[:cmd].to_s)
         row = PWN::Plugins::ProcessTube.expect(
           id: sess[:handle],
-          pattern: /^\^done|^\^error|^\^running|^\*stopped/m,
+          pattern: /^(?:\^(?:done|error|running)|\*stopped)[^\r\n]*\r?\n/,
           timeout: opts[:timeout] || 8
         )
         row.is_a?(Hash) ? row[:matched].to_s : row.to_s

@@ -2,6 +2,7 @@
 
 require 'nexpose'
 require 'ipaddr'
+require 'timeout'
 
 module PWN
   module Plugins
@@ -139,7 +140,7 @@ module PWN
         end
 
         if site_id > -1
-          @@logger.info("Removing the Following Assets from #{site.name} (site id: #{site_id}) Older than #{days} Days:")
+          @@logger.info("Removing the Following Assets from #{site_name} (site id: #{site_id}) Older than #{days} Days:")
           nsc_obj.filter(Nexpose::Search::Field::SCAN_DATE, Nexpose::Search::Operator::EARLIER_THAN, days).each do |asset|
             if asset.site_id == site_id
               @@logger.info("#{asset.id}|#{asset.ip}|#{asset.last_scan}")
@@ -165,42 +166,50 @@ module PWN
       public_class_method def self.scan_site_by_name(opts = {})
         nsc_obj = opts[:nsc_obj]
         site_name = opts[:site_name].to_s
-        site_id = nil
+        poll_interval = Float(opts.fetch(:poll_interval, 60))
+        max_polls = Integer(opts.fetch(:max_polls, 120))
+        timeout = Float(opts.fetch(:timeout, 3600))
+        raise ArgumentError, 'invalid scan polling bounds' unless poll_interval.finite? && poll_interval >= 0 && max_polls.positive? && timeout.finite? && timeout.positive?
 
-        poll_interval = if opts[:poll_interval].nil?
-                          60
-                        else
-                          opts[:poll_interval].to_i
-                        end
+        Timeout.timeout(timeout) do
+          site = nsc_obj.list_sites.find { |item| item.name == site_name }
+          raise "Site name: #{site_name} does not exist as a site in Nexpose.  Please check your spelling and try again." unless site
 
-        # Find the site and kick off the scan
-        nsc_obj.list_sites.each do |site|
-          next unless site.name == site_name
+          scan = nsc_obj.scan_site(site.id)
+          scan_id = scan if scan.is_a?(Integer)
+          scan_id = scan.id if scan_id.nil? && scan.respond_to?(:id)
+          raise IOError, 'Nexpose scan outcome unknown: missing scan identity' unless scan_id.is_a?(Integer) && scan_id.positive?
 
-          nsc_obj.scan_site(site.id)
-          @@logger.info("Scan Started for #{site_name} @ #{Time.now.strftime('%Y-%m-%d %H:%M:%S')}")
-          site_id = site.id
-        end
+          max_polls.times do |poll|
+            status = scan_activity_status(client: nsc_obj, site_id: site.id, scan_id: scan_id)
+            if %w[finished completed].include?(status)
+              @@logger.info('Scan Completed')
+              return nsc_obj
+            end
+            return nil unless %w[running dispatched integrating paused pending].include?(status)
 
-        # Periodically check the status of the scan
-        raise @logger.error("Site name: #{site_name} does not exist as a site in Nexpose.  Please check your spelling and try again.") if site_id == ''
-
-        @@logger.info("Info: Checking status for an interval of #{poll_interval} seconds until completion.")
-        loop do
-          scan_status = nil
-          nsc_obj.scan_activity.each { |scan| scan_status = scan.status if scan.site_id == site_id }
-          if scan_status == 'running'
-            print '~' # Seeing progress is good :)
-            sleep poll_interval # Sleep and check the status again...
-          else
-            @@logger.info("Scan Completed for #{site_name} @ #{Time.now.strftime('%Y-%m-%d %H:%M:%S')}")
-            break
+            sleep poll_interval if poll < max_polls - 1
           end
+          raise IOError, 'Nexpose scan outcome unknown: poll limit reached'
         end
+      rescue Timeout::Error
+        raise IOError, 'Nexpose scan outcome unknown: deadline exceeded', cause: nil
+      end
 
-        nsc_obj
-      rescue StandardError => e
-        raise e
+      private_class_method def self.scan_activity_status(opts = {})
+        client = opts[:client]
+        if client.respond_to?(:scan_activity)
+          row = Array(client.scan_activity).find do |scan|
+            next false unless scan.site_id == opts[:site_id]
+            next true unless scan.respond_to?(:scan_id) && scan.scan_id
+
+            scan.scan_id == opts[:scan_id]
+          end
+          return row&.status.to_s
+        end
+        return client.scan_status(opts[:scan_id]).to_s if client.respond_to?(:scan_status)
+
+        ''
       end
 
       # Supported Method Parameters::
@@ -230,7 +239,7 @@ module PWN
 
       public_class_method def self.download_recurring_report(opts = {})
         nsc_obj = opts[:nsc_obj]
-        report_names = opts[:report_names].to_s.scrub.split(',')
+        report_names = Array(opts[:report_names]).flat_map { |name| name.to_s.scrub.split(',') }
         @@logger.info("Generating #{report_names.count} Report(s): #{report_names.inspect}...")
 
         poll_interval = if opts[:poll_interval].nil?
@@ -341,7 +350,9 @@ module PWN
           #{self}.scan_site_by_name(
             nsc_obj: 'required - required nsc_obj returned from login method',
             site_name: 'required - required Nexpose site name to scan (case-sensitive',
-            poll_interval: 'optional - optional poll interval to check the completion status of the scan (defaults to 3 minutes'
+            poll_interval: 'optional - seconds between scan polls (defaults to 60)',
+            max_polls: 'optional - maximum status requests (defaults to 120)',
+            timeout: 'optional - overall scan wait deadline in seconds (defaults to 3600); finished or completed returns the connection, aborted or unknown returns nil, a poll limit or deadline raises IOError'
           )
 
           # Run generate report via existing config and return its result

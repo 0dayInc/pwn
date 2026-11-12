@@ -9,6 +9,19 @@ describe PWN::FFI::SoapySDR do
     expect { described_class.make(args: 'driver=mock') }.to raise_error(RuntimeError, /libSoapySDR not available/)
   end
 
+  %i[setSampleRate setFrequency setGainMode setGain setBandwidth].each do |operation|
+    it "rejects failed #{operation} without publishing requested configuration as applied" do
+      operations = %i[setSampleRate setFrequency setGainMode setGain setBandwidth]
+      operations.each { |name| allow(described_class).to receive(:"SoapySDRDevice_#{name}").and_return(0) }
+      allow(described_class).to receive(:"SoapySDRDevice_#{operation}").and_return(-2)
+      handle = { device: :device, channel: 0, rate_hz: 12_000, freq_hz: 100_000_000 }
+      expect do
+        described_class.configure(handle: handle, rate_hz: 24_000, freq_hz: 101_000_000, gain_db: 12, bw_hz: 20_000)
+      end.to raise_error(RuntimeError, /#{operation}.*-2/)
+      expect(handle).to include(rate_hz: 12_000, freq_hz: 100_000_000)
+    end
+  end
+
   it 'reports close failure and retains the stream for cleanup retry' do
     handle = { device: :device, stream: :stream }
     allow(described_class).to receive(:SoapySDRDevice_deactivateStream).and_return(0)

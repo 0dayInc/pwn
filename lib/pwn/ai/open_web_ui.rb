@@ -98,7 +98,7 @@ module PWN
               method: http_method,
               url: "#{base_uri}/#{rest_call}",
               headers: headers,
-              verify_ssl: false,
+              verify_ssl: true,
               timeout: timeout
             )
 
@@ -111,7 +111,7 @@ module PWN
                 url: "#{base_uri}/#{rest_call}",
                 headers: headers,
                 payload: http_body,
-                verify_ssl: false,
+                verify_ssl: true,
                 timeout: timeout
               )
             elsif stream
@@ -138,7 +138,7 @@ module PWN
                 url: "#{base_uri}/#{rest_call}",
                 headers: headers,
                 payload: http_body.to_json,
-                verify_ssl: false,
+                verify_ssl: true,
                 open_timeout: [timeout.to_f, 30.0].min,
                 read_timeout: idle_timeout,
                 block_response: lambda do |http_resp|
@@ -180,7 +180,7 @@ module PWN
                 url: "#{base_uri}/#{rest_call}",
                 headers: headers,
                 payload: http_body.to_json,
-                verify_ssl: false,
+                verify_ssl: true,
                 timeout: timeout
               )
             end
@@ -280,46 +280,84 @@ module PWN
         body = opts[:body].to_s
         rest_call = opts[:rest_call].to_s
 
-        lines = body.each_line.map(&:strip).reject(&:empty?)
-        # Strip SSE "data: " prefix when present; drop the terminal [DONE].
-        payloads = lines.filter_map do |line|
-          line = line.sub(/\Adata:\s*/, '')
-          next if line.empty? || line == '[DONE]'
+        records = stream_records(body: body, rest_call: rest_call)
+        done = false
+        payloads = records.filter_map do |record|
+          raise "ERROR: Open WebUI incomplete SSE stream for #{rest_call}: unterminated event" if record[:incomplete]
 
-          begin
-            JSON.parse(line, symbolize_names: true)
-          rescue JSON::ParserError
-            nil
+          data = record[:data]
+          if data == '[DONE]'
+            done = true
+            next
           end
-        end
-        if payloads.empty?
-          return {
-            message: {
-              role: 'assistant',
-              content: '',
-              error: 'empty_stream_payloads'
-            },
-            done: true,
-            done_reason: 'error'
-          }.to_json
-        end
+          raise "ERROR: Open WebUI malformed stream after [DONE] for #{rest_call}" if done
 
-        openai_compat = rest_call.include?('/v1/') ||
-                        rest_call.start_with?('v1/') ||
-                        rest_call.include?('chat/completions') ||
-                        payloads.any? { |p| p.key?(:choices) }
+          payload = parse_stream_payload(data: data, rest_call: rest_call)
+          error = payload[:error] || (payload if record[:event] == 'error')
+          if error
+            detail = error.is_a?(Hash) ? (error[:message] || error) : error
+            raise "ERROR: Open WebUI stream error for #{rest_call}: #{detail}"
+          end
+          payload
+        end
+        raise "ERROR: Open WebUI incomplete stream for #{rest_call}: no payloads" if payloads.empty?
 
+        openai_compat = rest_call.include?('chat/completions') || payloads.any? { |p| p.key?(:choices) }
         if openai_compat
+          finished = payloads.any? { |p| Array(p[:choices]).any? { |ch| ch[:finish_reason] } }
+          raise "ERROR: Open WebUI incomplete stream for #{rest_call}: missing terminal event" unless done || finished
+
           assemble_openai_compat_stream(payloads: payloads)
         else
+          raise "ERROR: Open WebUI malformed native stream for #{rest_call}: expected message object" unless payloads.any? { |p| p[:message].is_a?(Hash) } && payloads.all? { |p| !p.key?(:message) || p[:message].is_a?(Hash) }
+          raise "ERROR: Open WebUI incomplete native stream for #{rest_call}: missing terminal done frame" unless payloads.last[:done] == true && payloads[0...-1].all? { |p| p[:done] == false }
+
           assemble_native_chat_stream(payloads: payloads)
         end
+      end
+
+      # SSE dispatches at blank lines, joining every data field with a newline.
+      # Native NDJSON accepts a complete last record without a trailing newline.
+      private_class_method def self.stream_records(opts = {})
+        lines = opts[:body].sub(/\A\uFEFF/, '').split(/\r\n|\r|\n/, -1)
+        lines.pop if lines.last == ''
+        sse = lines.any? { |line| line.match?(/\A(?:data|event|id|retry)(?::|\z)|\A:/) }
+        return lines.reject { |line| line.strip.empty? }.map { |line| { data: line } } unless sse
+
+        records = []
+        data = []
+        event = nil
+        lines.each do |line|
+          if line.empty?
+            records << { data: data.join("\n"), event: event } unless data.empty?
+            data = []
+            event = nil
+          else
+            field, value = line.split(':', 2)
+            value = value.to_s.delete_prefix(' ')
+            data << value if field == 'data'
+            event = value if field == 'event'
+          end
+        end
+        # Keep framing failures ordered after any earlier provider error event.
+        records.reject! { |record| record[:data].empty? }
+        records << { incomplete: true } unless data.empty?
+        records
+      end
+
+      private_class_method def self.parse_stream_payload(opts = {})
+        payload = JSON.parse(opts[:data], symbolize_names: true)
+        raise "ERROR: Open WebUI malformed stream for #{opts[:rest_call]}: expected object" unless payload.is_a?(Hash)
+
+        payload
+      rescue JSON::ParserError
+        raise "ERROR: Open WebUI malformed stream JSON for #{opts[:rest_call]}"
       end
 
       # Proxied Ollama /ollama/api/chat NDJSON → single-object JSON string.
       private_class_method def self.assemble_native_chat_stream(opts = {})
         payloads = opts[:payloads]
-        final = payloads.reverse.find { |p| p[:done] } || payloads.last
+        final = payloads.last
         content = +''
         thinking = +''
         tool_calls = []
@@ -346,7 +384,7 @@ module PWN
           model: final[:model],
           created_at: final[:created_at],
           message: message,
-          done: true,
+          done: final[:done],
           done_reason: final[:done_reason],
           total_duration: final[:total_duration],
           load_duration: final[:load_duration],
@@ -565,7 +603,7 @@ module PWN
             text = (row.key?(:content) ? row[:content] : row['content']).to_s
             parts << text unless text.strip.empty?
           else
-            rest << row
+            rest << row.dup
           end
         end
         return rest if parts.empty?
@@ -576,7 +614,8 @@ module PWN
         user = rest.find { |row| (row[:role] || row['role']).to_s == 'user' }
         if user
           body = (user.key?(:content) ? user[:content] : user['content']).to_s
-          user[:content] = "#{text}\n\n#{body}"
+          # Returned history may already contain this strict-template prefix.
+          user[:content] = body == text || body.start_with?("#{text}\n\n") ? body : "#{text}\n\n#{body}"
           user.delete('content')
           rest
         else
@@ -804,8 +843,6 @@ module PWN
 
         response_history = opts[:response_history]
 
-        max_tokens = response_history[:usage][:total_tokens] unless response_history.nil?
-
         system_role_content = opts[:system_role_content] ||= engine[:system_role_content]
 
         system_role = {
@@ -819,7 +856,6 @@ module PWN
         }
 
         response_history ||= { choices: [system_role] }
-        choices_len = response_history[:choices].length
 
         http_body = {
           model: model,
@@ -828,10 +864,10 @@ module PWN
           stream: true
         }
 
-        if response_history[:choices].length > 1
-          response_history[:choices][1..].each do |message|
-            http_body[:messages].push(message)
-          end
+        Array(response_history[:choices] || response_history['choices']).each_with_index do |message, index|
+          next if index.zero? && %w[system developer].include?((message[:role] || message['role']).to_s)
+
+          http_body[:messages].push(message)
         end
 
         http_body[:messages].push(user_role)

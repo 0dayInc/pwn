@@ -31,14 +31,18 @@ module PWN
           end
           lines << ''
         end
-        content = pdf_stream(lines: lines)
+        pages = lines.each_slice(46).to_a
+        page_ids = pages.each_index.map { |index| 4 + (index * 2) }
         objects = [
           '<< /Type /Catalog /Pages 2 0 R >>',
-          '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
-          '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>',
-          "<< /Length #{content.bytesize} >>\nstream\n#{content}\nendstream",
+          "<< /Type /Pages /Kids [#{page_ids.map { |id| "#{id} 0 R" }.join(' ')}] /Count #{pages.length} >>",
           '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>'
         ]
+        pages.each_with_index do |page, index|
+          content = pdf_stream(lines: page)
+          objects << "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents #{page_ids[index] + 1} 0 R /Resources << /Font << /F1 3 0 R >> >> >>"
+          objects << "<< /Length #{content.bytesize} >>\nstream\n#{content}\nendstream"
+        end
         assemble_pdf(objects: objects)
       end
 
@@ -54,7 +58,7 @@ module PWN
       end
 
       private_class_method def self.pdf_escape(opts = {})
-        opts[:text].to_s.encode('UTF-8', invalid: :replace, undef: :replace).gsub('\\', '\\\\').gsub('(', '\\(').gsub(')', '\\)')
+        opts[:text].to_s.encode('UTF-8', invalid: :replace, undef: :replace).gsub(/[\\()]/) { |char| "\\#{char}" }
       end
 
       private_class_method def self.wrap_line(opts = {})

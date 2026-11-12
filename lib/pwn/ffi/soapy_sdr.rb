@@ -208,15 +208,19 @@ module PWN
         ch   = h[:channel]
         rate = (opts[:rate_hz] || 2_048_000).to_f
         freq = opts[:freq_hz].to_f
-        SoapySDRDevice_setSampleRate(dev, SOAPY_SDR_RX, ch, rate)
-        SoapySDRDevice_setFrequency(dev, SOAPY_SDR_RX, ch, freq, nil)
-        if opts[:gain_db]
-          SoapySDRDevice_setGainMode(dev, SOAPY_SDR_RX, ch, false)
-          SoapySDRDevice_setGain(dev, SOAPY_SDR_RX, ch, opts[:gain_db].to_f)
-        else
-          SoapySDRDevice_setGainMode(dev, SOAPY_SDR_RX, ch, true)
+        check = lambda do |operation, *args|
+          rc = public_send(operation, dev, SOAPY_SDR_RX, ch, *args)
+          raise "ERROR: #{operation} rc=#{rc}" unless rc.zero?
         end
-        SoapySDRDevice_setBandwidth(dev, SOAPY_SDR_RX, ch, opts[:bw_hz].to_f) if opts[:bw_hz]
+        check.call(:SoapySDRDevice_setSampleRate, rate)
+        check.call(:SoapySDRDevice_setFrequency, freq, nil)
+        if opts[:gain_db]
+          check.call(:SoapySDRDevice_setGainMode, false)
+          check.call(:SoapySDRDevice_setGain, opts[:gain_db].to_f)
+        else
+          check.call(:SoapySDRDevice_setGainMode, true)
+        end
+        check.call(:SoapySDRDevice_setBandwidth, opts[:bw_hz].to_f) if opts[:bw_hz]
         h[:rate_hz] = rate.to_i
         h[:freq_hz] = freq.to_i
         true

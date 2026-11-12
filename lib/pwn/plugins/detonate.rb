@@ -18,24 +18,14 @@ module PWN
         net = (opts[:network] || :none).to_s
         return { error: 'isolation preconditions unmet', hint: 'install podman (rootless); never falling back to host', path: path } unless PWN::Plugins::PreflightChecker.bin?(name: 'podman')
 
-        home = Dir.home
-        Dir.mktmpdir('pwn-detonate') do |tmp|
-          FileUtils.cp(path, File.join(tmp, File.basename(path)))
-          cmd = [
-            'podman', 'run', '--rm', '--network', 'none',
-            '--timeout', timeout.to_s, '-v', "#{tmp}:/sample:ro", 'alpine:latest',
-            'sh', '-c', 'touch /tmp/ioc; echo attempted_write_home=$HOME'
-          ]
-          stdout, stderr, status = Open3.capture3(*cmd)
-          iocs = {
-            stdout: stdout,
-            stderr: stderr,
-            exit: status.exitstatus,
-            home_untouched: File.directory?(home),
-            attempted_home_write: stdout.include?('attempted_write_home')
-          }
-          { iocs: iocs, network: net, timeout: timeout, isolated: true }
-        end
+        {
+          error: 'sample execution backend is not implemented; refusing synthetic detonation',
+          path: path,
+          network: net,
+          timeout: timeout,
+          isolated: false,
+          executed: false
+        }
       end
 
       public_class_method def self.authors
@@ -44,7 +34,7 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
-          # Run a sample in a network-isolated ephemeral container.
+          # Validate the sample and report unavailable execution honestly; never run it on the host.
           #{self}.detonate(
             path: 'required - sample filesystem path',
             sample: 'optional - alias for path',

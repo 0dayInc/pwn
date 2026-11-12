@@ -4,6 +4,23 @@ require 'spec_helper'
 require 'tmpdir'
 
 RSpec.describe PWN::Bounty::LifecycleAuthzReplay do
+  it 'reloads its normalized YAML without losing nesting or scalar values' do
+    Dir.mktmpdir('lifecycle-yaml-audit-') do |dir|
+      plan = {
+        campaign: { id: 'fixture', notes: "first\n  :nested: literal\nlast" },
+        actors: [{ id: 'reader', metadata: { enabled: false, retries: 2, label: '001' } }],
+        surfaces: [{ id: 'page', metadata: { flags: [true, nil, 'false'] } }],
+        checkpoints: %w[pre_change post_change_t0],
+        metadata: { 'nested-key' => { value: 'a:b' } }
+      }
+      original = Marshal.dump(plan)
+      run = described_class.start_run(plan: plan, output_dir: dir, run_id: 'fixture-run')
+      reloaded = described_class.load_plan(yaml_path: File.join(run[:run_root], 'plan.normalized.yaml'))
+      expect(reloaded).to eq(run[:plan])
+      expect(Marshal.dump(plan)).to eq(original)
+    end
+  end
+
   it 'builds a normalized evidence bundle and flags stale access' do
     Dir.mktmpdir('lifecycle-authz-replay-spec-') do |tmp_dir|
       run_obj = described_class.start_run(

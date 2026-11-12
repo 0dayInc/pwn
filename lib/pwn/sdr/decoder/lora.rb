@@ -444,7 +444,7 @@ module PWN
                                 implicit_header: opts.fetch(:implicit_header, false), payload_length: opts[:payload_length],
                                 cr: opts.fetch(:cr, 1), crc: opts.fetch(:crc, true), ldro: opts[:ldro], invert_iq: opts.fetch(:invert_iq, false))
           PWN::SDR::Decoder::Base.run_iq(
-            **opts, freq_obj: freq_obj, protocol: 'LoRa', sample_rate: rate, demod: demod,
+            **opts, freq_obj: freq_obj, protocol: 'LoRa', sample_rate: rate, demod: demod, fallback: :raise,
                     note: 'Raw LoRa PHY: SF7-12, explicit/implicit headers, optional CRC, LDRO, normal/inverted IQ.',
                     describe: proc { |frame| { modulation: 'CSS', sf: frame[:sf], crc_valid: frame[:crc_valid] } }
           )

@@ -229,7 +229,7 @@ RSpec.describe PWN::Plugins::Vault, 'loot corruption safety' do
     cipher.auth_data = 'pwn-vault'
     ct = cipher.update('legacy-fixture') + cipher.final
     secret = { iv: Base64.strict_encode64(iv), ct: Base64.strict_encode64(ct), tag: Base64.strict_encode64(cipher.auth_tag) }
-    File.binwrite(File.join(@root, '.pwn-vault.key'), key)
+    File.open(File.join(@root, '.pwn-vault.key'), File::WRONLY | File::CREAT | File::EXCL, 0o600) { |file| file.write(key) }
     File.write(@legacy_path, JSON.generate(legacy: secret))
     expect(described_class.fetch(label: 'legacy')).to eq('legacy-fixture')
     described_class.store(label: 'hardware', secret: 'hardware-fixture', yubikey: {})

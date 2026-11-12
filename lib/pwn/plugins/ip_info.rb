@@ -93,7 +93,7 @@ module PWN
             dns_resolver ||= Resolv::DNS.new
             target_arr = dns_resolver.getaddresses(target).map(&:to_s).uniq
           rescue Resolv::ResolvError
-            target_arr = nil
+            target_arr = []
           end
         end
 
@@ -109,7 +109,7 @@ module PWN
 
           next unless proxy.nil?
 
-          ip_info_resp.each do |ip_resp|
+          ip_resp_hash.tap do |ip_resp|
             tls_port_avail = PWN::Plugins::Sock.check_port_in_use(
               server_ip: this_target,
               port: tls_port
@@ -182,6 +182,7 @@ module PWN
         results_file = opts[:results_file] ||= "/tmp/SUBS.#{parent_domain}-#{timestamp}-pwn_bruteforce_subdomains.txt"
 
         File.write(results_file, "[\n")
+        results_started = true
 
         # Break up dictonary file into sublines and process each subline in a thread
         dict_lines = File.readlines(dictionary).shuffle
@@ -215,12 +216,14 @@ module PWN
       rescue StandardError => e
         raise e
       ensure
-        # Strip trailing comma and close JSON array
-        final_results = File.readlines(results_file).uniq
-        # Strip trailing newline and comma from last line
-        last_line = final_results[-1].chomp.chomp(',')
-        final_results[-1] = last_line
-        File.write(results_file, "#{final_results.join}\n]")
+        if results_started
+          # Strip trailing comma and close JSON array
+          final_results = File.readlines(results_file).uniq
+          # Strip trailing newline and comma from last line
+          last_line = final_results[-1].chomp.chomp(',')
+          final_results[-1] = last_line
+          File.write(results_file, "#{final_results.join}\n]")
+        end
       end
 
       # Author(s):: 0day Inc. <support@0dayinc.com>

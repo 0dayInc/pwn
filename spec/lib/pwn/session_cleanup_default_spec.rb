@@ -132,7 +132,7 @@ RSpec.describe 'Bundled session cleanup' do
     allow(PWN::SessionCleanup).to receive(:maintain).and_return(state: 'planned')
     expect(PWN::AI::Agent::Learning).not_to receive(:consolidate)
     expect(PWN::AI::Agent::Learning).to receive(:prune_outcomes!).with(dry_run: true).once.and_return({})
-    expect(PWN::AI::Agent::Mistakes).to receive(:lean!).with(dry_run: true).once.and_return({})
+    expect(PWN::AI::Agent::Mistakes).not_to receive(:lean!)
     expect(PWN::AI::Agent::Policy).to receive(:lean!).with(dry_run: true).once.and_return({})
     expect(PWN::SessionCleanup.coordinate(dry_run: true)[:state]).to eq('planned')
     expect(Dir.exist?(File.join(@tmp, '.pwn', 'maintenance', 'runs'))).to be(false)

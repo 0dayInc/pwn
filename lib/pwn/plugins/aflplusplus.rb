@@ -267,6 +267,7 @@ module PWN
           argv << opts[:in_dir].to_s
         else
           argv = ['afl-fuzz', '-i', opts[:in_dir].to_s, '-o', opts[:out_dir].to_s]
+          argv += ['-V', opts[:max_runtime].to_i.to_s] if opts[:max_runtime].to_i.positive?
           argv += ['-x', opts[:dict].to_s] if opts[:dict].to_s != '' && File.file?(opts[:dict].to_s)
           argv += ['--', *Shellwords.split(opts[:target].to_s)]
         end

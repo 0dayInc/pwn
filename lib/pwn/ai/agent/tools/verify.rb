@@ -37,8 +37,8 @@ PWN::AI::Agent::Registry.register(
       when 'file_grep'
         path = (a[:path] || a['path']).to_s
         rx = (a[:pattern] || a['pattern']).to_s
-        body = File.file?(path) ? File.read(path) : ''
-        { type: type, passed: !rx.empty? && body.match?(Regexp.new(rx)), path: path }
+        body = File.read(path) if File.file?(path)
+        { type: type, passed: !body.nil? && !rx.empty? && body.match?(Regexp.new(rx)), path: path }
       when 'port_open'
         host = (a[:host] || a['host'] || '127.0.0.1').to_s
         port = (a[:port] || a['port']).to_i
@@ -58,6 +58,10 @@ PWN::AI::Agent::Registry.register(
         { type: type, passed: false, error: 'unknown check type' }
       end
     end
-    { passed: results.all? { |r| r[:passed] }, results: results }
+    # Acceptance is the operation's success, not merely handler completion.
+    # Use the shared execution field retained by Dispatch and result paging;
+    # passed remains the detailed verifier API, not a rule for arbitrary tools.
+    passed = results.all? { |result| result[:passed] }
+    { success: passed, passed: passed, results: results }
   }
 )

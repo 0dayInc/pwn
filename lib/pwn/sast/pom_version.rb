@@ -2,6 +2,7 @@
 
 require 'json'
 require 'socket'
+require 'shellwords'
 
 module PWN
   module SAST
@@ -9,21 +10,26 @@ module PWN
     # of dependent software within source repos to ensure patching
     # requirements for those dependencies can be met.
     module PomVersion
+      @@logger = PWN::Plugins::PWNLogger.create
+
       # Supported Method Parameters::
       # PWN::SAST::PomVersion.scan(
       #   dir_path: 'optional path to dir defaults to .'
+      #   exclude_test_paths: 'optional - defaults to true; exclude test/tests/spec/specs/__tests__ path components; false includes them',
       #   git_repo_root_uri: 'optional http uri of git repo scanned'
       # )
 
       public_class_method def self.scan(opts = {})
         dir_path = opts[:dir_path]
+        exclude_test_paths = opts.fetch(:exclude_test_paths, true)
         git_repo_root_uri = opts[:git_repo_root_uri].to_s.scrub
         result_arr = []
-        ai_module_reflection = PWN::Env[:ai][:module_reflection]
-        logger_results = "AI Module Reflection => #{PWN::Env[:ai][:module_reflection]} => "
+        ai_module_reflection = PWN::Env.dig(:ai, :module_reflection)
+        logger_results = "AI Module Reflection => #{ai_module_reflection} => "
 
         PWN::Plugins::FileFu.recurse_in_dir(dir_path: dir_path) do |entry|
-          if File.file?(entry) && File.basename(entry) == 'pom.xml' && entry !~ /test/i
+          entry = Shellwords.split(entry).fetch(0)
+          if File.file?(entry) && File.basename(entry) == 'pom.xml' && (!exclude_test_paths || !entry.match?(PWN::SAST::TestCaseEngine::TEST_PATH_PATTERN))
             line_no_and_contents_arr = []
             entry_beautified = false
 
@@ -38,6 +44,7 @@ module PWN
               -e 'version' {PWN_SAST_SRC_TARGET} 2> /dev/null
             "
 
+            test_case_filter = test_case_filter.gsub('{PWN_SAST_SRC_TARGET}') { Shellwords.escape(entry) }
             str = `#{test_case_filter}`.to_s.scrub
 
             if str.to_s.empty?
@@ -83,9 +90,7 @@ module PWN
                     source_code_snippet: contents
                   }.to_json
 
-                  ai_analysis = PWN::AI::Agent::SAST.analyze(
-                    request: request
-                  )
+                  ai_analysis = (PWN::AI::Agent::SAST.analyze(request: request) if ai_module_reflection)
                   ai_analysis ||= 'N/A'
 
                   hash_line[:line_no_and_contents] = line_no_and_contents_arr.push(
@@ -151,6 +156,7 @@ module PWN
           # Run scan and return its result
           #{self}.scan(
             dir_path: 'optional - optional path to dir defaults to .',
+            exclude_test_paths: 'optional - defaults to true; exclude test/tests/spec/specs/__tests__ path components; false includes them',
             git_repo_root_uri: 'optional - optional http uri of git repo scanned'
           )
 

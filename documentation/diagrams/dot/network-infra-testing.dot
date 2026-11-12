@@ -34,7 +34,7 @@ digraph "PWN_Network" {
   subgraph cluster_cloud {
     label="Cloud / CI"; fontcolor="#ddd6fe"; style=rounded;
     color="#6d28d9"; bgcolor="#2e1065";
-    AWS  [label="PWN::AWS::*\n90 services",  fillcolor="#c4b5fd"];
+    AWS  [label="PWN::AWS::*\n85 services",  fillcolor="#c4b5fd"];
     Jenk [label="Plugins::Jenkins\nvSphere · Vault", fillcolor="#c4b5fd"];
   }
   Report [label="Reports · DefectDojo", fillcolor="#7dd3fc"];

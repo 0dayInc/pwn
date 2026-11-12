@@ -355,7 +355,7 @@ module PWN
         RestClient.post(REVOKE_URI, { token: tok }, content_type: 'application/x-www-form-urlencoded') if real_config_value?(value: tok)
         blank = { bearer_token: nil, refresh_token: nil, expires_at: nil }
         sync_oauth_into_env(oauth: c.merge(blank))
-        persist_oauth_to_vault(oauth: c.merge(blank.merge(bearer_token: '')))
+        persist_oauth_to_vault(oauth: c, revoke: true)
         FileUtils.rm_f(PENDING_FILE)
         true
       rescue RestClient::ExceptionWithResponse
@@ -409,8 +409,11 @@ module PWN
           slot = vault[:plugins][:google_workspace][:oauth]
           slot = vault[:plugins][:google_workspace][:oauth] = {} unless slot.is_a?(Hash)
           %i[bearer_token refresh_token expires_at client_id client_secret redirect_uri scope].each do |k|
+            # Missing grant fields (including nil) do not revoke prior values.
             slot[k] = oauth[k] if oauth.key?(k) && !oauth[k].nil?
           end
+          # Only the explicit revoke operation clears durable token fields.
+          slot.merge!(bearer_token: '', refresh_token: nil, expires_at: nil) if opts[:revoke] == true
         end
         true
       rescue StandardError => e
@@ -478,6 +481,9 @@ module PWN
           id: msg[:id],
           threadId: msg[:threadId],
           from: headers['from'],
+          reply_to: headers['reply-to'],
+          message_id: headers['message-id'],
+          references: headers['references'],
           to: headers['to'],
           subject: headers['subject'],
           date: headers['date'],
@@ -518,7 +524,8 @@ module PWN
         orig = gmail_get(id: id)
         subj = orig[:subject].to_s
         subj = "Re: #{subj}" unless subj.downcase.start_with?('re:')
-        raw = gmail_rfc822(opts.merge(to: orig[:from], subject: subj, in_reply_to: orig[:id]))
+        references = [orig[:references], orig[:message_id]].compact.join(' ')
+        raw = gmail_rfc822(opts.merge(to: orig[:reply_to] || orig[:from], subject: subj, in_reply_to: orig[:message_id], references: references))
         sent = api(
           http_method: :post,
           url: "#{GMAIL_API}/users/me/messages/send",
@@ -539,6 +546,7 @@ module PWN
           "Content-Type: #{ctype}; charset=UTF-8"
         ]
         lines << "In-Reply-To: #{opts[:in_reply_to]}" if opts[:in_reply_to]
+        lines << "References: #{opts[:references]}" unless opts[:references].to_s.empty?
         lines << ''
         lines << opts[:body].to_s
         Base64.urlsafe_encode64(lines.join("\r\n"), padding: false)
@@ -635,7 +643,7 @@ module PWN
 
       public_class_method def self.drive_search(opts = {})
         q = opts[:query].to_s
-        q = "fullText contains '#{q.gsub("'", "\\'")}'" unless opts[:raw_query]
+        q = "fullText contains '#{q.gsub(/['\\]/) { |char| "\\#{char}" }}'" unless opts[:raw_query]
         data = api(
           url: "#{DRIVE_API}/files",
           params: {

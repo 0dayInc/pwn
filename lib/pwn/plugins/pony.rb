@@ -152,7 +152,7 @@ module PWN
           # boundary to encapsulate the body-parts within the
           # multipart/mixed boundary that will be created automatically.
           if opts[:attachments] && opts[:html_body] && opts[:body]
-            part(content_type: 'multipart/alternative') do |p|
+            m.part(content_type: 'multipart/alternative') do |p|
               p.html_part = build_html_part(opts)
               p.text_part = build_text_part(opts)
             end
@@ -166,7 +166,7 @@ module PWN
 
           elsif opts[:body]
             # If all we have is a text body, we don't need to worry about parts.
-            body opts[:body]
+            m.body opts[:body]
           end
 
           m.delivery_method opts[:via], opts[:via_options]

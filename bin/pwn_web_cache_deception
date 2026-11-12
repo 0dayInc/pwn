@@ -2,6 +2,8 @@
 # frozen_string_literal: true
 
 require 'pwn'
+require 'uri'
+require 'English'
 
 opts = PWN::Env[:driver_opts]
 PWN::Driver::Parser.new do |options|
@@ -45,7 +47,7 @@ PWN::Driver::Parser.new do |options|
     opts[:yubikey_serial] = serial
   end
 
-  options.on('-pPROXY', '--proxy=PROXY', '<Optional - HTTP or Socks Proxy || tor>') do |p|
+  options.on('--proxy=PROXY', '<Optional - HTTP or Socks Proxy || tor>') do |p|
     opts[:proxy] = p
   end
 end.parse!
@@ -66,9 +68,27 @@ end
 # Required Flag Variables
 target_url = opts[:target_url].to_s.scrub.strip.chomp
 output_results = opts[:output_results].to_s.scrub.strip.chomp
+raise ArgumentError, '--target-url and --output-results are required' if target_url.empty? || output_results.empty?
+
+begin
+  target_uri = URI.parse(target_url)
+rescue URI::InvalidURIError
+  raise ArgumentError, 'Target URL must be an absolute HTTP or HTTPS URL'
+end
+raise ArgumentError, 'Target URL must be an absolute HTTP or HTTPS URL' unless %w[http https].include?(target_uri.scheme) && !target_uri.host.to_s.empty?
+raise ArgumentError, 'Invalid output path' if output_results.include?("\0") || File.symlink?(output_results)
+raise ArgumentError, 'Invalid output file or parent directory' unless File.directory?(File.dirname(output_results)) && File.writable?(File.dirname(output_results)) && (!File.exist?(output_results) || (File.file?(output_results) && File.writable?(output_results)))
 
 # Optional Flag Variables
 pwn_www_mod_str = opts[:pwn_www_mod_str].to_s.scrub.strip.chomp
+unless pwn_www_mod_str.empty?
+  begin
+    pwn_www_mod = PWN::WWW.const_get(pwn_www_mod_str, false)
+    raise ArgumentError, "Module PWN::WWW::#{pwn_www_mod_str} requires open, login, logout and close" unless %i[open login logout close].all? { |method| pwn_www_mod.respond_to?(method) }
+  rescue NameError
+    raise ArgumentError, "Invalid module PWN::WWW::#{pwn_www_mod_str}"
+  end
+end
 
 username = opts[:username].to_s.scrub.strip.chomp
 
@@ -91,11 +111,7 @@ unless opts[:yubikey_account].nil?
 end
 
 password = opts[:password] # Don't cast to string to detect if PWN::Plugins::AuthenticationHelper is necessary
-if password.nil?
-  password = PWN::Plugins::AuthenticationHelper.mask_password
-else
-  password = opts[:password].to_s.scrub.strip.chomp
-end
+password = PWN::Plugins::AuthenticationHelper.mask_password if password.nil? && !pwn_www_mod_str.empty?
 
 mfa = opts[:mfa] || false
 
@@ -113,7 +129,7 @@ begin
     orig_url_response_length = browser.html.length
 
     http_result = ''
-    if target_url.include?('?')
+    if target_url.include?('?') || target_url.include?('#')
       injected_target_url = URI.parse(target_url)
       # Add non-existent file at the end of the path
       injected_target_url.path = "#{injected_target_url.path.to_s.chomp('/')}/wcd.#{payload}"
@@ -154,19 +170,6 @@ begin
 
   # Script starts crunching here...
   if pwn_www_mod_str != ''
-    begin
-      pwn_www_mod = PWN::WWW.const_get(pwn_www_mod_str)
-      unless pwn_www_mod.respond_to?('open') && pwn_www_mod.respond_to?('login') && pwn_www_mod.respond_to?('logout')
-        puts "#{@dark_red}Module PWN::WWW::#{pwn_www_mod_str} Missing #open #login and/or #logout Method(s)#{@end_of_color}"
-        puts `#{File.basename($PROGRAM_NAME)} -l`
-        exit
-      end
-    rescue NAME_ERROR => e
-      puts "#{@dark_red}Invalid module PWN::WWW::#{pwn_www_mod_str}#{@end_of_color}"
-      puts `#{File.basename($PROGRAM_NAME)} -l`
-      exit
-    end
-
     puts "#{@green}Leveraging PWN::WWW::#{pwn_www_mod_str} to Obtain a Post AuhN State...#{@end_of_color}"
     if proxy
       browser_obj = pwn_www_mod.open(
@@ -177,6 +180,7 @@ begin
       browser_obj = pwn_www_mod.open(browser_type: :chrome)
     end
     # Now AuthN via PWN::WWW::<MODULE>
+    owned_browser = browser_obj
     login_opts = {
       browser_obj: browser_obj,
       username: username,
@@ -195,6 +199,7 @@ begin
     browser_obj = PWN::Plugins::TransparentBrowser.open(browser_type: :chrome)
   end
 
+  owned_browser ||= browser_obj
   browser = browser_obj[:browser]
 
   puts "#{@green}Navigating to Target URL: #{target_url}#{@end_of_color}\n\n\n"
@@ -220,14 +225,20 @@ begin
 rescue StandardError => e
   raise e
 ensure
-  if browser_obj &&
-     pwn_www_mod
-
-    browser_obj = pwn_www_mod.logout(browser_obj: browser_obj)
-    browser_obj = pwn_www_mod.close(browser_obj: browser_obj)
-  else
-    browser_obj = PWN::Plugins::TransparentBrowser.close(
-      browser_obj: browser_obj
-    )
+  primary_error = $ERROR_INFO
+  cleanup_error = nil
+  if owned_browser
+    begin
+      pwn_www_mod&.logout(browser_obj: owned_browser)
+    rescue StandardError => e
+      cleanup_error = e
+    ensure
+      begin
+        (pwn_www_mod || PWN::Plugins::TransparentBrowser).close(browser_obj: owned_browser)
+      rescue StandardError => e
+        cleanup_error ||= e
+      end
+    end
   end
+  raise cleanup_error if cleanup_error && !primary_error
 end

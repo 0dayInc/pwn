@@ -195,7 +195,7 @@ module PWN
           {
             practiced: results.length,
             resolved: results.count { |r| r[:resolved] },
-            skipped_cooldown: cool.count { |_, v| v[:fail_nights].to_i >= COOLDOWN_FAIL_NIGHTS },
+            skipped_cooldown: cool.count { |_, v| (v[:fail_nights] || v['fail_nights']).to_i >= COOLDOWN_FAIL_NIGHTS },
             skipped_parked: (defined?(Mistakes) && Mistakes.respond_to?(:operator_inbox) ? Mistakes.operator_inbox[:count] : 0),
             operator_inbox: (defined?(Mistakes) && Mistakes.respond_to?(:operator_inbox) ? Mistakes.operator_inbox[:items] : []),
             results: results,
@@ -971,7 +971,7 @@ module PWN
 
           cool = opts[:cooldown] || {}
           entry = cool[m[:signature].to_s] || cool[m[:signature].to_sym]
-          return true if entry && entry[:fail_nights].to_i >= COOLDOWN_FAIL_NIGHTS && (entry[:parked] || entry['parked'])
+          return true if entry && (entry[:fail_nights] || entry['fail_nights']).to_i >= COOLDOWN_FAIL_NIGHTS && (entry[:parked] || entry['parked'])
 
           false
         end

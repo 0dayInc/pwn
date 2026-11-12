@@ -85,7 +85,9 @@ module PWN
         end
 
         case response.code
-        when 201, 204
+        when 201
+          response = JSON.parse(response, symbolize_names: true).merge(http_response_code: response.code)
+        when 204
           response = { http_response_code: response.code }
         else
           response = JSON.parse(response, symbolize_names: true) if response.is_a?(RestClient::Response)
@@ -219,8 +221,8 @@ module PWN
         raise 'ERROR: epic_name cannot be nil when issue_type is :epic.' if issue_type == :epic && epic_name.nil?
 
         # Attempt create, dynamically omit unlicensed fields on failure
-        create_attempts, get_issue_attempts = 1
-        max_create_attempts, max_get_issue_attempts = 7
+        create_attempts = get_issue_attempts = 1
+        max_create_attempts = max_get_issue_attempts = 7
         created_issue = nil
         begin
           http_body = {
@@ -281,9 +283,13 @@ module PWN
             retry
           end
         rescue RestClient::ExceptionWithResponse => e
-          raise e if create_attempts >= max_create_attempts || e.response.body.to_s.empty?
+          raise e if create_attempts >= max_create_attempts || e.response&.body.to_s.empty?
 
-          json = JSON.parse(e.response.body, symbolize_names: true)
+          begin
+            json = JSON.parse(e.response.body, symbolize_names: true)
+          rescue JSON::ParserError
+            raise e
+          end
           errors_hash = json[:errors] if json.is_a?(Hash)
           if errors_hash.is_a?(Hash)
             unlicensed_field_keys = errors_hash.select { |_fk, msg| msg.to_s =~ /unlicensed/i }.keys
@@ -297,6 +303,7 @@ module PWN
               retry
             end
           end
+          raise e
         end
 
         created_issue
@@ -369,7 +376,7 @@ module PWN
         raise 'ERROR: comment_action must be one of :delete, :add, or :update.' unless %i[delete add update].include?(comment_action)
 
         comment_id = opts[:comment_id]
-        raise 'ERROR: comment_id cannot be nil when comment_action is :delete or :update.' unless %i[delete update].include?(comment_action) || comment_id.nil?
+        raise 'ERROR: comment_id cannot be nil when comment_action is :delete or :update.' if %i[delete update].include?(comment_action) && comment_id.nil?
 
         author = opts[:author]
         comment = opts[:comment].to_s.scrub

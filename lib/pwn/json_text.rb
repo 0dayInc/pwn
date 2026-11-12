@@ -16,16 +16,16 @@ module PWN
       depth = opts[:depth].to_i
       case value
       when String
-        utf = value.dup.force_encoding(Encoding::UTF_8)
+        utf = value.encoding == Encoding::BINARY ? value.dup.force_encoding(Encoding::UTF_8) : value.encode(Encoding::UTF_8, invalid: :replace, undef: :replace)
         utf.valid_encoding? ? utf : utf.scrub
       when Hash
-        return value if depth >= 100
+        raise JSON::NestingError, 'JSON text exceeds container nesting limit (100)' if depth >= 100
 
         value.each_with_object({}) do |(key, item), out|
           out[key.is_a?(String) ? prepare(value: key, depth: depth + 1) : key] = prepare(value: item, depth: depth + 1)
         end
       when Array
-        return value if depth >= 100
+        raise JSON::NestingError, 'JSON text exceeds container nesting limit (100)' if depth >= 100
 
         value.map { |item| prepare(value: item, depth: depth + 1) }
       else
@@ -68,17 +68,29 @@ class << JSON
   end
 end
 
-if defined?(JSON::Ext::Generator::GeneratorMethods)
-  JSON::Ext::Generator::GeneratorMethods.constants.each do |kind|
-    mod = JSON::Ext::Generator::GeneratorMethods.const_get(kind)
-    next unless mod.is_a?(Module) && mod.method_defined?(:to_json)
+# Newer json releases share one Ruby GeneratorMethods implementation; older
+# releases install per-type C methods. Wrap the actual entry points in either.
+generators = []
+generators << JSON::GeneratorMethods if defined?(JSON::GeneratorMethods)
+generators.concat(JSON::Ext::Generator::GeneratorMethods.constants.map { |kind| JSON::Ext::Generator::GeneratorMethods.const_get(kind) }) if defined?(JSON::Ext::Generator::GeneratorMethods)
+generators.uniq.each do |mod|
+  next unless mod.is_a?(Module) && mod.method_defined?(:to_json)
 
-    mod.class_eval do
-      alias_method :to_json_without_json_text, :to_json unless method_defined?(:to_json_without_json_text)
-      define_method(:to_json) do |*rest|
-        prepared = PWN::JSONText.prepare(value: self)
-        mod.instance_method(:to_json_without_json_text).bind_call(prepared, *rest)
-      end
+  mod.class_eval do
+    alias_method :to_json_without_json_text, :to_json unless method_defined?(:to_json_without_json_text)
+    define_method(:to_json) do |*rest|
+      prepared = PWN::JSONText.prepare(value: self)
+      mod.instance_method(:to_json_without_json_text).bind_call(prepared, *rest)
+    end
+  end
+end
+
+# ActiveSupport encodes through JSON::Coder#dump, which does not enter JSON.generate.
+if defined?(JSON::Coder)
+  JSON::Coder.class_eval do
+    alias_method :dump_without_json_text, :dump unless method_defined?(:dump_without_json_text)
+    define_method(:dump) do |object, io = nil|
+      dump_without_json_text(PWN::JSONText.prepare(value: object), io)
     end
   end
 end

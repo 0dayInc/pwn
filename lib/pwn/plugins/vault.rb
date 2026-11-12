@@ -17,6 +17,8 @@ module PWN
       CREDENTIAL_KDF_ITERATIONS = 600_000
       YUBIKEY_KDF = 'yubikey-hmac-sha1-hkdf-sha256'
       YUBIKEY_HEADER = "PWN-YUBIKEY-VAULT:1\n"
+      class MasterKeyError < IOError; end
+      private_constant :MasterKeyError
 
       # Returns an authenticated envelope; the caller persists only this value.
       # keyring is an injected OS-keyring reader responding to call(key_id).
@@ -481,31 +483,36 @@ module PWN
         eng = engagement_id(opts)
         label = opts[:label].to_s
         label = "#{opts[:host] || 'loot'}:#{opts[:username] || 'user'}:#{SecureRandom.hex(4)}" if label.empty?
-        records = load_records(engagement: eng)
-        selector = opts[:yubikey]
-        prior = records.find { |row| row[:label] == label }
-        envelope = prior && prior[:secret]
-        if selector.nil? && envelope.is_a?(Hash) && (envelope[:kdf] || envelope['kdf']) == YUBIKEY_KDF
-          metadata = envelope[:yubikey] || envelope['yubikey']
-          selector = metadata.transform_keys(&:to_sym).slice(:slot, :serial)
+        path = box_path(engagement: eng)
+        FileUtils.mkdir_p(File.dirname(path), mode: 0o700)
+        record = with_vault_lock(file: path) do
+          records = load_records(engagement: eng)
+          selector = opts[:yubikey]
+          prior = records.find { |row| row[:label] == label }
+          envelope = prior && prior[:secret]
+          if selector.nil? && envelope.is_a?(Hash) && (envelope[:kdf] || envelope['kdf']) == YUBIKEY_KDF
+            metadata = envelope[:yubikey] || envelope['yubikey']
+            selector = metadata.transform_keys(&:to_sym).slice(:slot, :serial)
+          end
+          row = {
+            id: SecureRandom.hex(6),
+            label: label,
+            kind: (opts[:kind] || 'password').to_s,
+            engagement: eng,
+            host: opts[:host].to_s,
+            service: opts[:service].to_s,
+            username: opts[:username].to_s,
+            secret: encrypt_secret(secret: secret, yubikey: selector),
+            source: (opts[:source] || 'manual').to_s,
+            where: (opts[:where] || opts[:path]).to_s,
+            finding_id: (opts[:finding_id] || opts[:finding]).to_s,
+            at: Time.now.utc.iso8601
+          }
+          records.reject! { |item| item[:label] == label }
+          records << row
+          save_records(engagement: eng, records: records)
+          row
         end
-        record = {
-          id: SecureRandom.hex(6),
-          label: label,
-          kind: (opts[:kind] || 'password').to_s,
-          engagement: eng,
-          host: opts[:host].to_s,
-          service: opts[:service].to_s,
-          username: opts[:username].to_s,
-          secret: encrypt_secret(secret: secret, yubikey: selector),
-          source: (opts[:source] || 'manual').to_s,
-          where: (opts[:where] || opts[:path]).to_s,
-          finding_id: (opts[:finding_id] || opts[:finding]).to_s,
-          at: Time.now.utc.iso8601
-        }
-        records.reject! { |row| row[:label] == label }
-        records << record
-        save_records(engagement: eng, records: records)
         note_mission_loot(handle: record[:id], host: opts[:host])
         record.except(:secret).merge(stored: true)
       end
@@ -617,13 +624,66 @@ module PWN
       end
 
       private_class_method def self.master_key(opts = {})
-        _n = opts[:n]
         path = key_path
-        unless File.file?(path)
-          File.binwrite(path, OpenSSL::Random.random_bytes(32))
-          File.chmod(0o600, path)
+        with_vault_lock(file: path) do
+          stat = begin
+            File.lstat(path)
+          rescue Errno::ENOENT
+            nil
+          end
+          unless stat
+            raise MasterKeyError unless opts[:create] == true
+
+            software_loot = load_all_records.any? do |row|
+              envelope = row[:secret] || row
+              !envelope.key?(:kdf) && !envelope.key?('kdf')
+            end
+            raise MasterKeyError if software_loot
+
+            create_master_key(path: path)
+          end
+          read_master_key(path: path)
         end
-        File.binread(path)
+      rescue StandardError
+        raise MasterKeyError, 'Invalid or unavailable software vault master key: restore an owned, single-link, 0600 regular file containing the original 32-byte key', cause: nil
+      end
+
+      private_class_method def self.create_master_key(opts = {})
+        path = opts.fetch(:path)
+        # Tempfile opens with 0600 from the outset. Link publishes a complete
+        # key without replacing any existing path; ensure also handles Interrupt.
+        Tempfile.create(['.pwn-vault-key-', '.tmp'], File.dirname(path)) do |key|
+          key.binmode
+          key.write(OpenSSL::Random.random_bytes(32))
+          key.flush
+          validate_master_key!(stat: key.stat)
+          key.fsync
+          File.link(key.path, path)
+          File.open(File.dirname(path), File::RDONLY, &:fsync)
+        end
+      end
+
+      private_class_method def self.validate_master_key!(opts = {})
+        stat = opts.fetch(:stat)
+        raise MasterKeyError unless stat.file? && stat.uid == Process.uid && stat.nlink == 1 && (stat.mode & 0o7777) == 0o600 && stat.size == 32
+
+        stat
+      end
+
+      private_class_method def self.read_master_key(opts = {})
+        path = opts.fetch(:path)
+        expected = validate_master_key!(stat: File.lstat(path))
+        File.open(path, File::RDONLY | File::NOFOLLOW | File::NONBLOCK) do |key|
+          actual = validate_master_key!(stat: key.stat)
+          raise MasterKeyError unless [expected.dev, expected.ino] == [actual.dev, actual.ino]
+
+          bytes = key.read(33)
+          validate_master_key!(stat: key.stat)
+          current = validate_master_key!(stat: File.lstat(path))
+          raise MasterKeyError unless bytes&.bytesize == 32 && [current.dev, current.ino] == [actual.dev, actual.ino]
+
+          bytes
+        end
       end
 
       private_class_method def self.encrypt_secret(opts = {})
@@ -631,7 +691,7 @@ module PWN
 
         cipher = OpenSSL::Cipher.new('aes-256-gcm')
         cipher.encrypt
-        cipher.key = master_key
+        cipher.key = master_key(create: true)
         iv = cipher.random_iv
         cipher.auth_data = 'pwn-vault'
         ct = cipher.update(opts[:secret].to_s) + cipher.final
@@ -657,6 +717,8 @@ module PWN
         cipher.auth_tag = Base64.strict_decode64(row[:tag] || row['tag'].to_s)
         cipher.auth_data = 'pwn-vault'
         cipher.update(Base64.strict_decode64(row[:ct] || row['ct'].to_s)) + cipher.final
+      rescue MasterKeyError
+        raise
       rescue StandardError
         raise if hardware || opts[:yubikey]
 

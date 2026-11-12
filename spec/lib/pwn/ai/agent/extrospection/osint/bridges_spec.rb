@@ -3,6 +3,10 @@
 require 'spec_helper'
 
 describe 'PWN::AI::Agent::Extrospection (osint/bridges)' do
+  before do
+    allow(PWN::AI::Agent::Extrospection).to receive(:bridge_bin).and_return(nil)
+  end
+
   it 'should expose BRIDGE_FEEDS for local passive OSINT tools' do
     e = PWN::AI::Agent::Extrospection
     expect(e.const_get(:BRIDGE_FEEDS)).to eq(%i[theharvester spiderfoot amass reconng])

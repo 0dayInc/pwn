@@ -461,6 +461,7 @@ module PWN
 
           raise 'ERROR: :freq_obj is required' unless freq_obj.is_a?(Hash)
           raise 'ERROR: :demod required' if demod.nil?
+          raise ArgumentError, ':sample_rate must be positive' unless rate.positive?
 
           src = resolve_iq_source(opts.merge(sample_rate: rate, chunk_samples: opts[:chunk_samples] || (chunk_b / 4)))
 
@@ -479,6 +480,8 @@ module PWN
           # Audio demods have fixed timing and cannot consume feed_iq's rate
           # keyword. No implicit resampling or private demod state mutation.
           actual_rate = src[:rate_hz] || rate
+          raise ArgumentError, 'I/Q source rate must be finite and positive' unless Float(actual_rate).finite? && Float(actual_rate).positive?
+          raise ArgumentError, "Unsupported IQ format: #{src[:format]}" unless %w[cu8 cs8 cs16].include?((src[:format] || :cu8).to_s)
           # Rates are configuration values, not computed DSP measurements.
           raise ArgumentError, "Audio source rate #{actual_rate} differs from configured sample_rate #{rate}" if (fm_demod || !demod.respond_to?(:feed_iq)) && Float(actual_rate) != rate # rubocop:disable Lint/FloatComparison
 
@@ -640,8 +643,13 @@ module PWN
             end
             sleep 0.005
           end
+          completed = true
           stats
         ensure
+          # Cleanup may unblock the producer with EOF; that is not clean input
+          # completion when the supervisor itself failed or was interrupted.
+          # A caller's handled exception ($!) is not a failure of this run.
+          stats[:reason] = :error if stats && !completed
           queue&.close
           begin
             opts[:cancel_read]&.call

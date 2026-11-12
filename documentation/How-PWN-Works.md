@@ -44,7 +44,7 @@ call, and [Reinforcement Learning](Reinforcement-Learning.md) for how
 
 ## L3 - Capability namespaces (`lib/pwn/*`)
 
-`Plugins` (108) · `SAST` (48) · `WWW` (22) · `AWS` (90) · `SDR` · `Blockchain` ·
+`Plugins` (108) · `SAST` (48) · `WWW` (22) · `AWS` (85) · `SDR` · `Blockchain` ·
 `Bounty` · `Reports` · `FFI` · `Banner` · **`Setup`** · **`Migrate`**. First launch also seeds bundled skills from `etc/default_skills/`. Each is
 a plain module of `public_class_method def self.x(opts = {})` methods -
 callable the same way from the REPL, from `pwn_eval`, or from a driver.

@@ -328,6 +328,7 @@ module PWN
             pry = Pry.new
             opts.fetch(:config).each { |key, value| pry.config.public_send("#{key}=", value) }
             writer = PWN::AI::Agent::MissionNamespace.io(4)
+            writer.sync = true
             options = { trace: pry.config.pwn_ai_trace }.merge(opts.fetch(:options)).merge(
               pry: pry, input: PWN::AI::Agent::MissionNamespace.io(0),
               on_tool: ->(*args) { writer.puts(JSON.generate(event: 'tool', args: args)) }

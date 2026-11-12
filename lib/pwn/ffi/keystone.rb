@@ -59,9 +59,10 @@ module PWN
 
         n = size.read_ulong
         bytes = enc.read_pointer.read_string(n)
-        ks_free(enc.read_pointer)
-        ks_close(ks)
         { engine: 'keystone', bytes: bytes, hex: bytes.unpack1('H*'), count: count.read_ulong }
+      ensure
+        ks_free(enc.read_pointer) if enc && !enc.read_pointer.null?
+        ks_close(ks) if ks && !ks.null?
       end
 
       private_class_method def self.arch_mode(opts = {})

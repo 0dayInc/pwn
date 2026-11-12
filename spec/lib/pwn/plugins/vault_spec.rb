@@ -3,6 +3,64 @@
 require 'spec_helper'
 require 'tmpdir'
 
+describe PWN::Plugins::Vault, 'concurrent loot storage' do
+  include_context 'pwn tmp sandbox'
+
+  it 'keeps one master key when separate engagements are initialized concurrently' do
+    allow(Dir).to receive(:home).and_return(@tmp)
+    allow(described_class).to receive(:note_mission_loot)
+    entered = Queue.new
+    release = Queue.new
+    allow(OpenSSL::Random).to receive(:random_bytes).and_wrap_original do |method, length|
+      if length == 32 && Thread.current[:vault_first_writer]
+        entered << true
+        release.pop
+      end
+      method.call(length)
+    end
+    first = Thread.new do
+      Thread.current[:vault_first_writer] = true
+      described_class.store(engagement: 'first', label: 'first', secret: 'first-fixture')
+    end
+    Timeout.timeout(5) { entered.pop }
+    second = Thread.new { described_class.store(engagement: 'second', label: 'second', secret: 'second-fixture') }
+    second.join(0.5)
+    release << true
+    Timeout.timeout(5) { [first, second].each(&:value) }
+    expect(described_class.fetch(label: 'first', engagement: 'first')).to eq('first-fixture')
+    expect(described_class.fetch(label: 'second', engagement: 'second')).to eq('second-fixture')
+  ensure
+    release << true if release
+    [first, second].compact.each { |thread| thread.kill.join if thread.alive? }
+  end
+
+  it 'retains both records when another writer arrives during encryption' do
+    allow(Dir).to receive(:home).and_return(@tmp)
+    allow(described_class).to receive(:note_mission_loot)
+    entered = Queue.new
+    release = Queue.new
+    allow(described_class).to receive(:encrypt_secret).and_wrap_original do |method, opts|
+      if opts[:secret] == 'first-fixture'
+        entered << true
+        release.pop
+      end
+      method.call(opts)
+    end
+    first = Thread.new { described_class.store(label: 'first', secret: 'first-fixture') }
+    Timeout.timeout(5) { entered.pop }
+    second = Thread.new { described_class.store(label: 'second', secret: 'second-fixture') }
+    second.join(0.5)
+    release << true
+    Timeout.timeout(5) { [first, second].each(&:value) }
+    expect(described_class.query.map { |row| row[:label] }).to contain_exactly('first', 'second')
+    expect(described_class.fetch(label: 'first')).to eq('first-fixture')
+    expect(described_class.fetch(label: 'second')).to eq('second-fixture')
+  ensure
+    release << true if release
+    [first, second].compact.each { |thread| thread.kill.join if thread.alive? }
+  end
+end
+
 describe PWN::Plugins::Vault do
   it 'should display information for authors' do
     authors_response = PWN::Plugins::Vault

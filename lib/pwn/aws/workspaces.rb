@@ -24,13 +24,13 @@ module PWN
 
         @@logger.info('Connecting to AWS Workspaces...')
         if sts_session_token == ''
-          workspaces_obj = Aws::Workspaces::Client.new(
+          workspaces_obj = Aws::WorkSpaces::Client.new(
             region: region,
             access_key_id: access_key_id,
             secret_access_key: secret_access_key
           )
         else
-          workspaces_obj = Aws::Workspaces::Client.new(
+          workspaces_obj = Aws::WorkSpaces::Client.new(
             region: region,
             access_key_id: access_key_id,
             secret_access_key: secret_access_key,

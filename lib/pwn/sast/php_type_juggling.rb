@@ -19,12 +19,9 @@ module PWN
         git_repo_root_uri = opts[:git_repo_root_uri].to_s.scrub
 
         test_case_filter = "
-          grep -Fn \
-          -e '==' \
-          -e '!=' {PWN_SAST_SRC_TARGET} 2> /dev/null | \
-          grep -v \
-            -e '===' \
-            -e '!=='
+          grep -En \
+          -e '(^|[^=!])==([^=]|$)' \
+          -e '(^|[^!])!=([^=]|$)' {PWN_SAST_SRC_TARGET} 2> /dev/null
         "
 
         include_extensions = %w[.phar .pht .phtm .phtml .php .php2 .php3 .php4 .php5 .php7 .php8 .phps .phpt .pgif .inc]

@@ -81,7 +81,10 @@ module PWN
         # 'r+b' = read/write + binary mode
         File.open(path, 'r+b') do |f|
           size = f.stat.size
-          break if bytes >= size
+          if bytes >= size
+            f.truncate(0)
+            break
+          end
 
           read_pos  = bytes
           write_pos = 0

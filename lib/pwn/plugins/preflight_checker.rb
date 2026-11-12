@@ -59,7 +59,7 @@ module PWN
         return false if name.empty?
 
         ENV['PATH'].to_s.split(File::PATH_SEPARATOR).any? do |dir|
-          File.executable?(File.join(dir, name))
+          File.file?(File.join(dir, name)) && File.executable?(File.join(dir, name))
         end
       end
 

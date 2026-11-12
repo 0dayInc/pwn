@@ -93,6 +93,7 @@ module PWN
               response = with_engine(engine: override, model: model) do
                 engine_chat(
                   engine: engine,
+                  model: model,
                   request: request.chomp,
                   system_role_content: system_role_content,
                   spinner: spinner,

@@ -157,11 +157,14 @@ module PWN
             hay = hay.gsub(/\e\[[0-9;]*[A-Za-z]/, '') if opts[:strip_ansi]
             if pattern.is_a?(Regexp)
               if (m = hay.match(pattern))
-                consume_buf(tube: t, bytes: m.end(0))
+                length = opts[:strip_ansi] ? ansi_prefix_length(raw: t[:buf], length: m.end(0)) : m.end(0)
+                consume_buf(tube: t, bytes: length)
                 return { matched: m[0], offset: m.begin(0), id: (opts[:id] || opts[:name]).to_s }
               end
             elsif (idx = hay.index(pattern.to_s))
-              take = consume_buf(tube: t, bytes: idx + pattern.to_s.bytesize)
+              length = idx + pattern.to_s.length
+              length = ansi_prefix_length(raw: t[:buf], length: length) if opts[:strip_ansi]
+              take = consume_buf(tube: t, bytes: length)
               return { matched: take, offset: idx, id: (opts[:id] || opts[:name]).to_s }
             end
             ch = t[:r].read_nonblock(4_096)
@@ -332,6 +335,18 @@ module PWN
           #{self}.authors
         "
         constants.sort
+      end
+
+      private_class_method def self.ansi_prefix_length(opts = {})
+        visible = 0
+        length = 0
+        opts[:raw].scan(/\e\[[0-9;]*[A-Za-z]|./m) do |token|
+          break if visible >= opts[:length]
+
+          length += token.length
+          visible += token.length unless token.start_with?("\e[")
+        end
+        length
       end
 
       private_class_method def self.tube!(opts = {})

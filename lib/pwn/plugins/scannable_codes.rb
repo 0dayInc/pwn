@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
 require 'barby'
+require 'barby/barcode/code_128'
+require 'barby/outputter/png_outputter'
 require 'base64'
 require 'fileutils'
 require 'chunky_png'
@@ -37,7 +39,7 @@ module PWN
         case type
         when :barcode
           barcode = Barby::Code128B.new(data)
-          barcode.to_png.save(path)
+          File.binwrite(path, barcode.to_png)
         when :qrcode
           size ||= 200
           qrcode = RQRCode::QRCode.new(data)

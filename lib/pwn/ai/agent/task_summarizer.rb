@@ -923,7 +923,7 @@ module PWN
           plan.each_with_index.filter_map do |item, i|
             slice = state[:task_evidence].is_a?(Hash) ? state[:task_evidence][i].to_s : ''
             use = host_shaped_task?(item: item) && !slice.empty? ? slice : blob
-            next if item.empty? || item_covered?(item: item, blob: use)
+            next if item.empty? || item_covered?(item: item, blob: use, state: state)
 
             { idx: i, item: item, label: "task #{i + 1}/#{n}: #{item}" }
           end
@@ -1476,6 +1476,9 @@ module PWN
           phase = task_phase(item: item)
           case phase
           when :mutate
+            state = opts[:state]
+            return state[:mutation_evidence].value?(true) if state.is_a?(Hash) && state.key?(:mutation_evidence)
+
             blob.match?(MUTATION_DONE_RX)
           when :verify
             blob.match?(VERIFY_DONE_RX) || blob.match?(VERIFY_RAN_RX)
@@ -1501,7 +1504,7 @@ module PWN
 
           case phase
           when :mutate, :verify
-            item_covered?(item: opts[:item], blob: joined)
+            item_covered?(item: opts[:item], blob: joined, state: opts[:state])
           when :discover, :generic, :present
             browse_hit = joined.match?(/effect["\s:=]+browse|transparentbrowser|\.goto\b|\bbrowse\b/i)
             min_tools = browse_hit ? 1 : DISCOVER_MIN_TOOLS
@@ -1683,19 +1686,26 @@ module PWN
           rs = result.to_s
           ok = !rs.match?(/\A\s*\{?\s*"?(success|ok)"?\s*=>\s*false/i) &&
                !rs.match?(/ERROR:|Traceback|NoMethodError|StandardError/i)
-          state[:events] << { name: name.to_s, preview: preview, ok: ok, t: Time.now }
+          ok = Reward.semantic_ok(name: name, raw: rs, args: args)[:semantic_ok] if rs.lstrip.start_with?('{')
+          state[:events] << { name: name.to_s, preview: preview, ok: ok, result: rs[0, 800], t: Time.now }
           state[:events].shift while state[:events].size > MAX_BUFFER
           state[:counts][name.to_s] += 1
           state[:total] += 1
           state[:since_emit] += 1
-          state[:tools_on_task] = state[:tools_on_task].to_i + 1 unless name.to_s.match?(/^(memory|session|skills)_recall$/)
+          state[:tools_on_task] = state[:tools_on_task].to_i + 1 if ok && !name.to_s.match?(/^(memory|session|skills)_recall$/)
           state[:emitted_for_batch] = false
-          chunk = "#{name} #{preview} #{rs.to_s[0, 800]}"
-          state[:evidence_blob] = "#{state[:evidence_blob]} #{chunk}"
-          state[:evidence_blob] = state[:evidence_blob][-16_000..] if state[:evidence_blob].to_s.length > 20_000
-          te = (state[:task_evidence] ||= {})
-          idx = state[:plan_idx].to_i
-          te[idx] = "#{te[idx]} #{chunk}"
+          mutations = (state[:mutation_evidence] ||= {})
+          mutations[state[:plan_idx].to_i] = true if ok && Dispatch.effect(name: name, args: args) == :write
+          # Failed/unknown observations stay in events for diagnostics, never
+          # in the successful evidence later actions consult for plan coverage.
+          if ok
+            chunk = "#{name} #{preview} #{rs[0, 800]}"
+            state[:evidence_blob] = "#{state[:evidence_blob]} #{chunk}"
+            state[:evidence_blob] = state[:evidence_blob][-16_000..] if state[:evidence_blob].to_s.length > 20_000
+            te = (state[:task_evidence] ||= {})
+            idx = state[:plan_idx].to_i
+            te[idx] = "#{te[idx]} #{chunk}"
+          end
           intent = intent_phrase(tools: [{ name: name.to_s, args: args }])
           # Live R2-local signal from tool outcome (executive idx only).
           # Full ORM/PRM credit stays in Reward during auto_introspect.
@@ -1717,7 +1727,7 @@ module PWN
           # Heuristic phase-shift remains as a backstop when PRM streak has not fired.
           if state[:last_prm_signal].to_s.start_with?('advance')
             # already moved this record
-          else
+          elsif ok && !mistake_hit
             maybe_advance_plan!(
               state: state,
               names: [name.to_s],

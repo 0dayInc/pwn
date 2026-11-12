@@ -171,7 +171,7 @@ describe PWN::AI::OpenWebUI do
     ]
     sse_lines = chunks.map { |c| "data: #{JSON.generate(c)}" }
     sse_lines << 'data: [DONE]'
-    body = "#{sse_lines.join("\n")}\n"
+    body = "#{sse_lines.join("\n\n")}\n\n"
 
     out = described_class.send(
       :assemble_openwebui_stream,
@@ -218,7 +218,7 @@ describe PWN::AI::OpenWebUI do
     ]
     sse_lines = chunks.map { |c| "data: #{JSON.generate(c)}" }
     sse_lines << 'data: [DONE]'
-    body = "#{sse_lines.join("\n")}\n"
+    body = "#{sse_lines.join("\n\n")}\n\n"
 
     out = described_class.send(
       :assemble_openwebui_stream,
@@ -298,15 +298,10 @@ describe PWN::AI::OpenWebUI do
     end.to raise_error(RuntimeError, /empty response|ERROR/)
   end
 
-  it 'marks empty stream payloads instead of returning bare {}' do
-    out = described_class.send(
-      :assemble_openwebui_stream,
-      body: '',
-      rest_call: 'api/chat'
-    )
-    parsed = JSON.parse(out, symbolize_names: true)
-    expect(parsed[:done_reason]).to eq('error')
-    expect(parsed.dig(:message, :error)).to eq('empty_stream_payloads')
+  it 'rejects empty stream payloads instead of inventing a terminal message' do
+    expect do
+      described_class.send(:assemble_openwebui_stream, body: '', rest_call: 'api/chat')
+    end.to raise_error(RuntimeError, /incomplete stream.*no payloads/)
   end
 
   it 'normalizes string function.arguments into objects before openwebui_rest_call' do

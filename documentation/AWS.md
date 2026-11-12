@@ -1,4 +1,4 @@
-# `PWN::AWS` - Cloud Security (90 service wrappers)
+# `PWN::AWS` - Cloud Security (85 service wrappers)
 
 One thin module per AWS service, each wrapping the official `aws-sdk-*` gem
 with the PWN `opts = {}` convention so they compose in the REPL and in
@@ -30,7 +30,7 @@ CLI: `pwn_aws_describe_resources -r us-east-1 -c /path/to/private-aws.yaml`
 | Group | Modules |
 |---|---|
 | Identity | `IAM` `STS` `CognitoIdentity` `CognitoIdentityProvider` `CognitoSync` `DirectoryService` |
-| Compute | `EC2` `ECS` `ECR` `Lambda` `LambdaPreview` `Batch` `Lightsail` `ElasticBeanstalk` `AutoScaling` `ApplicationAutoScaling` `AppStream` |
+| Compute | `EC2` `ECS` `ECR` `Lambda` `Batch` `Lightsail` `ElasticBeanstalk` `AutoScaling` `ApplicationAutoScaling` `AppStream` |
 | Storage | `S3` `Glacier` `EFS` `StorageGateway` `Snowball` |
 | Data | `DynamoDB` `DynamoDBStreams` `RDS` `Redshift` `ElastiCache` `SimpleDB` `ElasticsearchService` |
 | Network | `Route53` `Route53Domains` `ElasticLoadBalancing` `ElasticLoadBalancingV2` `APIGateway` `CloudFront` `DirectConnect` `WAF` `WAFRegional` `Shield` |
@@ -38,9 +38,19 @@ CLI: `pwn_aws_describe_resources -r us-east-1 -c /path/to/private-aws.yaml`
 | Ops / Logs | `CloudTrail` `CloudWatch` `CloudWatchLogs` `CloudWatchEvents` `ConfigService` `SSM` `Health` `Inspector` `XRay` |
 | Dev | `CodeBuild` `CodeCommit` `CodeDeploy` `CodePipeline` |
 | Messaging | `SNS` `SQS` `SES` `Pinpoint` `Kinesis` `KinesisAnalytics` `Firehose` |
-| ML / Media | `Rekognition` `Polly` `MachineLearning` `Lex` `ElasticTranscoder` |
-| Infra | `CloudFormation` `CloudSearch` `CloudSearchDomain` `OpsWorks` `OpsWorksCM` `ServiceCatalog` `DataPipleline` `EMR` `SWF` `States` |
-| IoT / Other | `IoT` `IoTDataPlane` `DeviceFarm` `GameLift` `Workspaces` `Support` `Budgets` `ImportExport` `SMS` `DatabaseMigrationService` `ApplicationDiscoveryService` `MarketplaceCommerceAnalytics` `MarketplaceMetering` |
+| ML / Media | `Rekognition` `Polly` `MachineLearning` `Lex` |
+| Infra | `CloudFormation` `CloudSearch` `CloudSearchDomain` `ServiceCatalog` `DataPipleline` `EMR` `SWF` `States` |
+| IoT / Other | `IoT` `IoTDataPlane` `DeviceFarm` `GameLift` `Workspaces` `Support` `Budgets` `ImportExport` `DatabaseMigrationService` `ApplicationDiscoveryService` `MarketplaceCommerceAnalytics` `MarketplaceMetering` |
+
+## Removed legacy wrappers
+
+`ElasticTranscoder`, `LambdaPreview`, `OpsWorks`, `OpsWorksCM` and `SMS`
+are no longer exported by PWN. Their source, module skills and obsolete
+metadata-only specs have been removed rather than advertising unavailable
+clients. Use `PWN::AWS::Lambda` for the current Lambda client; other service
+migrations require explicit API changes, not silent aliases. See the
+[AWS service shutdown list](https://docs.aws.amazon.com/general/latest/gr/full_shutdown_services.html)
+for the retired Elastic Transcoder, OpsWorks and Server Migration services.
 
 ## Offensive patterns
 

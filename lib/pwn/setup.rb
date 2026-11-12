@@ -804,7 +804,7 @@ module PWN
       io.puts
       io.puts 'Re-checking…'
       io.puts
-      result = check(io: io)
+      result = check(io: io, profile: profile)
       { profile: profile, ran: ran, check: result }
     rescue StandardError => e
       raise e
@@ -898,7 +898,7 @@ module PWN
       io.puts '    backup  ~/.pwn/backup (shared seven-generation store)'
       io.puts
 
-      unless yes
+      unless yes || dry_run
         io.print 'Proceed? [y/N] '
         io.flush
         ans = $stdin.gets.to_s.strip.downcase
@@ -1015,7 +1015,8 @@ module PWN
       engine = opts[:engine]
       return false unless engine
 
-      PWN::Env.dig(:ai, engine.to_sym, :key).to_s !~ /\A(required|optional|)\z/i
+      key = PWN::Env.dig(:ai, engine.to_sym, :key).to_s.strip
+      !key.empty? && !key.match?(/\A(?:required|optional)\b|REDACTED/i)
     rescue StandardError
       false
     end

@@ -98,10 +98,11 @@ module PWN
         flat = out_ptr.read_array_of_float(out_bins * 2)
         result = Array.new(out_bins) { |i| [flat[2 * i], flat[(2 * i) + 1]] }
 
-        fftwf_destroy_plan(plan)
-        fftwf_free(in_ptr)
-        fftwf_free(out_ptr)
         result
+      ensure
+        fftwf_destroy_plan(plan) if plan && !plan.null?
+        fftwf_free(in_ptr) if in_ptr && !in_ptr.null?
+        fftwf_free(out_ptr) if out_ptr && !out_ptr.null?
       end
 
       # Supported Method Parameters::
@@ -162,10 +163,11 @@ module PWN
         flat = out_ptr.read_array_of_float(n * 2)
         result = Array.new(n) { |i| [flat[2 * i], flat[(2 * i) + 1]] }
 
-        fftwf_destroy_plan(plan)
-        fftwf_free(in_ptr)
-        fftwf_free(out_ptr)
         result
+      ensure
+        fftwf_destroy_plan(plan) if plan && !plan.null?
+        fftwf_free(in_ptr) if in_ptr && !in_ptr.null?
+        fftwf_free(out_ptr) if out_ptr && !out_ptr.null?
       end
 
       # Author(s):: 0day Inc. <support@0dayinc.com>

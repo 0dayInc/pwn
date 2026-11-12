@@ -14,6 +14,18 @@ describe PWN::Plugins::Log do
     expect(help_response).to respond_to :help
   end
 
+  describe 'unraised exception logging' do
+    include_context 'pwn tmp sandbox'
+
+    it 'persists an exception whose backtrace has not been populated' do
+      allow(Dir).to receive(:home).and_return(@tmp)
+      error = IOError.new('fixture unraised failure')
+      expect(error.backtrace).to be_nil
+      described_class.append(level: :warn, msg: error, which_self: 'fixture')
+      expect(File.read(File.join(@tmp, '.pwn', 'logs', 'pwn.log'))).to include('fixture unraised failure')
+    end
+  end
+
   describe 'pwn-ai debug session' do
     include_context 'pwn tmp sandbox'
 
@@ -59,7 +71,7 @@ describe PWN::Plugins::Log do
       expect(PWN::Plugins::Log).to respond_to(:quiet_tui!)
       expect(PWN::Plugins::Log).to respond_to(:loud_tui!)
       tee = StringIO.new
-      path = PWN::Plugins::Log.start_debug(tee: tee, path: "/tmp/pwn-ai-DEBUG-#{Process.pid}-quiet.log")
+      path = PWN::Plugins::Log.start_debug(tee: tee, path: "#{@tmp}/pwn-ai-DEBUG-#{Process.pid}-quiet.log")
       PWN::Plugins::Log.progress(msg: 'before-quiet', which_self: PWN::AI::Agent::Loop)
       PWN::Plugins::Log.quiet_tui!
       PWN::Plugins::Log.progress(msg: 'after-quiet', which_self: PWN::AI::Agent::Loop)
@@ -75,7 +87,7 @@ describe PWN::Plugins::Log do
       tee = StringIO.new
       PWN::Plugins::Log.start_debug(
         tee: tee,
-        path: "/tmp/pwn-ai-DEBUG-#{Process.pid}-ansi.log"
+        path: "#{@tmp}/pwn-ai-DEBUG-#{Process.pid}-ansi.log"
       )
       PWN::Plugins::Log.progress(msg: 'stage-line', which_self: PWN::AI::Agent::Loop)
       shown = tee.string
@@ -88,7 +100,7 @@ describe PWN::Plugins::Log do
     it 'writes a multiline final body when keep_newlines is set' do
       path = PWN::Plugins::Log.start_debug(
         tee: StringIO.new,
-        path: "/tmp/pwn-ai-DEBUG-#{Process.pid}-finalbody.log"
+        path: "#{@tmp}/pwn-ai-DEBUG-#{Process.pid}-finalbody.log"
       )
       PWN::Plugins::Log.progress(
         msg: "final text:\nline-one\nline-two",
@@ -103,7 +115,7 @@ describe PWN::Plugins::Log do
     it 'writes a full tool request/result with no char cap when cap is 0' do
       path = PWN::Plugins::Log.start_debug(
         tee: StringIO.new,
-        path: "/tmp/pwn-ai-DEBUG-#{Process.pid}-toolio.log"
+        path: "#{@tmp}/pwn-ai-DEBUG-#{Process.pid}-toolio.log"
       )
       blob = 'x' * 8_000
       PWN::Plugins::Log.progress(
@@ -123,7 +135,7 @@ describe PWN::Plugins::Log do
       expect(PWN::Plugins::Log).to respond_to(:note_interrupt!)
       path = PWN::Plugins::Log.start_debug(
         tee: StringIO.new,
-        path: "/tmp/pwn-ai-DEBUG-#{Process.pid}-int.log"
+        path: "#{@tmp}/pwn-ai-DEBUG-#{Process.pid}-int.log"
       )
       ok = PWN::Plugins::Log.note_interrupt!(where: 'CTRL+C')
       expect(ok).to eq true
@@ -136,7 +148,7 @@ describe PWN::Plugins::Log do
     it 'still timestamps Interrupt when progress reentrancy is stuck mid-write' do
       path = PWN::Plugins::Log.start_debug(
         tee: StringIO.new,
-        path: "/tmp/pwn-ai-DEBUG-#{Process.pid}-int-stuck.log"
+        path: "#{@tmp}/pwn-ai-DEBUG-#{Process.pid}-int-stuck.log"
       )
       Thread.current[:pwn_log_progress] = true
       ok = PWN::Plugins::Log.note_interrupt!(where: 'CTRL+C')
@@ -152,7 +164,7 @@ describe PWN::Plugins::Log do
     it 'tees stderr Thread IOError dumps into the open request log' do
       path = PWN::Plugins::Log.start_debug(
         tee: StringIO.new,
-        path: "/tmp/pwn-ai-DEBUG-#{Process.pid}-ioerr.log"
+        path: "#{@tmp}/pwn-ai-DEBUG-#{Process.pid}-ioerr.log"
       )
       $stderr.write("#<Thread:0xabc open3.rb:664 run> terminated with exception (report_on_exception is true):\n")
       $stderr.write("IOError stream closed in another thread\n")
@@ -166,7 +178,7 @@ describe PWN::Plugins::Log do
     it 'does not copy spinner frames from stderr into the request log' do
       path = PWN::Plugins::Log.start_debug(
         tee: StringIO.new,
-        path: "/tmp/pwn-ai-DEBUG-#{Process.pid}-spin.log"
+        path: "#{@tmp}/pwn-ai-DEBUG-#{Process.pid}-spin.log"
       )
       $stderr.write("\r\e[1G⠴")
       $stderr.write("\r⠋")
@@ -182,7 +194,7 @@ describe PWN::Plugins::Log do
       expect(PWN::Plugins::Log).to respond_to(:note_exception!)
       path = PWN::Plugins::Log.start_debug(
         tee: StringIO.new,
-        path: "/tmp/pwn-ai-DEBUG-#{Process.pid}-exc.log"
+        path: "#{@tmp}/pwn-ai-DEBUG-#{Process.pid}-exc.log"
       )
       err = NoMethodError.new("undefined method '+' for nil")
       err.set_backtrace(['/opt/pwn/lib/pwn/ai/grok.rb:470:in grok_rest_call', 'loop.rb:1'])
@@ -199,7 +211,7 @@ describe PWN::Plugins::Log do
       expect(PWN::Plugins::Log).to respond_to(:mirror_tui!)
       path = PWN::Plugins::Log.start_debug(
         tee: StringIO.new,
-        path: "/tmp/pwn-ai-DEBUG-#{Process.pid}-tui.log"
+        path: "#{@tmp}/pwn-ai-DEBUG-#{Process.pid}-tui.log"
       )
       ok = PWN::Plugins::Log.mirror_tui!(
         msg: "\e[33m[ 2026-08-20 11:00:00-0600 → pwn-ai → pwn_eval ]\e[0m\n  {\"code\":\"1+1\"}\n"
@@ -247,7 +259,7 @@ describe PWN::Plugins::Log do
     it 'does not TracePoint PWN calls unless trace: true' do
       path = PWN::Plugins::Log.start_debug(
         tee: StringIO.new,
-        path: "/tmp/pwn-ai-DEBUG-#{Process.pid}-notrace.log"
+        path: "#{@tmp}/pwn-ai-DEBUG-#{Process.pid}-notrace.log"
       )
       PWN::AI::Agent::OpenGoal.current if defined?(PWN::AI::Agent::OpenGoal)
       body = File.read(path)
@@ -257,7 +269,7 @@ describe PWN::Plugins::Log do
     it 'traces Loop/Dispatch calls and not the rest of PWN::AI when trace: true' do
       path = PWN::Plugins::Log.start_debug(
         tee: StringIO.new,
-        path: "/tmp/pwn-ai-DEBUG-#{Process.pid}-#{Time.now.to_i}.log",
+        path: "#{@tmp}/pwn-ai-DEBUG-#{Process.pid}-#{Time.now.to_i}.log",
         trace: true
       )
       PWN::AI::Agent::Dispatch.effect(name: 'skills_recall', args: {})
@@ -280,7 +292,7 @@ describe PWN::Plugins::Log do
       stub_const('PWN::AI::Agent::Loop::SymNameProbe', probe)
       PWN::Plugins::Log.start_debug(
         tee: StringIO.new,
-        path: "/tmp/pwn-ai-DEBUG-#{Process.pid}-sym.log",
+        path: "#{@tmp}/pwn-ai-DEBUG-#{Process.pid}-sym.log",
         trace: true
       )
       expect { PWN::AI::Agent::Loop::SymNameProbe.ping }.not_to raise_error
@@ -295,7 +307,7 @@ describe PWN::Plugins::Log do
       stub_const('PWN::AI::Agent::Dispatch::ArgProbe', probe)
       path = PWN::Plugins::Log.start_debug(
         tee: StringIO.new,
-        path: "/tmp/pwn-ai-DEBUG-#{Process.pid}-args.log",
+        path: "#{@tmp}/pwn-ai-DEBUG-#{Process.pid}-args.log",
         trace: true
       )
       PWN::AI::Agent::Dispatch::ArgProbe.echo(
@@ -320,7 +332,7 @@ describe PWN::Plugins::Log do
       stub_const('PWN::AI::Agent::Dispatch::ArgProbe', probe)
       path = PWN::Plugins::Log.start_debug(
         tee: StringIO.new,
-        path: "/tmp/pwn-ai-DEBUG-#{Process.pid}-redact.log",
+        path: "#{@tmp}/pwn-ai-DEBUG-#{Process.pid}-redact.log",
         trace: true
       )
       PWN::AI::Agent::Dispatch::ArgProbe.echo(
@@ -343,6 +355,10 @@ describe PWN::Plugins::Log do
 end
 
 describe 'PWN::Plugins::Log toggle-trace step' do
+  include_context 'pwn tmp sandbox'
+
+  before { allow(Dir).to receive(:home).and_return(@tmp) }
+
   after do
     PWN::Plugins::Log.stop_debug if PWN::Plugins::Log.respond_to?(:stop_debug)
   end
@@ -351,7 +367,7 @@ describe 'PWN::Plugins::Log toggle-trace step' do
     io = StringIO.new("\n")
     path = PWN::Plugins::Log.start_debug(
       tee: StringIO.new,
-      path: "/tmp/pwn-ai-DEBUG-#{Process.pid}-step.log",
+      path: "#{@tmp}/pwn-ai-DEBUG-#{Process.pid}-step.log",
       trace: true,
       step_io: io
     )
@@ -370,7 +386,7 @@ describe 'PWN::Plugins::Log toggle-trace step' do
     tee = StringIO.new
     PWN::Plugins::Log.start_debug(
       tee: tee,
-      path: "/tmp/pwn-ai-DEBUG-#{Process.pid}-enter-color.log",
+      path: "#{@tmp}/pwn-ai-DEBUG-#{Process.pid}-enter-color.log",
       trace: true,
       step_io: io
     )
@@ -387,7 +403,7 @@ describe 'PWN::Plugins::Log toggle-trace step' do
     stub_const('PWN::AI::Agent::Dispatch::CfgProbe', probe)
     path = PWN::Plugins::Log.start_debug(
       tee: StringIO.new,
-      path: "/tmp/pwn-ai-DEBUG-#{Process.pid}-oauth.log",
+      path: "#{@tmp}/pwn-ai-DEBUG-#{Process.pid}-oauth.log",
       trace: true
     )
     token = 'bnQe3hs8ZSP2KkHj3LSnwzIeDvDv0fmbTQEzsUx4XXW5g22D4Uu6hva_MYossX-GedInWt_dwTgGzpMxoKQECQ'
@@ -401,7 +417,7 @@ describe 'PWN::Plugins::Log toggle-trace step' do
     io = StringIO.new("\n")
     PWN::Plugins::Log.start_debug(
       tee: StringIO.new,
-      path: "/tmp/pwn-ai-DEBUG-#{Process.pid}-nostep.log",
+      path: "#{@tmp}/pwn-ai-DEBUG-#{Process.pid}-nostep.log",
       step_io: io
     )
     expect(PWN::Plugins::Log.trace_enabled?).to eq(false)
@@ -410,7 +426,7 @@ describe 'PWN::Plugins::Log toggle-trace step' do
     PWN::Plugins::Log.stop_debug
     PWN::Plugins::Log.start_debug(
       tee: StringIO.new,
-      path: "/tmp/pwn-ai-DEBUG-#{Process.pid}-nested.log",
+      path: "#{@tmp}/pwn-ai-DEBUG-#{Process.pid}-nested.log",
       trace: true,
       step_io: io
     )

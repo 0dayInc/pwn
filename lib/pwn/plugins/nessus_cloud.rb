@@ -439,8 +439,8 @@ module PWN
 
       public_class_method def self.get_credential_types(opts = {})
         nessus_obj = opts[:nessus_obj]
-        category = opts[:category].to_s.downcase
-        name = opts[:name].to_s.downcase
+        category = (opts[:category] || 'Host').to_s.downcase
+        name = (opts[:name] || 'SSH').to_s.downcase
 
         raise 'ERROR: name parameter requires category parameter.' if category.empty? && !name.empty?
 

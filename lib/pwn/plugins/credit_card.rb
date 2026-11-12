@@ -2,6 +2,13 @@
 
 require 'credit_card_validations'
 require 'credit_card_validations/string'
+require 'credit_card_validations/plugins/dankort'
+require 'credit_card_validations/plugins/elo'
+require 'credit_card_validations/plugins/hipercard'
+require 'credit_card_validations/plugins/mir'
+require 'credit_card_validations/plugins/rupay'
+require 'credit_card_validations/plugins/solo'
+require 'credit_card_validations/plugins/switch'
 
 module PWN
   module Plugins

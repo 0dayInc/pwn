@@ -105,7 +105,7 @@ PWN::AI::Agent::Registry.register(
         )
       end
       # rubocop:enable Security/Eval
-      { stdout: buf.string, value: val.inspect, timeout: timeout }
+      PWN::AI::Agent::ToolGuard.eval_outcome(value: val).merge(stdout: buf.string, value: val.inspect, timeout: timeout)
     rescue Timeout::Error
       PWN::AI::Agent::ToolGuard.timeout_result(
         tool: 'pwn_eval',

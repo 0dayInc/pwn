@@ -18,7 +18,7 @@ RSpec.describe PWN::Plugins::Findings do
   let(:finding) do
     { title: 'Fixture exposure', cwe: 'CWE-200', cvss_vector: 'CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N',
       cvss_score: 5.3, affected_asset: 'asset-fixture', evidence_paths: [@evidence],
-      poc: 'curl http://127.0.0.1:8000/', attack_chain_refs: [], remediation: 'Restrict fixture access.', confidence: 0.9,
+      poc: 'printf fixture', attack_chain_refs: [], remediation: 'Restrict fixture access.', confidence: 0.9,
       engagement_id: 'fixture' }
   end
 
