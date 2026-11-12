@@ -1,12 +1,22 @@
 # frozen_string_literal: false
 
 require 'json'
+require 'open3'
 require 'socket'
+require 'shellwords'
+require 'tempfile'
 
 module PWN
   module SAST
     # SAST Module used to execute PWN::SAST::* modules
     module TestCaseEngine
+      # Match relative components and deliberate test-file conventions only.
+      TEST_PATH_PATTERN = %r{
+        (?:\A|/)(?:tests?|specs?|__tests__)(?:/|\z) |
+        (?:\A|/)(?:test_[^/]+|[^/]+_(?:test|spec))\.[^/]+\z |
+        (?:\A|/)[^/]+\.(?:test|spec)\.[^/]+\z
+      }ix
+
       @@logger = PWN::Plugins::PWNLogger.create
 
       # Supported Method Parameters::
@@ -14,6 +24,7 @@ module PWN
       #   test_case_filter: 'required - grep command to filter results',
       #   security_references: 'required - Hash with keys :sast_module, :section, :nist_800_53_uri, :cwe_id, :cwe_uri',
       #   dir_path: 'optional - path to dir defaults to .',
+      #   exclude_test_paths: 'optional - defaults to true; exclude test/tests/spec/specs/__tests__ components and test_*, *_test, *_spec, *.test.*, *.spec.* files; false includes them',
       #   include_extensions: 'optional - array of file extensions to search for in scan (Defaults to all file types / i.e. [])',
       #   exclude_extensions: 'optional - array of file extensions to exclude from scan (Defaults to [.bin, .dat, .JS-BEAUTIFIED, .o, .test, .png, .jpg, .jpeg, .gif, .svg, .ico, .so, .spec, .zip, .tar, .gz, .tgz, .7z, .mp3, .mp4, .mov, .avi, .wmv, .flv, .mkv])',
       #   git_repo_root_uri: 'optional - http uri of git repo scanned'
@@ -26,9 +37,10 @@ module PWN
         security_references = opts[:security_references]
         raise 'ERROR: security_references must be a Hash' unless security_references.is_a?(Hash)
 
-        dir_path = opts[:dir_path] ||= '.'
-        include_extensions = opts[:include_extensions] ||= []
-        exclude_extensions = opts[:exclude_extentions] ||= %w[
+        dir_path = opts[:dir_path] || '.'
+        exclude_test_paths = opts.fetch(:exclude_test_paths, true)
+        include_extensions = opts[:include_extensions] || []
+        exclude_extensions = opts[:exclude_extensions] || opts[:exclude_extentions] || %w[
           .7z
           .avi
           .bin
@@ -63,26 +75,59 @@ module PWN
         git_repo_root_uri = opts[:git_repo_root_uri].to_s.scrub
 
         result_arr = []
-        logger_results = "AI Module Reflection => #{PWN::Env[:ai][:module_reflection]} => "
+        ai_module_reflection = PWN::Env.dig(:ai, :module_reflection)
+        logger_results = "AI Module Reflection => #{ai_module_reflection} => "
 
         PWN::Plugins::FileFu.recurse_in_dir(
           dir_path: dir_path,
           include_extensions: include_extensions,
           exclude_extensions: exclude_extensions
         ) do |entry|
-          if File.file?(entry) && File.basename(entry) !~ /^pwn.+(html|json|db)$/ && entry !~ /test/i
+          # FileFu yields a shell-escaped word; filesystem APIs need its literal path.
+          entry = Shellwords.split(entry).fetch(0)
+          if File.file?(entry) && File.basename(entry) !~ /^pwn.+(html|json|db)$/ && (!exclude_test_paths || !entry.match?(TEST_PATH_PATTERN))
             line_no_and_contents_arr = []
             entry_beautified = false
 
-            if File.extname(entry) == '.js' && (`wc -l #{entry}`.split.first.to_i < 20 || entry.include?('.min.js') || entry.include?('-all.js'))
-              js_beautify = `js-beautify #{entry} > #{entry}.JS-BEAUTIFIED 2> /dev/null`.to_s.scrub
-              entry = "#{entry}.JS-BEAUTIFIED"
-              entry_beautified = true
+            source_bytes = nil
+            if File.extname(entry) == '.js'
+              # Count newlines in-process. A shell wc would put the filename on a command line.
+              source_bytes = File.binread(entry)
+              if source_bytes.count("\n") < 20 || entry.include?('.min.js') || entry.include?('-all.js')
+                beautified = begin
+                  # The installed launcher reparses argv with a shell: send only a fixed
+                  # stdin selector, never a repository-controlled filename or source text.
+                  Open3.capture3('js-beautify', '-', stdin_data: source_bytes)
+                rescue Errno::ENOENT
+                  nil # Optional formatter absent: scan the original source, not an empty sidecar.
+                end
+                if beautified
+                  output, error, status = beautified
+                  raise "ERROR: js-beautify failed (#{status.exitstatus}): #{error}" unless status.success?
+
+                  # Empty success is not evidence that nonempty input is clean.
+                  entry_beautified = !output.strip.empty?
+                end
+              end
             end
 
-            # Replace tokenized test_case_filter, PWN_ENTRY with actual entry
-            this_test_case_filter = test_case_filter.to_s.gsub('{PWN_SAST_SRC_TARGET}', entry.to_s.scrub).to_s.scrub
-            str = `#{this_test_case_filter}`.to_s.scrub
+            # Never write formatter output beside untrusted source, and never place a
+            # JavaScript filename on a shell command line. Grep a private copy instead.
+            formatted_source = nil
+            begin
+              scan_target = entry
+              if source_bytes
+                formatted_source = Tempfile.new(['pwn-sast-', '.js'])
+                formatted_source.binmode
+                formatted_source.write(entry_beautified ? output : source_bytes)
+                formatted_source.close
+                scan_target = formatted_source.path
+              end
+              this_test_case_filter = test_case_filter.to_s.gsub('{PWN_SAST_SRC_TARGET}') { Shellwords.escape(scan_target) }.to_s.scrub
+              str = `#{this_test_case_filter}`.to_s.scrub
+            ensure
+              formatted_source&.close!
+            end
 
             if str.to_s.empty?
               # If str length is >= 64 KB do not include results. (Due to Mongo Document Size Restrictions)
@@ -90,10 +135,12 @@ module PWN
             else
               str = "1:Result larger than 64KB -> Size: #{str.to_s.length}.  Please click the \"Path\" link for more details." if str.to_s.length >= 64_000
 
+              # Formatted line numbers refer to raw_content, not original lines;
+              # the path remains the source path and no sidecar is published.
               hash_line = {
                 timestamp: Time.now.strftime('%Y-%m-%d %H:%M:%S.%9N %z').to_s,
                 security_references: security_references,
-                filename: { git_repo_root_uri: git_repo_root_uri, entry: entry },
+                filename: { git_repo_root_uri: git_repo_root_uri, entry: entry, entry_beautified: entry_beautified },
                 line_no_and_contents: '',
                 raw_content: str,
                 test_case_filter: this_test_case_filter
@@ -125,9 +172,7 @@ module PWN
                   source_code_snippet: contents
                 }.to_json
 
-                ai_analysis = PWN::AI::Agent::SAST.analyze(
-                  request: request
-                )
+                ai_analysis = (PWN::AI::Agent::SAST.analyze(request: request) if ai_module_reflection)
                 ai_analysis ||= 'N/A'
 
                 hash_line[:line_no_and_contents] = line_no_and_contents_arr.push(
@@ -174,6 +219,7 @@ module PWN
             test_case_filter: 'required - grep command to filter results',
             security_references: 'required - Hash with keys :sast_module, :section, :nist_800_53_uri, :cwe_id, :cwe_uri',
             dir_path: 'optional - path to dir defaults to .',
+            exclude_test_paths: 'optional - defaults to true; exclude test/tests/spec/specs/__tests__ components and test_*, *_test, *_spec, *.test.*, *.spec.* files; false includes them',
             include_extensions: 'optional - array of file extensions to search for in scan (Defaults to all file types / i.e. [])',
             exclude_extensions: 'optional - array of file extensions to exclude from scan (Defaults to [.bin, .dat, .JS-BEAUTIFIED, .o, .test, .png, .jpg, .jpeg, .gif, .svg, .ico, .so, .spec, .zip, .tar, .gz, .tgz, .7z, .mp3, .mp4, .mov, .avi, .wmv, .flv, .mkv])',
             git_repo_root_uri: 'optional - http uri of git repo scanned',

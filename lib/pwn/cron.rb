@@ -3,9 +3,11 @@
 require 'yaml'
 require 'fileutils'
 require 'time'
+require 'date'
 require 'securerandom'
 require 'rbconfig'
 require 'shellwords'
+require 'open3'
 require 'etc'
 
 module PWN
@@ -109,6 +111,10 @@ module PWN
             result = PWN::AI::Anthropic.chat(request: job[:prompt], spinner: false)
           when :gemini
             result = PWN::AI::Gemini.chat(request: job[:prompt], spinner: false)
+          when :openwebui
+            result = PWN::AI::OpenWebUI.chat(request: job[:prompt], spinner: false)
+          else
+            raise ArgumentError, "Unsupported cron AI engine: #{engine}"
           end
           result = begin
             result[:choices].last[:content]
@@ -117,8 +123,9 @@ module PWN
           end
         elsif job[:ruby]
           result = eval(job[:ruby], TOPLEVEL_BINDING) # rubocop:disable Security/Eval
-        elsif job[:script] && File.exist?(job[:script])
-          result = `#{job[:script]} 2>&1`
+        elsif job[:script] && !job[:script].to_s.empty? && File.exist?(script = File.absolute_path(job[:script].to_s))
+          result, process_status = Open3.capture2e([script, script])
+          status = 'error' unless process_status.success?
         else
           result = 'No prompt/ruby/script defined'
         end
@@ -432,19 +439,25 @@ module PWN
 
       fields = schedule.split
       return false unless fields.length == 5
+      return false unless [[0, 59], [0, 23], [1, 31], [1, 12], [0, 7]].each_with_index.all? do |(min, max), index|
+        cron_field_valid?(expr: fields[index], min: min, max: max)
+      end
 
       prev = last || (now - (24 * 60 * 60))
       # Walk minute-aligned slots from the minute AFTER last_run
       # (or the last 24h if never run) up to `now`.
       t = Time.at(((prev.to_i / 60) + 1) * 60)
-      t = Time.local(t.year, t.month, t.day, t.hour, t.min, 0)
-      limit = Time.local(now.year, now.month, now.day, now.hour, now.min, 0)
-      safety = 0
-      while t <= limit && safety < 10_080
-        return true if cron_match?(fields: fields, time: t)
+      limit = Time.at((now.to_i / 60) * 60)
 
-        t += 60
-        safety += 1
+      while t <= limit
+        if cron_date_match?(fields: fields, time: t)
+          return true if cron_match?(fields: fields, time: t)
+
+          t += 60
+        else
+          day = t.to_date.next_day
+          t = Time.local(day.year, day.month, day.day)
+        end
       end
       false
     rescue StandardError
@@ -546,7 +559,7 @@ module PWN
         waited += 1
       end
       {
-        started: !(live && process_alive?(pid: live)).nil?,
+        started: !live.nil? && process_alive?(pid: live),
         pid: live,
         spawn_pid: pid,
         interval: interval,
@@ -673,12 +686,39 @@ module PWN
     private_class_method def self.cron_match?(opts = {})
       fields = opts[:fields]
       time = opts[:time]
-      min, hour, mday, mon, wday = fields
+      min, hour = fields
       cron_field?(expr: min, value: time.min, min: 0, max: 59) &&
         cron_field?(expr: hour, value: time.hour, min: 0, max: 23) &&
-        cron_field?(expr: mday, value: time.day, min: 1, max: 31) &&
-        cron_field?(expr: mon, value: time.month, min: 1, max: 12) &&
-        cron_field?(expr: wday, value: time.wday, min: 0, max: 7)
+        cron_date_match?(fields: fields, time: time)
+    end
+
+    private_class_method def self.cron_date_match?(opts = {})
+      _min, _hour, mday, mon, wday = opts[:fields]
+      time = opts[:time]
+      return false unless cron_field?(expr: mon, value: time.month, min: 1, max: 12)
+
+      month_day = cron_field?(expr: mday, value: time.day, min: 1, max: 31)
+      week_day = cron_field?(expr: wday, value: time.wday, min: 0, max: 7)
+      mday.start_with?('*') || wday.start_with?('*') ? month_day && week_day : month_day || week_day
+    end
+
+    # Validate all list members before OR matching can mask an invalid member.
+    private_class_method def self.cron_field_valid?(opts = {})
+      parts = opts[:expr].to_s.split(',', -1)
+      return false if parts.empty?
+
+      parts.all? do |part|
+        match = %r{\A(?:(\*)|(\d+)(?:-(\d+))?)(?:/(\d+))?\z}.match(part)
+        next false unless match
+
+        wildcard, first, last, step = match.captures
+        next false if step && (step.to_i.zero? || (!wildcard && !last))
+        next true if wildcard
+
+        first = first.to_i
+        last = last ? last.to_i : first
+        first.between?(opts[:min], opts[:max]) && last.between?(first, opts[:max])
+      end
     end
 
     private_class_method def self.cron_field?(opts = {})
@@ -686,7 +726,10 @@ module PWN
       value = opts[:value]
       min = opts[:min]
       max = opts[:max]
-      expr.to_s.split(',').any? { |part| cron_atom?(atom: part, value: value, min: min, max: max) }
+      expr.to_s.split(',').any? do |part|
+        cron_atom?(atom: part, value: value, min: min, max: max) ||
+          (min.zero? && max == 7 && value.zero? && cron_atom?(atom: part, value: 7, min: min, max: max))
+      end
     end
 
     private_class_method def self.cron_atom?(opts = {})
@@ -714,7 +757,7 @@ module PWN
       end
       return value.between?(Regexp.last_match(1).to_i, Regexp.last_match(2).to_i) if atom =~ /\A(\d+)-(\d+)\z/
 
-      n = Integer(atom)
+      n = Integer(atom, 10)
       # cron Sunday is 0 or 7
       return true if n == value
       return true if min.zero? && max == 7 && ((n == 7 && value.zero?) || (n.zero? && value == 7))

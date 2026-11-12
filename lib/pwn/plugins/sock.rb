@@ -56,8 +56,11 @@ module PWN
           raise "Unsupported protocol: #{protocol}"
         end
 
+        handed_off = true
         sock_obj
       rescue OpenSSL::SSL::SSLError => e
+        close_failed_connect(sockets: [tls_sock, sock])
+        tls_sock = sock = nil
         case tls_min_version
         when OpenSSL::SSL::TLS1_VERSION
           puts 'Attempting OpenSSL::SSL::TLS1_1_VERSION...'
@@ -78,8 +81,9 @@ module PWN
         retry unless tls_min_version == :abort
         raise "\n#{e.inspect}" if tls_min_version == :abort
       rescue StandardError => e
-        sock_obj = disconnect(sock_obj: sock_obj) unless sock_obj.nil?
         raise e
+      ensure
+        close_failed_connect(sockets: [tls_sock, sock, sock_obj].compact.uniq) unless handed_off
       end
 
       # Supported Method Parameters::
@@ -243,22 +247,23 @@ module PWN
           raise "Unsupported protocol: #{protocol}"
         end
 
-        loop do
-          listening = check_port_in_use(
-            server_ip: server_ip,
-            port: port,
-            protocol: protocol
-          )
-          break if listening
-        end
-
+        handed_off = true
         listen_obj
       rescue Interrupt
         puts "\n[!] Caught interrupt, shutting down listener..."
       rescue StandardError => e
         raise
       ensure
-        listen_obj.close unless listen_obj.nil? || detach
+        (listen_obj || server)&.close unless detach && handed_off
+      end
+
+      private_class_method def self.close_failed_connect(opts = {})
+        opts[:sockets].compact.each do |socket|
+          socket.close unless socket.respond_to?(:closed?) && socket.closed?
+        rescue StandardError
+          # Preserve the handshake failure while still releasing every handle.
+          nil
+        end
       end
 
       # Supported Method Parameters::

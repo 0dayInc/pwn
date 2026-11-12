@@ -184,7 +184,7 @@ module PWN
         if hexdump.is_a?(Hash)
           hexdump = hexdump.map do |k, v|
             format(
-              "%<s1>s: %<s2>s %<s3>s\n",
+              "%<s1>s: %<s2>-40s %<s3>s\n",
               s1: k,
               s2: v[:hex].each_slice(2).map(&:join).join(' '),
               s3: v[:ascii]
@@ -212,8 +212,7 @@ module PWN
             chunk_file = "#{file}.#{start_chunk_addr}-#{end_chunk_addr}"
 
             binary_data = chunk.map do |line|
-              hex_line = line.split[1..8]
-              hex_line = line.split[1..-2] if hex_line.length < 8
+              hex_line = line[10, 40].to_s.split
               hex_line.map do |hex|
                 [hex].pack('H*')
               end.join
@@ -223,8 +222,7 @@ module PWN
           end
         else
           binary_data = hexdump.lines.map do |line|
-            hex_line = line.split[1..8]
-            hex_line = line.split[1..-2] if hex_line.length < 8
+            hex_line = line[10, 40].to_s.split
             hex_line.map do |hex|
               [hex].pack('H*')
             end.join

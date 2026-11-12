@@ -104,7 +104,7 @@ RSpec.describe PWN::Plugins::YubiKey, 'native family routing' do
 end
 
 RSpec.describe PWN::Plugins::YubiKey, 'native Vault and MFA helpers' do
-  let(:connection) { double('native connection', descriptor: { protocol: :otp }, close: :closed) }
+  let(:connection) { double('native connection', descriptor: { protocol: :otp, serial: '001234' }, close: :closed) }
 
   it 'returns the raw RFC 2202 HMAC from the native OTP exchange' do
     expect(described_class::Transport).not_to receive(:open)

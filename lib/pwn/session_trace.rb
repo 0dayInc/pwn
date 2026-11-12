@@ -18,6 +18,7 @@ module PWN
       raise ArgumentError, 'Invalid trace event' unless EVENTS.include?(event)
 
       path = trace_path(session_id: opts[:session_id])
+      lease = PWN::Sessions.activate(session_id: opts[:session_id], creating: true)
       FileUtils.mkdir_p(File.dirname(path), mode: 0o700)
       row = PWN::Redaction.redact(value: {
                                     version: 1, event: event, data: opts[:data], model: opts[:model], params: opts[:params] || {}
@@ -35,6 +36,8 @@ module PWN
         file.flush
       end
       row
+    ensure
+      PWN::Sessions.deactivate(lease: lease)
     end
 
     # Read-only rendering; never dispatches a recorded call.
@@ -123,8 +126,10 @@ module PWN
       id = opts[:session_id].to_s
       raise ArgumentError, 'Invalid session id' unless id.match?(/\A[A-Za-z0-9][A-Za-z0-9_-]{0,127}\z/)
 
-      dir = File.dirname(PWN::Sessions.support_path(kind: :trace, session_id: id))
-      raise ArgumentError, 'Symlinked trace directory' if File.symlink?(dir)
+      dir = File.dirname(PWN::Sessions.support_path(kind: :trace, session_id: id, read_only: true))
+      ancestor = dir
+      ancestor = File.dirname(ancestor) until File.exist?(ancestor) || File.symlink?(ancestor)
+      raise ArgumentError, 'Symlinked trace directory' if File.symlink?(ancestor) || File.realpath(ancestor) != File.expand_path(ancestor)
 
       File.join(dir, 'trace.jsonl')
     end

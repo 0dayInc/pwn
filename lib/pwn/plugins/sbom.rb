@@ -18,7 +18,7 @@ module PWN
         engine = (opts[:engine] || select_engine(target: target)).to_s
         rows = case engine
                when 'grype' then parse_grype(target: target)
-               when 'trivy' then parse_trivy(target: target)
+               when 'trivy' then parse_trivy(target: target, image: opts[:image] && !opts[:path_or_image] && !opts[:path])
                when 'osv-scanner' then parse_osv(target: target)
                when 'syft+grype', 'syft'
                  inv = parse_syft(target: target)
@@ -30,6 +30,8 @@ module PWN
                else
                  raise IOError, 'no SBOM engine installed (syft, grype, trivy, or osv-scanner)'
                end
+        return engine_failure(engine: engine, target: target, exit: rows[:exit]) if rows.is_a?(Hash) && rows[:ok] == false
+
         observations = []
         if defined?(PWN::Plugins::Recon) && opts[:record] == true
           rows.each do |row|
@@ -82,32 +84,45 @@ module PWN
       private_class_method def self.run!(opts = {})
         argv = opts[:argv]
         out, st = Open3.capture2(*argv)
-        raise IOError, "#{argv.first} failed" unless st.success? || opts[:allow_nonzero] == true
+        exit_code = st.success? ? 0 : st.exitstatus
+        accepted = st.success? || Array(opts[:accepted_exits]).include?(exit_code)
+        { output: accepted ? out : '', exit: exit_code, ok: accepted }
+      end
 
-        out
+      private_class_method def self.engine_failure(opts = {})
+        { engine: opts[:engine].to_s, target: opts[:target].to_s, vulns: [], observations: [], ok: false, success: false, status: 'failed', error: "#{opts[:engine]} failed", exit: opts[:exit] }
       end
 
       private_class_method def self.parse_grype(opts = {})
-        out = run!(argv: ['grype', '-o', 'json', opts[:target]], allow_nonzero: true)
-        raise IOError, 'grype returned no JSON' if out.to_s.strip.empty?
+        ran = run!(argv: ['grype', '-o', 'json', opts[:target]])
+        return ran unless ran[:ok]
+        return engine_failure(engine: 'grype', target: opts[:target], exit: ran[:exit]) if ran[:output].to_s.strip.empty?
 
-        json = JSON.parse(out)
-        Array(json['matches']).map do |row|
-          art = row['artifact'] || {}
-          vuln = row['vulnerability'] || {}
-          normalize(package: art['name'], version: art['version'], cve: vuln['id'], severity: vuln['severity'], fix: vuln.dig('fix', 'versions'))
+        json = parse_engine_json(text: ran[:output])
+        matches = json['matches'] || json[:matches] if json.is_a?(Hash)
+        return engine_failure(engine: 'grype', target: opts[:target], exit: ran[:exit]) unless matches.is_a?(Array)
+
+        matches.map do |row|
+          art = row['artifact'] || row[:artifact] || {}
+          vuln = row['vulnerability'] || row[:vulnerability] || {}
+          normalize(package: art['name'] || art[:name], version: art['version'] || art[:version], cve: vuln['id'] || vuln[:id], severity: vuln['severity'] || vuln[:severity], fix: vuln.dig('fix', 'versions') || vuln.dig(:fix, :versions))
         end
       end
 
       private_class_method def self.parse_trivy(opts = {})
         target = opts[:target].to_s
         sub = File.file?(target) && target.match?(/\.(tar|tar\.gz|tgz|tar\.zst)\z/i) ? 'image' : 'fs'
-        sub = 'image' if target.include?(':') && !File.exist?(target)
-        out = run!(argv: ['trivy', sub, '--format', 'json', target], allow_nonzero: true)
-        json = JSON.parse(out)
-        Array(json['Results']).flat_map do |res|
-          Array(res['Vulnerabilities']).map do |vuln|
-            normalize(package: vuln['PkgName'], version: vuln['InstalledVersion'], cve: vuln['VulnerabilityID'], severity: vuln['Severity'], fix: vuln['FixedVersion'])
+        sub = 'image' if opts[:image] || (target.include?(':') && !File.exist?(target))
+        ran = run!(argv: ['trivy', sub, '--format', 'json', target])
+        return engine_failure(engine: 'trivy', target: target, exit: ran[:exit]) unless ran[:ok]
+
+        json = parse_engine_json(text: ran[:output])
+        results = json['Results'] || json[:Results] if json.is_a?(Hash)
+        return engine_failure(engine: 'trivy', target: target, exit: ran[:exit]) unless results.is_a?(Array)
+
+        results.flat_map do |res|
+          Array(res['Vulnerabilities'] || res[:Vulnerabilities]).map do |vuln|
+            normalize(package: vuln['PkgName'] || vuln[:PkgName], version: vuln['InstalledVersion'] || vuln[:InstalledVersion], cve: vuln['VulnerabilityID'] || vuln[:VulnerabilityID], severity: vuln['Severity'] || vuln[:Severity], fix: vuln['FixedVersion'] || vuln[:FixedVersion])
           end
         end
       end
@@ -116,23 +131,40 @@ module PWN
         target = opts[:target].to_s
         argv = ['osv-scanner', '--json']
         argv.concat(File.file?(target) ? [target] : ['-r', target])
-        out = run!(argv: argv, allow_nonzero: true)
-        json = JSON.parse(out)
-        Array(json['results']).flat_map do |res|
-          Array(res['packages']).flat_map do |pkg|
-            Array(pkg['vulnerabilities']).map do |vuln|
-              normalize(package: pkg.dig('package', 'name'), version: pkg.dig('package', 'version'), cve: vuln['id'], severity: 'unknown', fix: nil)
+        ran = run!(argv: argv, accepted_exits: [1])
+        return engine_failure(engine: 'osv-scanner', target: target, exit: ran[:exit]) unless ran[:ok]
+
+        json = parse_engine_json(text: ran[:output])
+        results = json['results'] || json[:results] if json.is_a?(Hash)
+        return engine_failure(engine: 'osv-scanner', target: target, exit: ran[:exit]) unless results.is_a?(Array)
+
+        results.flat_map do |res|
+          Array(res['packages'] || res[:packages]).flat_map do |pkg|
+            package = pkg['package'] || pkg[:package] || {}
+            Array(pkg['vulnerabilities'] || pkg[:vulnerabilities]).map do |vuln|
+              normalize(package: package['name'] || package[:name], version: package['version'] || package[:version], cve: vuln['id'] || vuln[:id], severity: 'unknown', fix: nil)
             end
           end
         end
       end
 
       private_class_method def self.parse_syft(opts = {})
-        out = run!(argv: ['syft', '-o', 'json', opts[:target]])
-        json = JSON.parse(out)
-        Array(json['artifacts']).map do |art|
-          normalize(package: art['name'], version: art['version'], cve: nil, severity: 'info', fix: nil)
+        ran = run!(argv: ['syft', '-o', 'json', opts[:target]])
+        return engine_failure(engine: 'syft', target: opts[:target], exit: ran[:exit]) unless ran[:ok]
+
+        json = parse_engine_json(text: ran[:output])
+        artifacts = json['artifacts'] || json[:artifacts] if json.is_a?(Hash)
+        return engine_failure(engine: 'syft', target: opts[:target], exit: ran[:exit]) unless artifacts.is_a?(Array)
+
+        artifacts.map do |art|
+          normalize(package: art['name'] || art[:name], version: art['version'] || art[:version], cve: nil, severity: 'info', fix: nil)
         end
+      end
+
+      private_class_method def self.parse_engine_json(opts = {})
+        JSON.parse(opts[:text].to_s)
+      rescue JSON::ParserError
+        nil
       end
 
       private_class_method def self.normalize(opts = {})

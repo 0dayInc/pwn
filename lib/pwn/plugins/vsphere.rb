@@ -45,7 +45,8 @@ module PWN
       public_class_method def self.logout(opts = {})
         vsphere_obj = opts[:vsphere_obj]
         @@logger.info('Logging out...')
-        vsphere_obj = nil
+        vsphere_obj.close
+        nil
       rescue StandardError => e
         raise e
       end

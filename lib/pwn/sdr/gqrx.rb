@@ -2,6 +2,7 @@
 
 require 'fileutils'
 require 'json'
+require 'open3'
 require 'time'
 
 module PWN
@@ -112,17 +113,30 @@ module PWN
 
         gqrx_sock.write("#{cmd}\n")
         response = []
-        start_time = Time.now
+        deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 2.0
+        line = +''.b
+        required_lines = cmd.to_s.strip == 'm' ? 2 : 1
+        loop do
+          break if line.empty? && response.length >= required_lines && !gqrx_sock.wait_readable(0.0001)
 
-        # Wait up to 2 seconds for initial response
-        if gqrx_sock.wait_readable(2.0)
-          response.push(gqrx_sock.readline.chomp)
-          # Drain any additional lines quickly
-          loop do
-            break if gqrx_sock.wait_readable(0.0001).nil?
+          remaining = deadline - Process.clock_gettime(Process::CLOCK_MONOTONIC)
+          raise IOError, "GQRX response timed out for command: #{cmd}" unless remaining.positive? && gqrx_sock.wait_readable(remaining)
 
-            response.push(gqrx_sock.readline.chomp)
+          byte = gqrx_sock.read_nonblock(1, exception: false)
+          next if byte == :wait_readable
+
+          if byte.nil?
+            raise IOError, "Incomplete GQRX response for command: #{cmd}" unless line.empty? && response.length >= required_lines
+
+            break
           end
+          line << byte
+          next unless byte == "\n"
+
+          response << line.chomp
+          line = +''.b
+          # Some backends put mode/passband on one line; errors have one line.
+          required_lines = 1 if response.first.start_with?('RPRT ') || (required_lines == 2 && response.first.split.length >= 2)
         end
 
         raise "No response for command: #{cmd}" if response.empty?
@@ -132,7 +146,7 @@ module PWN
         raise "ERROR!!! Command: #{cmd} Expected Resp: #{resp_ok}, Got: #{response_str}" if resp_ok && response_str != resp_ok
 
         # Reformat positive integer frequency responses (e.g., from 'f')
-        response_str = PWN::SDR.hz_to_s(freq: response_str) if response_str.match?(/^\d+$/) && response_str.to_i.positive?
+        response_str = PWN::SDR.hz_to_s(freq: response_str) if %w[f LNB_LO].include?(cmd.to_s.strip) && response_str.match?(/^\d+$/) && response_str.to_i.positive?
 
         response_str
       rescue RuntimeError => e
@@ -1973,7 +1987,7 @@ module PWN
           candidates << "driver=#{driver}"
         end
         begin
-          find_out = `SoapySDRUtil --find 2>/dev/null`.to_s
+          find_out = Open3.capture2('SoapySDRUtil', '--find', err: File::NULL).first.to_s
           find_out.scan(/driver\s*=\s*(\S+)/i).flatten.uniq.each do |d|
             candidates << "driver=#{d}"
           end
@@ -1986,7 +2000,7 @@ module PWN
         candidates.each do |probe_arg|
           next if probe_arg.to_s.empty?
 
-          candidate_out = `SoapySDRUtil --probe="#{probe_arg.to_s.gsub('"', '\\"')}" 2>/dev/null`
+          candidate_out = Open3.capture2('SoapySDRUtil', "--probe=#{probe_arg}", err: File::NULL).first
           if candidate_out.to_s =~ /Sample rates:/i
             out = candidate_out
             break
@@ -2097,11 +2111,16 @@ module PWN
         end
 
         text = File.read(path)
-        if text.match?(/^\[input\][^\[]*sample_rate=/m)
-          text = text.sub(/^(sample_rate=).*$/, "\\1#{applied}")
-        else
-          # Insert sample_rate under [input] if the key is somehow missing.
-          text = text.sub(/^\[input\]\s*$/, "[input]\nsample_rate=#{applied}")
+        text = text.sub(/^\[input\][^\[]*/m) do |section|
+          if section.match?(/^sample_rate=/)
+            section.sub(/^(sample_rate=).*$/, "\\1#{applied}")
+          else
+            # insert right under [input], leaving other sections untouched
+            section.sub(/^\[input\][ \t]*(\r?\n|\z)/) do
+              newline = Regexp.last_match(1).empty? ? "\n" : Regexp.last_match(1)
+              "[input]#{newline}sample_rate=#{applied}#{newline}"
+            end
+          end
         end
         File.write(path, text)
 

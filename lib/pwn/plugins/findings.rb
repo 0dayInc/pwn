@@ -19,6 +19,7 @@ module PWN
 
       # Strict P10 boundary. Legacy record remains available for older callers.
       public_class_method def self.record_structured(opts = {})
+        lock = writer_lock
         opts = opts.transform_keys(&:to_sym)
         opts[:affected_asset] ||= opts[:target]
         opts[:poc] ||= opts[:repro_cmd]
@@ -38,6 +39,7 @@ module PWN
 
         artifacts = resolve_evidence(opts)
         paths = artifacts.map { |artifact| artifact[:path] }.uniq
+        leases = source_leases(session_id: opts[:session_id], paths: paths)
         steps = opts[:reproduction_steps] || [opts[:poc]]
         raise ArgumentError, 'reproduction_steps must be a nonempty Array of nonempty strings' unless steps.is_a?(Array) && !steps.empty? && steps.all? { |step| step.is_a?(String) && !step.strip.empty? }
 
@@ -68,6 +70,9 @@ module PWN
           file.puts(JSON.generate(row))
         end
         row
+      ensure
+        Array(leases).each { |lease| PWN::Sessions.deactivate(lease: lease) }
+        writer_unlock(lock: lock)
       end
 
       private_class_method def self.engagement_scope(opts = {})
@@ -171,6 +176,7 @@ module PWN
       end
 
       public_class_method def self.record(opts = {})
+        lock = writer_lock
         title = opts[:title].to_s
         raise 'ERROR: title is required' if title.empty?
 
@@ -181,6 +187,8 @@ module PWN
           arts << opts[:poc].to_s unless opts[:poc].to_s.empty?
         end
         raise 'ERROR: poc_artifacts are required' if arts.empty?
+
+        leases = source_leases(session_id: opts[:session_id], paths: arts)
 
         ev = opts[:evidence]
         ev_list = Array(ev).map(&:to_s)
@@ -222,6 +230,9 @@ module PWN
         File.open(FILE, 'a') { |f| f.puts(JSON.generate(row)) }
         note_mission(finding_id: row[:id], host: opts[:host])
         row
+      ensure
+        Array(leases).each { |lease| PWN::Sessions.deactivate(lease: lease) }
+        writer_unlock(lock: lock)
       end
 
       private_class_method def self.note_mission(opts = {})
@@ -437,8 +448,11 @@ module PWN
         steps = reproduction_commands(row: row)
         raise ArgumentError, 'reproduction_steps are required to verify' if steps.empty?
 
-        transcript = run_reproduction(steps: steps)
+        reproduction = run_reproduction(steps: steps)
+        transcript = reproduction[:transcript]
         hit = transcript.include?(impact)
+        raise IOError, 'PoC reproduction failed; retest outcome is unknown' if opts[:mode].to_s == 'retest' && !hit && !reproduction[:success]
+
         arts = steps.select { |step| step.start_with?('/') && File.file?(step) }
         if opts[:mode].to_s == 'retest'
           status = hit ? 'still_open' : 'fixed'
@@ -504,12 +518,14 @@ module PWN
 
       private_class_method def self.run_reproduction(opts = {})
         transcript = +''
+        success = true
         Array(opts[:steps]).each do |step|
           stdout, stderr, status = Open3.capture3('sh', '-c', step.to_s)
+          success &&= status.success?
           transcript << stdout.to_s << stderr.to_s
           transcript << "\nexit=#{status.exitstatus}\n"
         end
-        transcript
+        { transcript: transcript, success: success }
       end
 
       private_class_method def self.claimed_severity(opts = {})
@@ -552,6 +568,7 @@ module PWN
       end
 
       private_class_method def self.rewrite_row(opts = {})
+        lock = writer_lock
         id = opts[:id].to_s
         patch = opts[:patch] || {}
         rows = report
@@ -561,9 +578,12 @@ module PWN
         rows[idx] = rows[idx].merge(patch)
         persist_rows(rows: rows)
         rows[idx]
+      ensure
+        writer_unlock(lock: lock)
       end
 
       private_class_method def self.persist_rows(opts = {})
+        lock = writer_lock
         rows = opts[:rows]
         FileUtils.mkdir_p(File.dirname(FILE))
         File.open(FILE, File::RDWR | File::CREAT, 0o644) do |file|
@@ -575,11 +595,62 @@ module PWN
           file.fsync
         end
         rows
+      ensure
+        writer_unlock(lock: lock)
+      end
+
+      # Permanent store ownership precedes nonblocking source leases, matching
+      # Sessions mutation and cleanup. Never publish a reference to a lost source.
+      private_class_method def self.writer_lock
+        path = File.join(File.dirname(FILE), '.findings-write.lock')
+        owner = Thread.current[:pwn_findings_write_lock]
+        return nil if owner && owner[:pid] == Process.pid && owner[:thread] == Thread.current && owner[:path] == path && !owner[:file].closed?
+
+        FileUtils.mkdir_p(File.dirname(path), mode: 0o700)
+        raise IOError, 'Unsafe findings lock directory' unless File.realpath(File.dirname(path)) == File.expand_path(File.dirname(path))
+
+        file = File.open(path, File::RDWR | File::CREAT | File::NOFOLLOW, 0o600) # rubocop:disable Style/FileOpen -- caller owns lock until ensure
+        file.flock(File::LOCK_EX)
+        Thread.current[:pwn_findings_write_lock] = { pid: Process.pid, thread: Thread.current, path: path, file: file }
+        file
+      rescue Exception # rubocop:disable Lint/RescueException -- release untransferred lock on cancellation
+        file&.close
+        raise
+      end
+
+      private_class_method def self.writer_unlock(opts = {})
+        lock = opts[:lock]
+        return unless lock
+
+        Thread.current[:pwn_findings_write_lock] = nil
+        lock.close
+      end
+
+      private_class_method def self.source_leases(opts = {})
+        ids = [opts[:session_id].to_s]
+        Array(opts[:paths]).each do |path|
+          next unless File.dirname(path) == PWN::Sessions::SESSIONS_DIR && path.match?(/\.(?:meta\.json|jsonl)\z/)
+
+          ids << File.basename(path).sub(/\.(?:meta\.json|jsonl)\z/, '')
+        end
+        leases = []
+        ids.reject(&:empty?).uniq.sort.each do |id|
+          transcript = File.join(PWN::Sessions.sessions_dir, "#{id}.jsonl")
+          next unless id.match?(PWN::Sessions::SESSION_ID) || File.file?(transcript)
+
+          leases << PWN::Sessions.activate(session_id: id)
+        end
+        leases
+      rescue Exception # rubocop:disable Lint/RescueException -- release partial acquisition on cancellation
+        Array(leases).each { |lease| PWN::Sessions.deactivate(lease: lease) }
+        raise
       end
 
       private_class_method def self.evidence_anchor(opts = {})
+        lock = writer_lock
         row = opts[:row]
         arts = Array(opts[:arts])
+        leases = source_leases(session_id: row[:session_id], paths: arts)
         eng = row[:engagement_id].to_s
         eng = 'default' if eng.empty?
         raise ArgumentError, 'engagement_id must be a simple identifier' unless eng.match?(/\A[a-zA-Z0-9_-]+\z/)
@@ -619,6 +690,9 @@ module PWN
           end
           rec
         end
+      ensure
+        Array(leases).each { |lease| PWN::Sessions.deactivate(lease: lease) }
+        writer_unlock(lock: lock)
       end
 
       public_class_method def self.authors

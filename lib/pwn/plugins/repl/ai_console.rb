@@ -318,7 +318,8 @@ module PWN
           def call
             if @source.wait_readable(@buffer.empty? ? (@interval || 0.04) : 0)
               chunk = @source.read_nonblock(4096, exception: false)
-              return :eof if chunk.nil? && @buffer.empty?
+              @eof = chunk.nil?
+              return :eof if @eof && @buffer.empty?
 
               @buffer << chunk if chunk.is_a?(String)
             end
@@ -329,7 +330,7 @@ module PWN
 
             cursor = cursor_key
             return cursor unless cursor == :pending
-            return if KEYS.keys.any? { |key| key.start_with?(@buffer) } && @source.wait_readable(0.04)
+            return if !@eof && KEYS.keys.any? { |key| key.start_with?(@buffer) } && @source.wait_readable(0.04)
 
             decode_character
           end
@@ -360,6 +361,7 @@ module PWN
             second = prefix[1]
             valid &&= !(second && ((lead == 224 && second < 160) || (lead == 237 && second > 159) ||
                                   (lead == 240 && second < 144) || (lead == 244 && second > 143)))
+            valid &&= !(@eof && @buffer.bytesize < size)
             if valid
               return if @buffer.bytesize < size
 
@@ -470,7 +472,10 @@ module PWN
           end
 
           def <<(event)
-            @mutex.synchronize { @io.write("#{JSON.generate([@generation, *event])}\n") }
+            @mutex.synchronize do
+              @io.write("#{JSON.generate([@generation, *event])}\n")
+              @io.flush
+            end
             self
           end
         end
@@ -654,7 +659,7 @@ module PWN
               when :command_state
                 if text[:ai].is_a?(Hash)
                   text[:ai][:active] = text[:ai][:active].to_sym if PWN::Env.dig(:ai, :active).is_a?(Symbol) && text[:ai][:active].is_a?(String)
-                  PWN::Env[:ai] = text[:ai]
+                  PWN::Env[:ai].replace(text[:ai])
                 end
                 text.fetch(:config, {}).each do |key, value|
                   @pry.config.public_send("#{key}=", value) if %i[pwn_ai_session_id pwn_ai_debug pwn_ai_trace].include?(key)
@@ -1105,8 +1110,10 @@ module PWN
 
           def send_tool_input(line)
             text = "#{line.delete_prefix('/input ')}\n"
+            return add(:warning, 'Tool input not sent: line exceeds 4096 bytes.') if text.bytesize > 4096
+
             written = @tool_input.write_nonblock(text, exception: false)
-            if text.bytesize > 4096 || written == :wait_writable
+            if written == :wait_writable
               add(:warning, 'Tool input not sent: pipe full or line exceeds 4096 bytes.')
             else
               add(:notice, 'Input sent to tool (not echoed).')

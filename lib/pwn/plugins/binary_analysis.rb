@@ -18,8 +18,9 @@ module PWN
         timeout = opts.fetch(:timeout, 60)
         limit = opts.fetch(:limit, 2_000_000)
         output = +''
-        Open3.popen2e(*argv, pgroup: true) do |stdin, stream, waiter|
+        Open3.popen2e([argv.first, argv.first], *argv.drop(1), pgroup: true) do |stdin, stream, waiter|
           stdin.close
+          completed = false
           begin
             Timeout.timeout(timeout) do
               loop do
@@ -28,13 +29,21 @@ module PWN
               rescue EOFError
                 break
               end
-              raise "backend exited #{waiter.value.exitstatus}: #{output[-1000, 1000] || output}" unless waiter.value.success?
+              status = waiter.value
+              completed = status.success?
+              raise "backend exited #{status.exitstatus}: #{output[-1000, 1000] || output}" unless completed
             end
           ensure
-            if waiter.alive?
-              Process.kill('KILL', -waiter.pid)
-              waiter.join
+            # The leader can exit while a same-group child still holds the pipe.
+            # Signal the group on timeout, limit, or error. Do not reap descendants.
+            unless completed
+              begin
+                Process.kill('KILL', -waiter.pid)
+              rescue Errno::ESRCH, Errno::EPERM
+                nil
+              end
             end
+            waiter.join if waiter.alive?
           end
         end
         output.encode('UTF-8', invalid: :replace, undef: :replace)

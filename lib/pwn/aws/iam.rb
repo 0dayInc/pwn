@@ -52,7 +52,7 @@ module PWN
       #   key_type: 'optional - key type :access_key_id|:secret_access_key|:sts_session_token (Default: access_key_id)',
       # )
       public_class_method def self.decode_key(opts = {})
-        key = opts[:key].to_s.scrub.chomp.strip.upcase
+        key = opts[:key].to_s.scrub.chomp.strip
         raise 'ERROR: Key is required' if key == ''
 
         key_type = opts[:key_type] || :access_key_id
@@ -107,7 +107,7 @@ module PWN
 
         case key_type
         when :access_key_id
-          suffix = key[4..-1]
+          suffix = key[4..-1].upcase
           decoded_suffix = Base32.decode(suffix)
           trimmed_decoded_suffix = decoded_suffix[0..5]
           z = trimmed_decoded_suffix.bytes.inject { |total, byte| (total << 8) + byte }

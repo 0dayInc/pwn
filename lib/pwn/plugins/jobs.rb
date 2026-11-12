@@ -181,6 +181,9 @@ module PWN
         jobs = Array(opts[:jobs])
         raise ArgumentError, 'jobs must be an Array of hashes with id and command' unless jobs.all?(Hash)
 
+        ids = jobs.map { |job| (job[:id] || job['id']).to_s }
+        return { jobs: {}, artifact_dir: opts[:artifact_dir], ok: false } if ids.any?(&:empty?) || ids.uniq.length != ids.length
+
         dir = opts[:artifact_dir] || File.join(JOBS_DIR, "graph-#{SecureRandom.hex(4)}")
         FileUtils.mkdir_p(dir)
         remaining = jobs.map { |job| job.transform_keys(&:to_sym) }
@@ -199,6 +202,8 @@ module PWN
           ready = remaining.select { |job| Array(job[:needs]).all? { |need| done[need.to_s] && done[need.to_s][:ok] } }
           raise ArgumentError, 'job graph deadlock or missing needs' if ready.empty? && remaining.any?
 
+          groups = []
+          started = Queue.new
           threads = ready.map do |job|
             remaining.delete(job)
             Thread.new do
@@ -206,22 +211,75 @@ module PWN
               timeout = 3_600 if timeout <= 0
               out = err = ''
               st = nil
+              signaled = false
+              notify = lambda do
+                next if signaled
+
+                signaled = true
+                started << true
+              end
               begin
                 Timeout.timeout(timeout) do
-                  out, err, st = Open3.capture3(job[:command].to_s, chdir: dir)
+                  out, err, st = capture_graph(command: job[:command].to_s, dir: dir, groups: groups, started: notify)
                 end
                 { id: job[:id], ok: st.success?, stdout: out, stderr: err, exit: st.exitstatus }
               rescue Timeout::Error
                 { id: job[:id], ok: false, stdout: out, stderr: 'timeout', exit: 124, timeout: true }
+              ensure
+                notify.call
               end
             end
           end
-          threads.each do |thr|
-            row = thr.value
-            done[row[:id].to_s] = row
+          begin
+            threads.each { started.pop }
+            threads.each do |thr| # rubocop:disable Style/CombinableLoops -- spawn signals must all arrive before any value wait
+              row = thr.value
+              done[row[:id].to_s] = row
+            end
+          rescue StandardError
+            cancel_graph(groups: groups)
+            threads.each do |thr|
+              thr.join(2)
+            rescue StandardError
+              nil
+            end
+            raise
           end
         end
         { jobs: done, artifact_dir: dir, ok: done.values.none? { |row| row[:ok] == false && row[:skipped] != true } && done.values.any? { |row| row[:ok] } }
+      end
+
+      private_class_method def self.capture_graph(opts = {})
+        Open3.popen3(opts[:command], chdir: opts[:dir], pgroup: true) do |stdin, stdout, stderr, waiter|
+          stdin.close
+          Array(opts[:groups]) << waiter.pid
+          opts[:started]&.call
+          readers = [Thread.new { stdout.read }, Thread.new { stderr.read }]
+          begin
+            [readers[0].value, readers[1].value, waiter.value]
+          ensure
+            if waiter.alive? || readers.any?(&:alive?)
+              begin
+                Process.kill('KILL', -waiter.pid)
+              rescue Errno::ESRCH, Errno::EPERM
+                nil
+              end
+            end
+            readers.each do |thread|
+              thread.kill if thread.alive?
+              thread.join
+            end
+          end
+        end
+      end
+
+      private_class_method def self.cancel_graph(opts = {})
+        Array(opts[:groups]).uniq.each do |pid|
+          Process.kill('KILL', -pid)
+        rescue Errno::ESRCH, Errno::EPERM
+          nil
+        end
+        :cancelled
       end
 
       public_class_method def self.authors

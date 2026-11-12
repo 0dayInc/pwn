@@ -1151,7 +1151,7 @@ module PWN
 
         private_class_method def self.terminal_reward(opts = {})
           conf = opts[:confidence]
-          conf = 1.0 if conf.nil? || conf.to_f <= 0.0
+          conf = 1.0 if conf.nil?
           conf = conf.to_f.clamp(0.0, 1.0)
           unless opts[:score].nil?
             base = ((2.0 * opts[:score].to_f) - 1.0).clamp(-1.0, 1.0)

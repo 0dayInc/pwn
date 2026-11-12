@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'openssl'
+require 'English'
 require 'securerandom'
 require_relative '../protocol'
 
@@ -429,12 +430,15 @@ module PWN
             def invalidate
               return if @closed
 
+              primary = $ERROR_INFO
               @closed = true
               @ready = false
               # Best effort only: Ruby/OpenSSL/GC may retain copies. No locked
               # memory or guaranteed zeroization is claimed.
               [@enc, @mac, @rmac, @dek, @chain].compact.each { |value| value.replace("\0".b * value.bytesize) unless value.frozen? }
               @connection.close
+            rescue StandardError
+              raise unless primary
             end
           end
 

@@ -140,7 +140,7 @@
 <title>AWS</title>
 <path fill="#c4b5fd" stroke="#334155" stroke-width="1.3" d="M872.38,-52C872.38,-52 818.12,-52 818.12,-52 812.12,-52 806.12,-46 806.12,-40 806.12,-40 806.12,-28 806.12,-28 806.12,-22 812.12,-16 818.12,-16 818.12,-16 872.38,-16 872.38,-16 878.38,-16 884.38,-22 884.38,-28 884.38,-28 884.38,-40 884.38,-40 884.38,-46 878.38,-52 872.38,-52"/>
 <text xml:space="preserve" text-anchor="middle" x="845.25" y="-36.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">PWN::AWS::*</text>
-<text xml:space="preserve" text-anchor="middle" x="845.25" y="-24.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">90 services</text>
+<text xml:space="preserve" text-anchor="middle" x="845.25" y="-24.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">85 services</text>
 </g>
 <!-- MSF&#45;&gt;AWS -->
 <g id="edge9" class="edge">

@@ -152,24 +152,34 @@ module PWN
           )
 
           # Run info and return its result
-          #{self}.info
+          #{self}.info(
+            path: 'required - filesystem path of the binary to inspect'
+          )
 
           # Run sections and return its result
-          #{self}.sections
+          #{self}.sections(
+            path: 'required - filesystem path of the binary to inspect'
+          )
 
           # Run symbols and return its result
           #{self}.symbols(
+            path: 'required - filesystem path of the binary to inspect',
             limit: 'optional - limit value consumed by #symbols'
           )
 
           # Run imports and return its result
-          #{self}.imports
+          #{self}.imports(
+            path: 'required - filesystem path of the binary to inspect'
+          )
 
           # Run exports and return its result
-          #{self}.exports
+          #{self}.exports(
+            path: 'required - filesystem path of the binary to inspect'
+          )
 
           # Run relocations and return its result
           #{self}.relocations(
+            path: 'required - filesystem path of the binary to inspect',
             limit: 'optional - limit value consumed by #relocations'
           )
 
@@ -539,6 +549,8 @@ module PWN
           loads << { off: file_off, vaddr: vaddr, filesz: filesz, memsz: memsz }
         end
         v2off = lambda do |addr|
+          return nil if addr.nil?
+
           seg = loads.find { |row| addr >= row[:vaddr] && addr < row[:vaddr] + [row[:memsz], row[:filesz]].max }
           return nil unless seg
 
@@ -569,7 +581,6 @@ module PWN
             symbols[name] ||= value
           end
         end
-        parse_symtab.call(v2off.call(dyn[6]), dyn[10] || 0x10000, strtab_off) if dyn[6] && strtab_off
         if (sym = sections['.symtab']) && (str = sections['.strtab'])
           parse_symtab.call(sym[:off], sym[:size], str[:off])
         end
@@ -577,10 +588,32 @@ module PWN
         plt = {}
         jmprel = dyn[23]
         pltrelsz = dyn[2].to_i
-        relaent = bits == 64 ? 24 : 12
+        rel = dyn[20] == 17
+        relaent = if bits == 64
+                    rel ? 16 : 24
+                  else
+                    rel ? 8 : 12
+                  end
         plt_base = sections['.plt.sec']&.[](:addr) || sections['.plt']&.[](:addr)
         # .plt.sec slots start at the section base. Classic .plt reserves the first 16 bytes for the lazy resolver.
         plt_bias = sections['.plt.sec'] ? 0 : 1
+        dyn_bytes = sections['.dynsym']&.[](:size).to_i
+        if dyn_bytes <= 0 && dyn[4]
+          hash_off = v2off.call(dyn[4])
+          nchain = hash_off ? u32.call(hash_off + 4).to_i : 0
+          dyn_bytes = nchain * syment if nchain.positive?
+        end
+        max_sym = -1
+        if jmprel && pltrelsz.positive? && (rel_floor = v2off.call(jmprel))
+          0.step(pltrelsz - relaent, relaent) do |cursor|
+            r_info = bits == 64 ? word.call(rel_floor + cursor + 8) : u32.call(rel_floor + cursor + 4)
+            sym_idx = bits == 64 ? (r_info >> 32) : (r_info >> 8)
+            max_sym = sym_idx if sym_idx > max_sym
+          end
+        end
+        # DT_STRSZ is the string table, not the symbol table. Without .dynsym or DT_HASH, cover symbols named by relocations.
+        dyn_bytes = (max_sym + 1) * syment if syment.positive? && 0.between?(dyn_bytes, max_sym)
+        parse_symtab.call(v2off.call(dyn[6]), dyn_bytes, strtab_off) if dyn[6] && strtab_off && dyn_bytes.positive?
         if jmprel && pltrelsz.positive?
           rel_off = v2off.call(jmprel)
           idx = 0
@@ -609,7 +642,9 @@ module PWN
           seg = loads.find { |row| hit >= row[:off] && hit < row[:off] + row[:filesz] }
           strings[needle] = seg[:vaddr] + (hit - seg[:off]) if seg
         end
-        { path: opts[:path], arch: bits == 64 ? 'x86_64' : 'i386', symbols: symbols, got: got, plt: plt, strings: strings }
+        machine = u16.call(18)
+        arch = { 3 => 'i386', 62 => 'x86_64', 40 => 'arm', 183 => 'aarch64', 8 => 'mips', 243 => 'riscv' }.fetch(machine, "machine-#{machine}")
+        { path: opts[:path], arch: arch, symbols: symbols, got: got, plt: plt, strings: strings }
       end
     end
   end

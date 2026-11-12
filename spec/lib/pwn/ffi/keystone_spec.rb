@@ -20,6 +20,19 @@ describe PWN::FFI::Keystone do
     expect { described_class.assemble(asm: 'nop') }.to raise_error(RuntimeError, /libkeystone not available/)
   end
 
+  it 'closes the native engine when assembly fails' do
+    allow(described_class).to receive(:available?).and_return(true)
+    engine = FFI::MemoryPointer.new(:char)
+    allow(described_class).to receive(:ks_open) do |_arch, _mode, result|
+      result.write_pointer(engine)
+      0
+    end
+    allow(described_class).to receive(:ks_asm).and_return(-1)
+    expect(described_class).to receive(:ks_close).with(engine).once
+    expect(described_class).not_to receive(:ks_free)
+    expect { described_class.assemble(asm: 'invalid fixture instruction') }.to raise_error(/ks_asm failed/)
+  end
+
   before(:each, :keystone_integration) do
     expect(described_class.available?).to be(true),
                                           "PWN_TEST_KEYSTONE=1 requires libkeystone. Load error: #{described_class.load_error}"

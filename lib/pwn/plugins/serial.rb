@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'English'
+
 require 'uart'
 require 'io/wait'
 
@@ -8,7 +10,8 @@ module PWN
     # This plugin is used for interacting with serial devices including, but not limited to,
     # modems (including cellphone radios), legacy equipment, arduinos, & other misc ftdi devices
     module Serial
-      @session_data = []
+      @sessions = []
+      @sessions_mutex = Mutex.new
 
       # Supported Method Parameters::
       # serial_obj = PWN::Plugins::Serial.connect(
@@ -20,13 +23,13 @@ module PWN
       # )
 
       public_class_method def self.connect(opts = {})
-        block_dev = opts[:block_dev] ||= '/dev/ttyUSB0'
-        raise "Invalid block device: #{block_dev}" unless File.exist?(block_dev)
+        block_dev = opts.fetch(:block_dev, '/dev/ttyUSB0')
+        raise ArgumentError, 'Invalid serial block device' unless block_dev.is_a?(String) && !block_dev.empty? && !block_dev.include?("\0") && File.exist?(block_dev)
 
-        baud = opts[:baud] ||= 9_600
-        data_bits = opts[:data_bits] ||= 8
-        stop_bits = opts[:stop_bits] ||= 1
-        parity = opts[:parity] ||= :none
+        baud = opts.fetch(:baud, 9_600)
+        data_bits = opts.fetch(:data_bits, 8)
+        stop_bits = opts.fetch(:stop_bits, 1)
+        parity = opts.fetch(:parity, :none)
 
         case parity.to_s.to_sym
         when :even
@@ -47,16 +50,20 @@ module PWN
           mode
         )
 
-        serial_obj = {}
+        serial_obj = { session_data: [], session_mutex: Mutex.new }
         serial_obj[:serial_conn] = serial_conn
+        @sessions_mutex.synchronize { @sessions << serial_obj }
         serial_obj[:session_thread] = init_session_thread(
-          serial_conn: serial_conn
+          serial_obj: serial_obj
         )
 
+        handed_off = true
         serial_obj
-      rescue StandardError => e
-        disconnect(serial_obj: serial_obj) unless serial_obj.nil?
-        raise e
+      ensure
+        unless handed_off
+          serial_obj ||= { serial_conn: serial_conn } if serial_conn
+          cleanup_failed_session(serial_obj: serial_obj) if serial_obj
+        end
       end
 
       # Supported Method Parameters::
@@ -65,27 +72,20 @@ module PWN
       # )
 
       private_class_method def self.init_session_thread(opts = {})
-        serial_conn = opts[:serial_conn]
+        serial_obj = opts[:serial_obj]
+        serial_conn = serial_obj[:serial_conn]
 
-        # Spin up a serial_obj session_thread
         Thread.new do
-          # serial_conn.read_timeout = -1
           serial_conn.flush
 
           loop do
             serial_conn.wait_readable
-            # Read raw chars into @session_data,
-            # convert to readable bytes if need-be
-            # later.
-            @session_data << serial_conn.readchar
+            byte = serial_conn.readchar
+            serial_obj[:session_mutex].synchronize { serial_obj[:session_data] << byte }
           end
+        rescue StandardError => e
+          serial_obj[:session_mutex].synchronize { serial_obj[:session_error] = e }
         end
-      rescue StandardError => e
-        session_thread&.terminate
-        serial_conn&.close
-        serial_conn = nil
-
-        raise e
       end
 
       # Supported Method Parameters::
@@ -98,9 +98,14 @@ module PWN
         serial_conn = serial_obj[:serial_conn]
         # Should return something like:
         # {"rts"=>1, "dtr"=>1, "cts"=>1, "dsr"=>1, "dcd"=>0, "ri"=>0}
-        serial_conn.lstat
+        buffer = [0].pack('i')
+        serial_conn.ioctl(Termios::TIOCMGET, buffer)
+        flags = buffer.unpack1('i')
+        { 'rts' => Termios::TIOCM_RTS, 'dtr' => Termios::TIOCM_DTR,
+          'cts' => Termios::TIOCM_CTS, 'dsr' => Termios::TIOCM_DSR,
+          'dcd' => Termios::TIOCM_CAR, 'ri' => Termios::TIOCM_RNG }.transform_values { |mask| flags.anybits?(mask) ? 1 : 0 }
       rescue StandardError => e
-        disconnect(serial_obj: serial_obj) unless serial_obj.nil?
+        cleanup_failed_session(serial_obj: serial_obj) unless serial_obj.nil?
         raise e
       end
 
@@ -114,9 +119,20 @@ module PWN
         serial_conn = serial_obj[:serial_conn]
         # Should return something like:
         # {"baud"=>9600, "data_bits"=>8, "stop_bits"=>1, "parity"=>0}
-        serial_conn.get_modem_params
+        attributes = Termios.tcgetattr(serial_conn)
+        baud_name = Termios.constants.find { |name| name.to_s.match?(/\AB[0-9]+\z/) && Termios.const_get(name) == attributes.ospeed }
+        raise IOError, 'Unrecognized UART baud rate' unless baud_name
+
+        bits = (5..8).find { |width| (attributes.cflag & Termios::CSIZE) == Termios.const_get("CS#{width}") }
+        parity = if attributes.cflag.nobits?(Termios::PARENB)
+                   0
+                 else
+                   attributes.cflag.anybits?(Termios::PARODD) ? 1 : 2
+                 end
+        { 'baud' => baud_name.to_s.delete_prefix('B').to_i, 'data_bits' => bits,
+          'stop_bits' => attributes.cflag.anybits?(Termios::CSTOPB) ? 2 : 1, 'parity' => parity }
       rescue StandardError => e
-        disconnect(serial_obj: serial_obj) unless serial_obj.nil?
+        cleanup_failed_session(serial_obj: serial_obj) unless serial_obj.nil?
         raise e
       end
 
@@ -143,7 +159,7 @@ module PWN
         sleep(0.1)
         serial_conn.flush
       rescue StandardError => e
-        disconnect(serial_obj: serial_obj) unless serial_obj.nil?
+        cleanup_failed_session(serial_obj: serial_obj) unless serial_obj.nil?
         raise e
       end
 
@@ -155,7 +171,7 @@ module PWN
       public_class_method def self.response(opts = {})
         serial_obj = opts[:serial_obj]
 
-        raw_byte_arr = dump_session_data
+        raw_byte_arr = dump_session_data(serial_obj: serial_obj)
 
         hex_esc_raw_resp = ''
         raw_byte_arr.each do |byte|
@@ -180,7 +196,7 @@ module PWN
         cmd_response_arr.map(&:strip)
       rescue StandardError => e
         # Flush Responses for Next Request
-        flush_session_data
+        flush_session_data(serial_obj: serial_obj) if serial_obj
 
         raise e
       end
@@ -188,8 +204,15 @@ module PWN
       # Supported Method Parameters::
       # session_data = PWN::Plugins::Serial.dump_session_data
 
-      public_class_method def self.dump_session_data
-        @session_data
+      public_class_method def self.dump_session_data(opts = {})
+        serial_obj = session_for_data(serial_obj: opts[:serial_obj])
+        return [] unless serial_obj
+
+        serial_obj[:session_mutex].synchronize do
+          raise serial_obj[:session_error] if serial_obj[:session_error] && serial_obj[:session_data].empty?
+
+          serial_obj[:session_data].dup
+        end
       rescue StandardError => e
         raise e
       end
@@ -197,8 +220,11 @@ module PWN
       # Supported Method Parameters::
       # session_data = PWN::Plugins::Serial.flush_session_data
 
-      public_class_method def self.flush_session_data
-        @session_data.clear
+      public_class_method def self.flush_session_data(opts = {})
+        serial_obj = session_for_data(serial_obj: opts[:serial_obj])
+        return [] unless serial_obj
+
+        serial_obj[:session_mutex].synchronize { serial_obj[:session_data].clear }
       rescue StandardError => e
         raise e
       end
@@ -209,15 +235,43 @@ module PWN
       # )
 
       public_class_method def self.disconnect(opts = {})
+        primary_error = nil
         serial_obj = opts[:serial_obj]
+        return unless serial_obj
+
         serial_conn = serial_obj[:serial_conn]
         session_thread = serial_obj[:session_thread]
-        flush_session_data
-        session_thread.terminate
-        serial_conn.close
-        serial_conn = nil
-      rescue StandardError => e
-        raise e
+        session_thread&.terminate
+        session_thread&.join unless session_thread == Thread.current
+        flush_session_data(serial_obj: serial_obj) if serial_obj[:session_mutex]
+        nil
+      rescue StandardError, Interrupt => e
+        primary_error = e
+        raise
+      ensure
+        @sessions_mutex.synchronize { @sessions.delete_if { |session| session.equal?(serial_obj) } }
+        begin
+          serial_conn.close if serial_conn && !serial_conn.closed?
+        rescue StandardError, Interrupt
+          raise unless primary_error
+        end
+      end
+
+      private_class_method def self.cleanup_failed_session(opts = {})
+        disconnect(serial_obj: opts[:serial_obj])
+      rescue StandardError, Interrupt
+        # Invoked only while the caller is already propagating its own failure.
+        nil
+      end
+
+      private_class_method def self.session_for_data(opts = {})
+        return opts[:serial_obj] if opts[:serial_obj]
+
+        @sessions_mutex.synchronize do
+          raise ArgumentError, 'serial_obj is required when multiple serial sessions are open' if @sessions.length > 1
+
+          @sessions.first
+        end
       end
 
       # Author(s):: 0day Inc. <support@0dayinc.com>
@@ -263,10 +317,14 @@ module PWN
           )
 
           # Run dump session data and return its result
-          #{self}.dump_session_data
+          #{self}.dump_session_data(
+            serial_obj: 'optional - selected connection; required when multiple sessions are open'
+          )
 
           # Run flush session data and return its result
-          #{self}.flush_session_data
+          #{self}.flush_session_data(
+            serial_obj: 'optional - selected connection; required when multiple sessions are open'
+          )
 
           # Run disconnect and return its result
           #{self}.disconnect(

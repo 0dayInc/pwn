@@ -26,7 +26,7 @@ module PWN
       end
 
       public_class_method def self.run_to_crash(opts = {})
-        cmds = ['run', 'bt', 'info registers']
+        cmds = Array(opts[:commands] || opts[:cmds]) + ['run', 'bt', 'info registers']
         batch(opts.merge(commands: cmds))
       end
 
@@ -120,7 +120,12 @@ module PWN
           )
 
           # Run run to crash and return its result
-          #{self}.run_to_crash
+          #{self}.run_to_crash(
+            binary: 'required - executable to run under gdb',
+            args: 'optional - Array of inferior arguments',
+            commands: 'optional - setup commands issued before run, backtrace and registers',
+            cmds: 'optional - alias for commands'
+          )
 
           # Run registers and return its result
           #{self}.registers

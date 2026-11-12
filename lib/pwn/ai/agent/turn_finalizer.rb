@@ -82,6 +82,7 @@ module PWN
           return { skipped: :no_session } if session_id.to_s.strip.empty?
           return { skipped: :no_learning } unless defined?(Learning)
 
+          snapshot = Reward.prm_snapshot(session_id: session_id, request: opts[:request]) if defined?(Reward)
           episode = nil
           episode = Policy.detach_episode! if defined?(Policy) && Policy.respond_to?(:detach_episode!)
 
@@ -96,6 +97,7 @@ module PWN
 
           worker = Thread.new do
             Thread.current[INLINE_KEY] = true
+            Thread.current[:pwn_prm_snapshot] = snapshot
             begin
               Policy.attach_episode!(episode: episode) if defined?(Policy) && Policy.respond_to?(:attach_episode!)
               Learning.auto_introspect(payload)
@@ -103,6 +105,7 @@ module PWN
               warn "[pwn-ai/turn_finalizer] background review swallowed: #{e.class}: #{e.message}"
               nil
             ensure
+              Thread.current[:pwn_prm_snapshot] = nil
               leftover = defined?(Policy) && Policy.respond_to?(:current_episode) && Policy.current_episode
               if leftover && Policy.respond_to?(:finish)
                 Policy.finish(

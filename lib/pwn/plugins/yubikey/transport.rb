@@ -3,6 +3,7 @@
 # rubocop:disable Lint/RescueException -- Native resource ownership must survive Interrupt/SystemExit; errors are re-raised or forwarded, never logged.
 
 require 'securerandom'
+require 'English'
 
 module PWN
   module Plugins
@@ -151,13 +152,23 @@ module PWN
               end
               current = entry[:next]
             end
+            completed = true
             found
           ensure
+            primary_error = completed ? nil : $ERROR_INFO
+            cleanup_error = nil
             begin
               @native.library.hid_free_enumeration(pointer) if pointer && !pointer.null?
+            rescue Exception => e
+              cleanup_error = e
             ensure
-              @native.release if owned
+              begin
+                @native.release if owned
+              rescue Exception => e
+                cleanup_error ||= e
+              end
             end
+            raise cleanup_error if cleanup_error && !primary_error
           end
 
           private
@@ -200,9 +211,14 @@ module PWN
             @owned = true
             @handle = @native.library.hid_open_path(path)
             raise CommandError, 'Cannot open selected HID device; check permissions and competing clients' if @handle.null?
-          rescue Exception
-            close
-            raise
+          rescue Exception => e
+            begin
+              close
+            rescue Exception
+              # Acquisition failed; release errors must not hide that failure.
+              nil
+            end
+            raise e
           end
 
           def write_packet(bytes)
@@ -288,7 +304,12 @@ module PWN
 
             text.split("\0").map { |reader| { backend: :pcsc, protocol: :apdu, reader: reader, serial: nil } }
           ensure
-            check(@native.library.SCardReleaseContext(context)) if context
+            primary = $ERROR_INFO
+            begin
+              check(@native.library.SCardReleaseContext(context)) if context
+            rescue StandardError
+              raise unless primary
+            end
           end
 
           private
@@ -312,9 +333,14 @@ module PWN
             @handle = handle.read(native.handle_type)
             @protocol = active.read(native.dword)
             raise ResponseError, 'PC/SC negotiated neither T=0 nor T=1' unless native.pci.key?(@protocol)
-          rescue Exception
-            close
-            raise
+          rescue Exception => e
+            begin
+              close
+            rescue Exception
+              # Acquisition failed; release errors must not hide that failure.
+              nil
+            end
+            raise e
           end
 
           def metadata
@@ -691,9 +717,14 @@ module PWN
             end
             begin
               task.await
-            rescue Exception
-              close
-              raise
+            rescue Exception => e
+              begin
+                close
+              rescue Exception
+                # Keep the operation failure, including cancellation, authoritative.
+                nil
+              end
+              raise e
             ensure
               @state.synchronize { @active = false }
             end

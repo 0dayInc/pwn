@@ -2,6 +2,7 @@
 
 require 'io/console'
 require 'fcntl'
+require 'English'
 require 'timeout'
 
 module PWN
@@ -176,7 +177,7 @@ module PWN
         'otp' => %i[key password access_code new_access_code private_id public_id generate generate_key generate_private_id secret_sink touch totp digits counter identifier key_encoding keyboard_layout length prefix ndef_type config_output enter no_enter serial_public_id delete_access_code use_numeric_keypad serial_usb_visible pacing verification_challenge challenge timestamp],
         'config' => %i[lock_code new_lock_code secret_sink reconnect enable disable enable_all disable_all touch_eject no_touch_eject autoeject_timeout chalresp_timeout restrict clear generate reboot list mode],
         'oath' => %i[password new_password access_key new_access_key timestamp encrypted_cache remember use_cache secret secret_base32 uri credentials pskc pskc_password pskc_key oath_type algorithm digits period counter issuer touch generate overwrite],
-        'hsmauth' => %i[management_key new_management_key new_management_password credential_password new_credential_password password derivation_password key_enc key_mac private_key key_password public_key touch generate],
+        'hsmauth' => %i[management_key management_password auth_method new_management_key new_management_password credential_password new_credential_password password derivation_password key_enc key_mac private_key key_password public_key touch generate],
         'piv' => %i[pin new_pin puk new_puk management_key new_management_key management_algorithm algorithm input password certificate_serial extensions fips_restrictions secret_sink generate protect touch pin_policy touch_policy use_protected_key temporary_pin request_temporary_pin block_retries subject valid_days hash_algorithm not_before not_after compress update_chuid no_update_chuid verify format public_key_source],
         'fido' => %i[pin new_pin u2f uv rp_ids min_length on_keepalive cancelled on_sample max_records max_samples capture_timeout_ms],
         'openpgp' => %i[pin new_pin admin_pin new_admin_pin reset_code new_reset_code use_admin key key_password certificate],
@@ -531,7 +532,11 @@ module PWN
           #{self}.openpgp(args: 'optional - argv after the family name')
 
           # Dispatch an hsmauth leaf through the native HSM Auth application.
-          #{self}.hsmauth(args: 'optional - argv after the family name')
+          #{self}.hsmauth(
+            args: 'optional - argv after the family name',
+            management_password: 'optional - explicit in-memory HSM Auth management password instead of management_key',
+            auth_method: 'optional - credential or management Symbol selecting password-change authentication'
+          )
 
           # Dispatch a security_domain leaf through the native Security Domain application.
           #{self}.security_domain(args: 'optional - argv after the family name')
@@ -701,6 +706,13 @@ module PWN
           @owned = @connection.nil?
           @selection = opts.slice(*SELECTOR_OPTIONS).merge(application: opts[:application])
           @deadline = deadline
+          selectors = @selection.slice(:serial, :reader, :device_path).compact
+          return if @owned || selectors.empty?
+
+          descriptor = @connection.respond_to?(:descriptor) ? @connection.descriptor : nil
+          return if descriptor.is_a?(Hash) && selectors.all? { |name, value| descriptor[name] == value }
+
+          raise ArgumentError, 'Explicit selector does not match the supplied connection descriptor'
         end
 
         def acquire
@@ -767,11 +779,14 @@ module PWN
       rescue IOError, SystemCallError
         raise CommandError, 'Native YubiKey I/O failed; inspect device state before retrying', cause: nil
       ensure
-        begin
-          wrapped.close if wrapped
-        ensure
-          lease&.release
+        primary = $ERROR_INFO
+        cleanup_error = nil
+        [[wrapped, :close], [lease, :release]].each do |handle, method|
+          handle.public_send(method) if handle
+        rescue StandardError => e
+          cleanup_error ||= e
         end
+        raise cleanup_error if cleanup_error && !primary
       end
 
       private_class_method def self.read_only?(opts = {})

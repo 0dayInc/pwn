@@ -55,8 +55,6 @@ module PWN
             request: request,
             suppress_pii_warning: true
           )
-        rescue StandardError => e
-          raise e.backtrace
         end
 
         # Author(s):: 0day Inc. <support@0dayinc.com>

@@ -66,7 +66,7 @@ module PWN
               method: http_method,
               url: "#{base_uri}/#{rest_call}",
               headers: headers,
-              verify_ssl: false,
+              verify_ssl: true,
               timeout: timeout
             )
 
@@ -76,7 +76,7 @@ module PWN
               url: "#{base_uri}/#{rest_call}",
               headers: headers,
               payload: http_body.to_json,
-              verify_ssl: false,
+              verify_ssl: true,
               timeout: timeout
             )
           else
@@ -276,9 +276,11 @@ module PWN
             raw = m[:_native_content] || m['_native_content']
             if raw.is_a?(Array) && !raw.empty?
               parts = raw.map do |p|
-                if p[:functionCall]
-                  tool_name_by_id[p.dig(:functionCall, :_id).to_s] = p.dig(:functionCall, :name)
-                  { functionCall: p[:functionCall].except(:_id) }
+                key = p.key?(:functionCall) ? :functionCall : 'functionCall'
+                if p[key]
+                  call = p[key]
+                  tool_name_by_id[(call[:_id] || call['_id']).to_s] = call[:name] || call['name']
+                  p.merge(key => call.except(:_id, '_id'))
                 else
                   p
                 end

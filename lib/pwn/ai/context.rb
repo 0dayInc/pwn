@@ -21,7 +21,8 @@ module PWN
 
         range = opts[:range]
         data = if range.is_a?(Range)
-                 File.binread(path, range.end - range.begin, range.begin).to_s
+                 length = range.end - range.begin + (range.exclude_end? ? 0 : 1)
+                 File.binread(path, length, range.begin).to_s
                else
                  File.binread(path)
                end

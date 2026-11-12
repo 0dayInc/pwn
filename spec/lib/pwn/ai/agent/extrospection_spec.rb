@@ -1,8 +1,17 @@
 # frozen_string_literal: true
 
 require 'spec_helper'
+require 'rest-client'
 
 describe PWN::AI::Agent::Extrospection do
+  include_context 'pwn tmp sandbox'
+
+  before do
+    allow(RestClient::Request).to receive(:execute).and_raise(IOError, 'offline fixture')
+    allow(PWN::Plugins::VIN).to receive(:decode_vin).and_raise(IOError, 'offline fixture')
+    allow(described_class).to receive(:sh).and_return('')
+  end
+
   it 'should display information for authors' do
     authors_response = PWN::AI::Agent::Extrospection
     expect(authors_response).to respond_to :authors

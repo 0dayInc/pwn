@@ -11,13 +11,25 @@ module PWN
       # )
 
       public_class_method def self.open(opts = {})
-        browser_obj = PWN::Plugins::TransparentBrowser.open(opts)
+        browser_obj = PWN::Plugins::TransparentBrowser.open(opts.dup)
 
         browser = browser_obj[:browser]
         browser.goto('http://www.torchtorsearch.com')
 
         browser_obj
       rescue StandardError => e
+        begin
+          if browser_obj
+            # Teardown independently: a driver failure must not strand Tor.
+            begin
+              PWN::Plugins::TransparentBrowser.close(browser_obj: browser_obj.reject { |key| key == :tor_obj })
+            ensure
+              PWN::Plugins::TransparentBrowser.close(browser_obj: { tor_obj: browser_obj[:tor_obj] }) if browser_obj[:tor_obj]
+            end
+          end
+        rescue StandardError => cleanup_error
+          warn "Browser cleanup failed (#{cleanup_error.class}); preserving the navigation error"
+        end
         raise e
       end
 
@@ -45,7 +57,7 @@ module PWN
       #   browser_obj: 'required - browser_obj returned from #open method'
       # )
 
-      public_class_method def self.onion
+      public_class_method def self.onion(opts = {})
         browser_obj = opts[:browser_obj]
 
         browser = browser_obj[:browser]
@@ -95,7 +107,9 @@ module PWN
           )
 
           # Run onion and return its result
-          #{self}.onion
+          #{self}.onion(
+            browser_obj: 'required - browser_obj returned from #open method'
+          )
 
           # Close a session previously returned by #open.
           #{self}.close(

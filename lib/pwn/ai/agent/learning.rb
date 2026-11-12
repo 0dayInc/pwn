@@ -30,6 +30,7 @@ module PWN
         DISPUTED_FILE      = File.join(Dir.home, '.pwn', 'learning', 'disputed.jsonl')
         LESSONS_FILE       = File.join(Dir.home, '.pwn', 'lessons.json')
         FINETUNE_DIR       = File.join(Dir.home, '.pwn', 'finetune')
+        EVIDENCE_ANNOTATION_VERSION = 2
         # Evidence is immutable; provenance is not permission to remove a session.
         # All readers validate the content hash and full-snapshot contract first.
         public_class_method def self.evidence_transcript(opts = {})
@@ -230,15 +231,14 @@ module PWN
           return { annotated: false } unless row
 
           transcript = session_evidence(session_id: sid)
+          binding = opts[:binding]
+          return { annotated: false, reason: :stale_binding } unless Reward.prm_binding_valid?(binding: binding, transcript: transcript, session_id: sid) && rewards.length == binding[:actions].length
+
           prior = row[:evidence_ref][:sha256]
           artifact = File.join(File.dirname(LEARNING_FILE), 'learning', 'evidence', "#{prior}.json")
           data = JSON.parse(evidence_read(path: artifact), symbolize_names: true)
-          index = -1
-          transcript.each do |entry|
-            next unless entry[:role].to_s == 'tool'
-
-            index += 1
-            entry[:step_reward] = rewards[index] unless rewards[index].nil?
+          binding[:actions].each_with_index do |action, index|
+            transcript[action[:row_index]][:step_reward] = rewards[index] unless rewards[index].nil?
           end
           return { annotated: false, unchanged: true } if transcript == data[:transcript]
 
@@ -247,7 +247,7 @@ module PWN
           updated = rows.map { |entry| entry[:session_id] == sid ? entry.except(:evidence_ref) : entry }
           snapshot = { body: body, source: nil, path: File.join(PWN::Sessions::SESSIONS_DIR, "#{sid}.jsonl"),
                        ref: { version: 1, id: hash, sha256: hash } }
-          evidence_commit(rows: updated, original: original, snapshots: { sid => snapshot }, report: { migrated_rows: 0 }).merge(annotated: true)
+          evidence_commit(rows: updated, original: original, snapshots: { sid => snapshot }, report: { migrated_rows: 0 }).merge(annotated: true, binding_sha256: Digest::SHA256.hexdigest(JSON.generate(binding)))
         ensure
           learning_unlock(lock: lock) if lock
         end
@@ -455,6 +455,7 @@ module PWN
 
         public_class_method def self.note_outcome(opts = {})
           lock = learning_lock
+          lease, evidence_ref = source_ownership(session_id: opts[:session_id])
           task    = opts[:task].to_s
           # 4.1 — allow success: 'soft' (HER) distinct from true/false
           raw_ok  = opts[:success]
@@ -493,6 +494,7 @@ module PWN
             timestamp: Time.now.utc.iso8601
           }
           entry[:score] = score if decision || opts.key?(:score)
+          entry[:evidence_ref] = evidence_ref if evidence_ref
           if decision
             %i[verdict confidence training_score decision_version verification verifier_verdict grounded critic_pass judge_score quality_score rationale claimed_completion verified_completion false_completion].each do |key|
               entry[key] = decision[key] if decision.key?(key)
@@ -534,6 +536,7 @@ module PWN
           end
           entry
         ensure
+          PWN::Sessions.deactivate(lease: lease)
           learning_unlock(lock: lock) if lock
         end
 
@@ -546,10 +549,33 @@ module PWN
         end
 
         public_class_method def self.disputed_save(opts = {})
+          lock = learning_lock
           entry = opts[:entry] || {}
+          lease, evidence_ref = source_ownership(session_id: entry[:session_id])
+          entry = entry.merge(evidence_ref: evidence_ref) if evidence_ref
           FileUtils.mkdir_p(File.dirname(DISPUTED_FILE))
           File.open(DISPUTED_FILE, 'a') { |f| f.puts(JSON.generate(entry)) }
           entry
+        ensure
+          PWN::Sessions.deactivate(lease: lease)
+          learning_unlock(lock: lock) if lock
+        end
+
+        # Manual noncanonical IDs are legacy provenance, not canonical evidence
+        # claims. Existing legacy transcripts still get lifetime ownership.
+        # Called only under learning_lock, so deletion cannot race this decision.
+        private_class_method def self.source_ownership(opts = {})
+          sid = opts[:session_id].to_s
+          safe = !sid.empty? && File.basename(sid) == sid && !sid.include?("\0") && !%w[. ..].include?(sid)
+          path = File.join(PWN::Sessions::SESSIONS_DIR, "#{sid}.jsonl") if safe
+          return [PWN::Sessions.activate(session_id: sid), nil] if path && (File.exist?(path) || File.symlink?(path))
+          return [nil, nil] unless sid.match?(PWN::Sessions::SESSION_ID)
+
+          raise IOError, 'Missing learning source or verified archived evidence' unless session_evidence(session_id: sid)
+
+          rows = evidence_read(path: LEARNING_FILE).lines.map { |line| JSON.parse(line, symbolize_names: true) }
+          row = rows.find { |item| item[:session_id] == sid && item[:evidence_ref] }
+          [nil, row.fetch(:evidence_ref)]
         end
 
         # Supported Method Parameters::
@@ -2025,11 +2051,16 @@ module PWN
           return { kept: 0, removed: 0, skipped: true } unless File.exist?(LEARNING_FILE)
 
           before_bytes = File.size(LEARNING_FILE)
-          rows = File.readlines(LEARNING_FILE).map do |l|
-            JSON.parse(l, symbolize_names: true)
-          rescue StandardError
+          rows = File.readlines(LEARNING_FILE).map do |line|
+            JSON.parse(line, symbolize_names: true)
+          rescue JSON::ParserError
             nil
-          end.compact
+          end
+          malformed = rows.count { |row| !row.is_a?(Hash) }
+          if malformed.positive?
+            return { state: 'blocked', aborted: true, reason: 'malformed_learning_rows', malformed_rows: malformed,
+                     kept: rows.length, removed: 0, bytes_before: before_bytes, bytes_after: before_bytes, dry_run: dry }
+          end
 
           now = Time.now.utc
           age_days = lambda do |r|
@@ -2126,7 +2157,7 @@ module PWN
 
           {
             kept: kept.size,
-            removed: (rows.size - kept.size) + removed_dupes,
+            removed: rows.size - kept.size,
             deduped: removed_dupes,
             truncated_details: truncated,
             protected: protected.size,
@@ -2433,7 +2464,8 @@ module PWN
             # Persist derived PRM rewards without rewriting immutable supporting content.
             #{self}.annotate_evidence(
               session_id: 'required - canonical source session ID with retained evidence and no live transcript',
-              rewards: 'required - Array of integer -1, 0, 1 or nil per tool row'
+              rewards: 'required - Array of integer -1, 0, 1 or nil per bound tool row',
+              binding: 'required - versioned Reward.prm_snapshot binding for the exact request turn and original action bytes'
             )
 
             # Read and verify the immutable evidence supporting one outcome.

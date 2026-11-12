@@ -98,7 +98,7 @@ module PWN
             approved: row[:approved] == true,
             unattended: row[:unattended]
           )
-          ids = Array(report[:results]).map { |step| step[:id] || step['id'] }.compact
+          ids = Array(report[:results]).filter_map { |step| step[:id] || step['id'] if step[:ok] == true || step['ok'] == true }
           mutate!(id: row[:id]) do |locked|
             locked[:last_completed_step] = ids.last if ids.any?
             locked[:status] = 'open'
@@ -228,8 +228,11 @@ module PWN
 
         public_class_method def self.report_text(opts = {})
           report = opts[:report] || {}
-          ids = Array(report[:results]).map { |step| step[:id] || step['id'] }
-          "Resumed mission for #{opts[:request]}. Completed steps: #{ids.join(', ')}. Named-duration work stays open until wall time elapses."
+          completed, failed = Array(report[:results]).partition { |step| step[:ok] == true || step['ok'] == true }
+          ids = completed.map { |step| step[:id] || step['id'] }
+          failures = failed.map { |step| step[:id] || step['id'] }
+          failure_text = failures.empty? ? '' : " Failed steps: #{failures.join(', ')}."
+          "Resumed mission for #{opts[:request]}. Completed steps: #{ids.join(', ')}.#{failure_text} Named-duration work stays open until wall time elapses."
         end
 
         public_class_method def self.authors

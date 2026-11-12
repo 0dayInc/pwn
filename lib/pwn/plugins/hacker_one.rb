@@ -90,13 +90,17 @@ module PWN
           url: url,
           headers: headers,
           payload: http_body,
-          verify_ssl: false
+          verify_ssl: true
         )
 
         return response if raw
+        return {} if response.code == 204
 
         JSON.parse(response.body, symbolize_names: true)
       rescue ::RestClient::TooManyRequests
+        retry_count = retry_count.to_i + 1
+        raise if retry_count > 3
+
         @@logger.warn('HackerOne rate limit (429). Sleeping 10s then retrying...')
         sleep 10
         retry

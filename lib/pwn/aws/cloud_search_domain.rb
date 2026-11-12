@@ -10,6 +10,7 @@ module PWN
 
       # Supported Method Parameters::
       # PWN::AWS::CloudSearchDomain.connect(
+      #   endpoint: 'required - CloudSearch domain search or document endpoint URL unless configured in the AWS SDK',
       #   region: 'required - region name to connect (eu-west-1, ap-southeast-1, ap-southeast-2, eu-central-1, ap-northeast-2, ap-northeast-1, us-east-1, sa-east-1, us-west-1, us-west-2)',
       #   access_key_id: 'required - Use AWS STS for best privacy (i.e. temporary access key id)',
       #   secret_access_key: 'required - Use AWS STS for best privacy (i.e. temporary secret access key',
@@ -18,6 +19,8 @@ module PWN
 
       public_class_method def self.connect(opts = {})
         region = opts[:region].to_s.scrub.chomp.strip
+        endpoint = opts[:endpoint]
+        endpoint_options = endpoint.nil? ? {} : { endpoint: endpoint }
         access_key_id = opts[:access_key_id].to_s.scrub.chomp.strip
         secret_access_key = opts[:secret_access_key].to_s.scrub.chomp.strip
         sts_session_token = opts[:sts_session_token].to_s.scrub.chomp.strip
@@ -25,12 +28,14 @@ module PWN
         @@logger.info('Connecting to AWS CloudSearchDomain...')
         if sts_session_token == ''
           cloud_search_domain_obj = Aws::CloudSearchDomain::Client.new(
+            **endpoint_options,
             region: region,
             access_key_id: access_key_id,
             secret_access_key: secret_access_key
           )
         else
           cloud_search_domain_obj = Aws::CloudSearchDomain::Client.new(
+            **endpoint_options,
             region: region,
             access_key_id: access_key_id,
             secret_access_key: secret_access_key,
@@ -74,6 +79,7 @@ module PWN
         puts "USAGE:
           # Run connect and return its result
           #{self}.connect(
+            endpoint: 'required - CloudSearch domain search or document endpoint URL unless configured in the AWS SDK',
             region: 'required - region name to connect (eu-west-1, ap-southeast-1, ap-southeast-2, eu-central-1, ap-northeast-2, ap-northeast-1, us-east-1, sa-east-1, us-west-1, us-west-2)',
             access_key_id: 'required - Use AWS STS for best privacy (i.e. temporary access key id)',
             secret_access_key: 'required - Use AWS STS for best privacy (i.e. temporary secret access key',

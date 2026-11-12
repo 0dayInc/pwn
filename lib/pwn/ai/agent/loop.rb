@@ -1354,12 +1354,12 @@ module PWN
           # additionally knows grep exit 1 / diff exit 1 / xargs 123 are
           # informational. Metrics records :ok; Mistakes only records
           # !semantic_ok. Kills the phantom 31f1871b8a15 class permanently.
-          sem = defined?(Reward) ? Reward.semantic_ok(name: name, raw: raw, args: opts[:args]) : { ok: raw.include?('"success":true'), semantic_ok: raw.include?('"success":true'), err: raw[/"error":"([^"]{1,300})"/, 1] }
+          sem = defined?(Reward) ? Reward.semantic_ok(name: name, raw: raw, args: opts[:args]) : { ok: nil, semantic_ok: nil, err: nil, shape: :unknown }
           dur = started ? (Time.now - started) : 0.0
           # 1.2 — align Metrics proxy with R4 semantic_ok (handler-ok alone
           # was the reward-signal lie: grep exit 1 looked like 100% success
           # while Mistakes stayed quiet, OR the inverse phantom class).
-          Metrics.record(name: name, success: sem[:semantic_ok], duration: dur, error: sem[:err], engine: opts[:engine]) if defined?(Metrics)
+          Metrics.record(name: name, success: sem[:semantic_ok], duration: dur, error: sem[:err], engine: opts[:engine]) if defined?(Metrics) && !sem[:semantic_ok].nil?
           # R5 — live MDP step. Hygiene reward only; terminal credit is judge.
           if defined?(PWN::AI::Agent::Policy) && Policy.respond_to?(:observe_step)
             policy_args = begin
@@ -1382,7 +1382,7 @@ module PWN
             )
           end
           m = nil
-          if !sem[:semantic_ok] && defined?(Mistakes) && sem[:shape].to_s != 'invalid_payload' && !raw.include?('extinguished_repeat')
+          if sem[:semantic_ok] == false && defined?(Mistakes) && sem[:shape].to_s != 'invalid_payload' && !raw.include?('extinguished_repeat')
             cause = attribute_cause(name: name)
             err = sem[:err] || raw[0, 300]
             shape = sem[:shape]
@@ -2873,6 +2873,7 @@ module PWN
         private_class_method def self.answer_recall(opts = {})
           request = opts[:request].to_s
           session_id = opts[:session_id]
+          source_session_id = session_id
           system_role_content = opts[:system_role_content].to_s
           target = recall_target(request: request)
           last_session = request.match?(LAST_SESSION_RX)
@@ -2885,7 +2886,7 @@ module PWN
               return txt
             end
 
-            session_id = prev
+            source_session_id = prev
           end
 
           prior_user = nil
@@ -2901,20 +2902,20 @@ module PWN
               pair =
                 if match == :non_meta || match.nil?
                   PWN::Memory.find_turn_pair(
-                    session_id: session_id,
+                    session_id: source_session_id,
                     skip_meta: true,
                     pairs: 12,
                     max_chars: 4_000
                   )
                 else
                   PWN::Memory.find_turn_pair(
-                    session_id: session_id,
+                    session_id: source_session_id,
                     match: match,
                     skip_meta: true,
                     pairs: 12,
                     max_chars: 4_000
                   ) || PWN::Memory.find_turn_pair(
-                    session_id: session_id,
+                    session_id: source_session_id,
                     skip_meta: true,
                     pairs: 12,
                     max_chars: 4_000
@@ -2931,19 +2932,19 @@ module PWN
               # original utterance when appropriate; default stays newest.
               skip_meta = target == :assistant || last_session
               prior_user = PWN::Memory.prior_user_message(
-                session_id: session_id,
+                session_id: source_session_id,
                 max_chars: 4_000,
                 skip_meta: skip_meta,
                 pairs: 8
               )
               prior_asst = PWN::Memory.prior_assistant_message(
-                session_id: session_id,
+                session_id: source_session_id,
                 max_chars: 4_000,
                 skip_meta: skip_meta,
                 pairs: 8
               )
             end
-            dialog = PWN::Memory.recent_dialog(session_id: session_id, pairs: 4, max_chars: 1_500)
+            dialog = PWN::Memory.recent_dialog(session_id: source_session_id, pairs: 4, max_chars: 1_500)
           end
 
           user_body = prior_user && prior_user[:content].to_s.strip
@@ -3061,7 +3062,7 @@ module PWN
                 request: request,
                 system_role_content: recall_sys,
                 response_history: chat_response_history(
-                  session_id: session_id,
+                  session_id: source_session_id,
                   request: request,
                   system_role_content: recall_sys
                 ),

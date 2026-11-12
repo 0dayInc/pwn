@@ -7,6 +7,7 @@ require 'packetfu/protos/arp'
 require 'packetfu/protos/eth'
 require 'packetfu/protos/hsrp'
 require 'packetfu/protos/icmp'
+require 'packetfu/protos/icmpv6'
 require 'packetfu/protos/ip'
 require 'packetfu/protos/ipv6'
 require 'packetfu/protos/lldp'
@@ -19,6 +20,18 @@ module PWN
     # This plugin is used for interacting with PCAP files to map out and visualize in an
     # automated fashion what comprises a infrastructure, network, and/or application
     module Packet
+      # PacketFu 2.0 parses Ruby's formatted backtrace, which changed in Ruby 3.4.
+      # Override only its header classes, not StructFu or unrelated consumers.
+      HEADER_TYPECAST = Module.new do
+        define_method(:typecast) do |value|
+          setter = caller_locations(1, 1).first.base_label.split(/[.#]/).last
+          self[setter.delete_suffix('=').to_sym].read(value)
+        end
+      end
+      %i[EthHeader ARPHeader HSRPHeader ICMPHeader ICMPv6Header IPHeader IPv6Header TCPHeader TcpOption UDPHeader].each do |name|
+        PacketFu.const_get(name).prepend(HEADER_TYPECAST)
+      end
+
       # Supported Method Parameters::
       # pcap = PWN::Plugins::Packet.open_pcap_file(
       #   path: 'required - path to packet capture file'
@@ -92,7 +105,7 @@ module PWN
         # Payload
         payload = opts[:payload]
 
-        pkt = PacketFu::ARPPacket.new(config: PacketFu::Utils.whoami?)
+        pkt = PacketFu::ARPPacket.new
         # Ethernet Header
         pkt.eth_saddr = eth_src unless eth_src.nil?
         pkt.eth_daddr = eth_dst unless eth_dst.nil?
@@ -138,7 +151,7 @@ module PWN
         # Payload
         payload = opts[:payload]
 
-        pkt = PacketFu::EthPacket.new(config: PacketFu::Utils.whoami?)
+        pkt = PacketFu::EthPacket.new
         # Ethernet Header
         pkt.eth_saddr = eth_src unless eth_src.nil?
         pkt.eth_daddr = eth_dst unless eth_dst.nil?
@@ -265,9 +278,9 @@ module PWN
         end
 
         if opts[:hsrp_hellotime]
-          hsrp_state = opts[:hsrp_hellotime]
+          hsrp_hellotime = opts[:hsrp_hellotime]
         else
-          hsrp_state = 3
+          hsrp_hellotime = 3
         end
 
         if opts[:hsrp_holdtime]
@@ -309,7 +322,7 @@ module PWN
         # Payload
         payload = opts[:payload]
 
-        pkt = PacketFu::HSRPPacket.new(config: PacketFu::Utils.whoami?)
+        pkt = PacketFu::HSRPPacket.new
         # Ethernet Header
         pkt.eth_saddr = eth_src unless eth_src.nil?
         pkt.eth_daddr = eth_dst unless eth_dst.nil?
@@ -450,7 +463,7 @@ module PWN
         # Payload
         opts[:payload] ? payload = opts[:payload] : payload = '*ping*'
 
-        pkt = PacketFu::ICMPPacket.new(config: PacketFu::Utils.whoami?)
+        pkt = PacketFu::ICMPPacket.new
         # Ethernet Header
         pkt.eth_saddr = eth_src unless eth_src.nil?
         pkt.eth_daddr = eth_dst unless eth_dst.nil?
@@ -543,7 +556,7 @@ module PWN
         if opts[:icmpv6_type]
           icmpv6_type = opts[:icmpv6_type]
         else
-          icmp_type = 8
+          icmpv6_type = 128
         end
 
         if opts[:icmpv6_code]
@@ -553,7 +566,7 @@ module PWN
         end
 
         if opts[:icmpv6_sum]
-          icmp_sum = opts[:icmpv6_sum]
+          icmpv6_sum = opts[:icmpv6_sum]
         else
           icmpv6_sum = 0x0000
         end
@@ -561,18 +574,19 @@ module PWN
         # Payload
         payload = opts[:payload]
 
-        pkt = PacketFu::IPv6Packet.new(config: PacketFu::Utils.whoami?)
+        pkt = PacketFu::ICMPv6Packet.new
         # Ethernet Header
         pkt.eth_saddr = eth_src unless eth_src.nil?
         pkt.eth_daddr = eth_dst unless eth_dst.nil?
         pkt.eth_proto = eth_proto
         # IPv6 Header
-        pkt.ipv6_v = ipv6_v
-        pkt.ipv6_hl = ipv6_hl
-        pkt.ipv6_tos = ipv6_tos
+        # PacketFu 2.0 setters for these bit fields address nonexistent ip_* members.
+        pkt.ipv6_header[:ipv6_v] = ipv6_v.to_i
+        pkt.ipv6_header[:ipv6_class] = ipv6_class.to_i
+        pkt.ipv6_header[:ipv6_label] = ipv6_label.to_i
         pkt.ipv6_len = ipv6_len
-        pkt.ipv6_id = ipv6_id
-        pkt.ipv6_frag = ipv6_frag
+        pkt.ipv6_next = ipv6_next
+        pkt.ipv6_hop = ipv6_hop
         pkt.ipv6_saddr = ipv6_saddr
         pkt.ipv6_daddr = ipv6_daddr
         # ICMPv6 Header
@@ -668,7 +682,7 @@ module PWN
         # Payload
         payload = opts[:payload]
 
-        pkt = PacketFu::IPPacket.new(config: PacketFu::Utils.whoami?)
+        pkt = PacketFu::IPPacket.new
         # Ethernet Header
         pkt.eth_saddr = eth_src unless eth_src.nil?
         pkt.eth_daddr = eth_dst unless eth_dst.nil?
@@ -756,18 +770,19 @@ module PWN
         # Payload
         payload = opts[:payload]
 
-        pkt = PacketFu::IPv6Packet.new(config: PacketFu::Utils.whoami?)
+        pkt = PacketFu::IPv6Packet.new
         # Ethernet Header
         pkt.eth_saddr = eth_src unless eth_src.nil?
         pkt.eth_daddr = eth_dst unless eth_dst.nil?
         pkt.eth_proto = eth_proto
         # IPv6 Header
-        pkt.ipv6_v = ipv6_v
-        pkt.ipv6_hl = ipv6_hl
-        pkt.ipv6_tos = ipv6_tos
+        # PacketFu 2.0 setters for these bit fields address nonexistent ip_* members.
+        pkt.ipv6_header[:ipv6_v] = ipv6_v.to_i
+        pkt.ipv6_header[:ipv6_class] = ipv6_class.to_i
+        pkt.ipv6_header[:ipv6_label] = ipv6_label.to_i
         pkt.ipv6_len = ipv6_len
-        pkt.ipv6_id = ipv6_id
-        pkt.ipv6_frag = ipv6_frag
+        pkt.ipv6_next = ipv6_next
+        pkt.ipv6_hop = ipv6_hop
         pkt.ipv6_saddr = ipv6_saddr
         pkt.ipv6_daddr = ipv6_daddr
         # Payload
@@ -915,7 +930,7 @@ module PWN
         # Payload
         payload = opts[:payload]
 
-        pkt = PacketFu::TCPPacket.new(config: PacketFu::Utils.whoami?)
+        pkt = PacketFu::TCPPacket.new
         # Ethernet Header
         pkt.eth_saddr = eth_src unless eth_src.nil?
         pkt.eth_daddr = eth_dst unless eth_dst.nil?
@@ -940,11 +955,11 @@ module PWN
         pkt.tcp_hlen = tcp_hlen
         pkt.tcp_reserved = tcp_reserved
         pkt.tcp_ecn = tcp_ecn
-        pkt.tcp_flags = PacketFu::TcpFlags.new
+        pkt.tcp_flags = tcp_flags || PacketFu::TcpFlags.new
         pkt.tcp_win = tcp_win
         pkt.tcp_sum = tcp_sum
         pkt.tcp_urg = tcp_urg
-        pkt.tcp_opts = PacketFu::TcpOptions.new
+        pkt.tcp_opts = tcp_opts || PacketFu::TcpOptions.new
         # Payload
         pkt.payload = payload if payload
 
@@ -1050,7 +1065,7 @@ module PWN
         # Payload
         payload = opts[:payload]
 
-        pkt = PacketFu::UDPPacket.new(config: PacketFu::Utils.whoami?)
+        pkt = PacketFu::UDPPacket.new
         # Ethernet Header
         pkt.eth_saddr = eth_src unless eth_src.nil?
         pkt.eth_daddr = eth_dst unless eth_dst.nil?

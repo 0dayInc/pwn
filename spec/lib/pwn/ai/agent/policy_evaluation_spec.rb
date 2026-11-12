@@ -10,7 +10,7 @@ require 'timeout'
 # All snapshot reads/writes and subprocess HOME directories are disposable.
 describe 'PWN::AI::Agent::PolicyEvaluation' do
   around do |example|
-    Dir.mktmpdir('pwn-evaluation-spec-', '/tmp') do |root|
+    Dir.mktmpdir('pwn-evaluation-spec-') do |root|
       @root = root
       @baseline = File.join(root, 'baseline.json')
       @candidate = File.join(root, 'candidate.json')

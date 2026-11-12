@@ -11,11 +11,10 @@ module PWN
                     :opts
 
       def initialize
-        super
+        super("USAGE: #{File.basename($PROGRAM_NAME)} [opts]\n")
         @opts = PWN::Env[:driver_opts]
         @auto_opts_help = true
 
-        banner = "USAGE: #{File.basename($PROGRAM_NAME)} [opts]\n"
         on(
           '-YPATH',
           '--pwn_env=PATH',
@@ -51,7 +50,7 @@ module PWN
         )
 
         if @auto_opts_help && @opts.keys.join(' ') == 'pwn_env_path pwn_dec_path'
-          puts `#{File.basename($PROGRAM_NAME)} --help`
+          puts self
           exit 1
         end
       end

@@ -662,6 +662,20 @@ module PWN
           nil
         end
 
+        # Called while the actual Ruby value still exists, never on inspected
+        # text or stdout. Execution and application outcomes are distinct.
+        public_class_method def self.eval_outcome(opts = {})
+          value = opts[:value]
+          status = :unknown
+          if value.is_a?(Hash)
+            flags = %i[success ok].flat_map { |key| [value[key], value[key.to_s]] }
+            error = value[:error] || value['error']
+            status = :succeeded if flags.include?(true)
+            status = :failed if flags.include?(false) || (error && !error.to_s.empty?)
+          end
+          { execution_success: true, application_status: status, success: status != :failed }
+        end
+
         public_class_method def self.scope_check!(opts = {})
           return nil unless defined?(Engagement)
 
@@ -951,6 +965,11 @@ module PWN
             #{self}.policy_decision(
               name: 'required - tool name',
               args: 'required - Hash of tool arguments'
+            )
+
+            # Classify the actual Ruby return value before string rendering.
+            #{self}.eval_outcome(
+              value: 'required - original typed Ruby value, never stdout or inspected text'
             )
 
             # Block network args outside the active engagement scope.

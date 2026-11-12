@@ -4,6 +4,8 @@ require 'spec_helper'
 require 'tmpdir'
 
 describe PWN::AI::Agent::Curriculum do
+  include_context 'pwn tmp sandbox'
+
   it 'should display information for authors' do
     authors_response = PWN::AI::Agent::Curriculum
     expect(authors_response).to respond_to :authors

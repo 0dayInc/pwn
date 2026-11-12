@@ -5,6 +5,7 @@ require 'digest'
 require 'json'
 require 'net/http'
 require 'uri'
+require 'tmpdir'
 
 module PWN
   # Named wordlist and payload corpora under ~/.pwn/corpora.
@@ -43,6 +44,10 @@ module PWN
       path
     end
 
+    # Roll back caught publication errors while restore I/O remains possible.
+    # This is not a two-file atomic commit: concurrent readers/writers and
+    # process termination or power loss can observe an intermediate pair.
+    # If rollback itself raises, retain the private recovery directory.
     public_class_method def self.update(opts = {})
       opts = { name: opts } unless opts.is_a?(Hash)
       name = (opts[:name] || opts[:corpus]).to_s.to_sym
@@ -51,9 +56,31 @@ module PWN
       raise ArgumentError, 'builtin corpora have no remote update' if spec[:builtin]
 
       path = File.join(ROOT, "#{name}.txt")
-      tmp = "#{path}.tmp"
-      fetch(url: spec[:url], path: tmp, sha256: spec[:sha256])
-      FileUtils.mv(tmp, path)
+      FileUtils.mkdir_p(ROOT)
+      directory = Dir.mktmpdir('.corpus-update-', ROOT)
+      cleanup = true
+      begin
+        tmp = File.join(directory, 'download.tmp')
+        fetch(url: spec[:url], path: tmp, sha256: spec[:sha256])
+        backups = [path, "#{path}.sha256"].to_h do |destination|
+          backup = File.join(directory, File.basename(destination))
+          FileUtils.cp(destination, backup) if File.file?(destination)
+          [destination, File.file?(backup) ? backup : nil]
+        end
+        begin
+          FileUtils.mv(tmp, path)
+          FileUtils.mv("#{tmp}.sha256", "#{path}.sha256")
+        rescue StandardError
+          cleanup = false
+          backups.each do |destination, backup|
+            backup ? File.rename(backup, destination) : FileUtils.rm_f(destination)
+          end
+          cleanup = true
+          raise
+        end
+      ensure
+        FileUtils.remove_entry(directory) if cleanup
+      end
       path
     end
 
@@ -71,7 +98,9 @@ module PWN
           offline: 'optional - true uses the cache only and raises on miss'
         )
 
-        # Replace a remotely pinned corpus from its source URL.
+        # Replace a remote corpus; caught publication errors restore the prior pair if rollback I/O succeeds.
+        # Not power-loss/process-crash atomic or synchronized with concurrent readers/writers.
+        # Failed rollback retains recovery files under ROOT/.corpus-update-* for manual recovery.
         #{self}.update(
           name: 'required - corpus symbol with a remote URL',
           corpus: 'optional - alias for name'
@@ -99,7 +128,6 @@ module PWN
 
       FileUtils.mkdir_p(File.dirname(opts[:path]))
       File.write(opts[:path], body)
-      File.write("#{opts[:path].sub(/\\.tmp\\z/, '')}.sha256", digest)
       File.write("#{opts[:path]}.sha256", digest)
       opts[:path]
     end

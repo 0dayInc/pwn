@@ -36,11 +36,11 @@ module PWN
     end
 
     public_class_method def self.record_host(opts = {})
-      check = warn_unless_in_scope(opts)
+      name = scope_name(name: opts[:name], engagement: opts[:engagement])
+      check = warn_unless_in_scope(opts.merge(name: name, engagement: name))
       return check.merge(recorded: false) unless check[:ok]
 
-      name = (opts[:engagement] || opts[:name] || PWN::AI::Agent::Engagement.current_name || 'default').to_s
-      dir = File.join(PWN::AI::Agent::Engagement::ROOT, name)
+      dir = File.join(PWN::AI::Agent::Engagement::ROOT, name || 'default')
       FileUtils.mkdir_p(dir)
       path = File.join(dir, 'hosts.json')
       store = File.file?(path) ? JSON.parse(File.read(path), symbolize_names: true) : {}
@@ -65,7 +65,7 @@ module PWN
     end
 
     public_class_method def self.hosts(opts = {})
-      name = (opts[:name] || PWN::AI::Agent::Engagement.current_name || 'default').to_s
+      name = storage_name(name: opts[:name], engagement: opts[:engagement])
       path = File.join(PWN::AI::Agent::Engagement::ROOT, name, 'hosts.json')
       return {} unless File.file?(path)
 
@@ -73,6 +73,7 @@ module PWN
     end
 
     public_class_method def self.merge_scan(opts = {})
+      name = scope_name(name: opts[:name], engagement: opts[:engagement])
       Array(opts[:hosts] || opts[:results]).each do |row|
         row = row.transform_keys(&:to_sym) if row.respond_to?(:transform_keys)
         record_host(
@@ -80,14 +81,14 @@ module PWN
           ports: [{ port: row[:port] || row['port'], proto: row[:proto], service: row[:service], version: row[:version], scripts: row[:scripts] }.compact],
           services: [row[:service] || row['service']].compact,
           override: opts[:override],
-          engagement: opts[:engagement] || opts[:name]
+          engagement: name
         )
       end
-      hosts(name: opts[:engagement] || opts[:name])
+      hosts(name: name)
     end
 
     public_class_method def self.record_scan(opts = {})
-      name = (opts[:engagement] || opts[:name] || PWN::AI::Agent::Engagement.current_name || 'default').to_s
+      name = storage_name(name: opts[:name], engagement: opts[:engagement])
       dir = File.join(PWN::AI::Agent::Engagement::ROOT, name, 'scans')
       FileUtils.mkdir_p(dir)
       at = opts[:at] || Time.now.utc
@@ -105,10 +106,24 @@ module PWN
     end
 
     public_class_method def self.scans(opts = {})
-      name = (opts[:name] || opts[:engagement] || PWN::AI::Agent::Engagement.current_name || 'default').to_s
-      Dir[File.join(PWN::AI::Agent::Engagement::ROOT, name, 'scans', 'nmap-*.json')].map do |path|
+      name = storage_name(name: opts[:name], engagement: opts[:engagement])
+      dir = File.join(PWN::AI::Agent::Engagement::ROOT, name, 'scans')
+      Dir.glob('nmap-*.json', base: dir).map do |basename|
+        path = File.join(dir, basename)
         JSON.parse(File.read(path), symbolize_names: true).merge(path: path)
       end
+    end
+
+    private_class_method def self.storage_name(opts = {})
+      scope_name(name: opts[:name], engagement: opts[:engagement]) || 'default'
+    end
+
+    # No active scope is permissive; the default storage directory is not a scope.
+    private_class_method def self.scope_name(opts = {})
+      raise ArgumentError, 'Conflicting engagement name and engagement aliases' if opts[:name] && opts[:engagement] && opts[:name].to_s != opts[:engagement].to_s
+
+      name = opts[:engagement] || opts[:name] || PWN::AI::Agent::Engagement.current_name
+      PWN::AI::Agent::Engagement.validate_name(name: name) unless name.nil?
     end
 
     public_class_method def self.authors
@@ -156,6 +171,8 @@ module PWN
         # Deep-merge ports, services, notes, and vault refs for a host.
         #{self}.record_host(
           host: 'required - hostname or IP',
+          engagement: 'optional - destination engagement name; defaults to the active engagement',
+          name: 'optional - alias for engagement',
           ip: 'optional - alias for host',
           ports: 'optional - Array of open ports',
           services: 'optional - Array of service labels',
@@ -166,7 +183,8 @@ module PWN
 
         # Return the host map for an engagement.
         #{self}.hosts(
-          name: 'optional - engagement identifier'
+          name: 'optional - engagement identifier',
+          engagement: 'optional - alias for name'
         )
 
         # Merge structured scan rows into host state.

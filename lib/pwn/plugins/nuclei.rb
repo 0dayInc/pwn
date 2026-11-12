@@ -43,7 +43,10 @@ module PWN
       public_class_method def self.scan(opts = {})
         handoff = PWN::Plugins::Recon.handoff(handoff: opts[:handoff] || opts[:asset]) if opts[:handoff] || opts[:asset]
         target = handoff && !handoff[:host].empty? ? handoff[:host] : (opts[:target] || opts[:url])
-        stdout = jsonl_body(opts)
+        body = jsonl_body(opts)
+        return { findings: [], raw: [], recorded: [], error: 'missing jsonl file', stderr: nil, exit: nil } if body.is_a?(Hash) && body[:missing]
+
+        stdout = body
         opts = opts.merge(techs: PWN::Plugins::Httpx.probe(jsonl: opts[:httpx_jsonl])[:techs]) if stdout.nil? && !opts[:httpx_jsonl].to_s.empty?
         unless stdout
           skipped = skip_known(target: target, port: handoff && handoff[:port], refresh: opts[:refresh], engagement_id: opts[:engagement_id])
@@ -62,11 +65,12 @@ module PWN
           cmd += ['-rate-limit', opts[:rate_limit].to_s] if opts[:rate_limit]
           stdout, stderr, status = capture(cmd: cmd)
         end
-        findings = parse_jsonl(text: stdout)
+        parsed = parse_jsonl(text: stdout)
+        findings = parsed[:rows]
         rows = to_findings(rows: findings)
         recorded = []
         recorded = rows.map { |row| persist_observation(finding: row, dir: opts[:dir], engagement_id: opts[:engagement_id]) } if opts[:record] != false
-        { findings: rows, raw: findings, recorded: recorded, stderr: stderr, exit: status&.exitstatus }
+        { findings: rows, raw: findings, recorded: recorded, stderr: stderr, exit: status&.exitstatus, rejected: parsed[:rejected] }
       end
 
       public_class_method def self.to_findings(opts = {})
@@ -112,7 +116,7 @@ module PWN
           #{self}.scan(
             target: 'optional - hostname, IP, or URL (required unless jsonl is set)',
             url: 'optional - HTTP(S) URL alias for target',
-            jsonl: 'optional - nuclei JSONL file path or raw JSONL text (skips the nuclei binary)',
+            jsonl: 'optional - nuclei JSONL file path or raw JSONL text (skips the nuclei binary); a missing path-like value returns an error and malformed lines increment rejected',
             httpx_jsonl: 'optional - httpx JSONL used to select -tags from detected tech',
             record: 'optional - false skips the recon observation (defaults to true); a template match is not a finding',
             refresh: 'optional - true rescans a port that already has an observation',
@@ -149,15 +153,27 @@ module PWN
         src = opts[:jsonl]
         return nil if src.nil?
 
-        File.file?(src.to_s) ? File.read(src) : src.to_s
+        text = src.to_s
+        if text.start_with?('/') || text.match?(/\.jsonl\z/i)
+          return { missing: true } unless File.file?(text)
+
+          return File.read(text)
+        end
+        text
       end
 
       private_class_method def self.parse_jsonl(opts = {})
-        opts[:text].to_s.each_line.filter_map do |line|
-          JSON.parse(line)
+        rows = []
+        rejected = 0
+        opts[:text].to_s.each_line do |line|
+          next if line.strip.empty?
+
+          row = JSON.parse(line)
+          row.is_a?(Hash) ? rows << row : rejected += 1
         rescue JSON::ParserError
-          nil
+          rejected += 1
         end
+        { rows: rows, rejected: rejected }
       end
 
       private_class_method def self.capture(opts = {})

@@ -18,7 +18,7 @@ module PWN
       #   prompt: 'optional - string to display at prompt (Default: Username)'
       # )
 
-      public_class_method def self.username
+      public_class_method def self.username(opts = {})
         prompt = opts[:prompt] ||= 'Username'
         user = TTY::Prompt.new.ask("#{prompt}: ")
         user.to_s.strip.chomp.scrub
@@ -125,8 +125,9 @@ module PWN
       public_class_method def self.help
         puts "USAGE:
           # Run username and return its result
-          #{self}.username
-
+          #{self}.username(
+            prompt: 'optional - string to display at prompt (Default: Username)'
+          )
           # Run mask password and return its result
           #{self}.mask_password(
             prompt: 'optional - string to display at prompt (Default: Password)'

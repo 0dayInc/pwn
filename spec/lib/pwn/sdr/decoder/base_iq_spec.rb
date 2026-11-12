@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'spec_helper'
+require 'tempfile'
 
 describe PWN::SDR::Decoder::Base do
   it 'responds to run_iq / resolve_iq_source' do
@@ -11,24 +12,26 @@ describe PWN::SDR::Decoder::Base do
   end
 
   it 'resolves a cu8 capture file as an I/Q source' do
-    path = '/tmp/pwn_iq_test.cu8'
-    File.binwrite(path, ([127, 127] * 1024).pack('C*'))
-    src = PWN::SDR::Decoder::Base.resolve_iq_source(
-      freq_obj: { freq: 433_920_000 },
-      source: :file,
-      file: path,
-      sample_rate: 250_000
-    )
-    expect(src).to be_a(Hash)
-    expect(src[:kind]).to eq(:file)
-    expect(src[:format]).to eq(:cu8)
-    chunk = PWN::SDR::Decoder::Base.read_iq_chunk(source: src, bytes: 512)
-    expect(chunk.bytesize).to eq(512)
-    iq = PWN::SDR::Decoder::Base.unpack_iq(source: src, data: chunk)
-    expect(iq.length).to eq(512) # interleaved I/Q floats
-    PWN::SDR::Decoder::Base.close_iq_source(source: src)
-  ensure
-    FileUtils.rm_f(path)
+    Tempfile.create(['pwn-iq-', '.cu8']) do |file|
+      file.binmode
+      file.write(([127, 127] * 1024).pack('C*'))
+      file.flush
+      src = PWN::SDR::Decoder::Base.resolve_iq_source(
+        freq_obj: { freq: 433_920_000 },
+        source: :file,
+        file: file.path,
+        sample_rate: 250_000
+      )
+      expect(src).to be_a(Hash)
+      expect(src[:kind]).to eq(:file)
+      expect(src[:format]).to eq(:cu8)
+      chunk = PWN::SDR::Decoder::Base.read_iq_chunk(source: src, bytes: 512)
+      expect(chunk.bytesize).to eq(512)
+      iq = PWN::SDR::Decoder::Base.unpack_iq(source: src, data: chunk)
+      expect(iq.length).to eq(512) # interleaved I/Q floats
+    ensure
+      PWN::SDR::Decoder::Base.close_iq_source(source: src)
+    end
   end
 end
 

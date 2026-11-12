@@ -405,7 +405,7 @@ module PWN
               method: http_method,
               url: "#{base_uri}/#{rest_call}",
               headers: headers,
-              verify_ssl: false,
+              verify_ssl: true,
               timeout: timeout
             )
 
@@ -418,7 +418,7 @@ module PWN
                 url: "#{base_uri}/#{rest_call}",
                 headers: headers,
                 payload: http_body,
-                verify_ssl: false,
+                verify_ssl: true,
                 timeout: timeout
               )
             else
@@ -427,7 +427,7 @@ module PWN
                 url: "#{base_uri}/#{rest_call}",
                 headers: headers,
                 payload: http_body.to_json,
-                verify_ssl: false,
+                verify_ssl: true,
                 timeout: timeout
               )
             end

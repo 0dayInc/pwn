@@ -14,8 +14,7 @@ module PWN
         ACTIVE_FILE = File.join(ROOT, 'active')
 
         public_class_method def self.open(opts = {})
-          name = (opts[:name] || opts[:engagement] || 'default').to_s
-          raise 'ERROR: name is required' if name.empty?
+          name = validate_name(name: opts[:name] || opts[:engagement] || 'default')
 
           FileUtils.mkdir_p(ROOT)
           path = File.join(ROOT, "#{name}.json")
@@ -38,9 +37,10 @@ module PWN
         end
 
         public_class_method def self.status(opts = {})
-          name = (opts[:name] || current_name).to_s
-          return { active: nil } if name.empty?
+          name = opts[:name] || opts[:engagement] || current_name
+          return { active: nil } if name.nil?
 
+          name = validate_name(name: name)
           path = File.join(ROOT, "#{name}.json")
           return { active: name, missing: true } unless File.file?(path)
 
@@ -51,7 +51,15 @@ module PWN
           return nil unless opts.is_a?(Hash)
           return nil unless File.file?(ACTIVE_FILE)
 
-          File.read(ACTIVE_FILE).strip
+          validate_name(name: File.read(ACTIVE_FILE))
+        end
+
+        public_class_method def self.validate_name(opts = {})
+          name = opts[:name].to_s
+          raise ArgumentError, 'Invalid engagement name: expected a single nonempty filename component' if name.empty? || %w[. ..].include?(name) || name.match?(%r{[/\\\x00-\x1f\x7f]})
+          raise ArgumentError, 'Invalid engagement name: active pointer and .json metadata names are reserved' if name == File.basename(ACTIVE_FILE) || name.downcase.end_with?('.json')
+
+          name
         end
 
         public_class_method def self.in_scope?(opts = {})
@@ -59,45 +67,23 @@ module PWN
           return true if token.empty?
 
           roe = load_roe
-          host = token
-          begin
-            host = URI.parse(token).host || token if token.include?('://')
-          rescue StandardError
-            host = token
-          end
-          host = host.sub(%r{\Ahttps?://}i, '').split('/').first.to_s.split(':').first
+          host = scope_host(target: token)
           if roe[:present]
             deny = Array(roe[:targets_deny])
-            return false if deny.any? { |ex| host == ex.to_s || host.end_with?(".#{ex}") || host.include?(ex.to_s) }
+            return false if deny.any? { |ex| scope_match?(host: host, target: ex, deny: true) }
 
             allow = Array(roe[:targets_allow])
-            unless allow.empty?
-              ok = allow.any? do |a|
-                a = a.to_s
-                host == a || host.end_with?(".#{a}") || begin
-                  IPAddr.new(a).include?(IPAddr.new(host))
-                rescue StandardError
-                  false
-                end
-              end
-              return false unless ok
-            end
+            return false unless allow.empty? || allow.any? { |target| scope_match?(host: host, target: target) }
           end
 
-          row = status
-          return true if row[:active].nil? || row[:missing]
+          row = status(name: opts[:name] || opts[:engagement])
+          return true if row[:active].nil?
+          return false if row[:missing]
 
           enforce = engagement_enforce
           return true if enforce == 'off'
 
-          host = token
-          begin
-            host = URI.parse(token).host || token if token.include?('://')
-          rescue StandardError
-            host = token
-          end
-          host = host.sub(%r{\Ahttps?://}i, '').split('/').first.to_s.split(':').first
-          return false if Array(row[:excluded]).any? { |ex| host.include?(ex.to_s) }
+          return false if Array(row[:excluded]).any? { |ex| scope_match?(host: host, target: ex, deny: true) }
 
           cidrs = Array(row[:scope_cidrs]).map(&:to_s).reject(&:empty?)
           domains = Array(row[:scope_domains]).map(&:to_s).reject(&:empty?)
@@ -126,7 +112,7 @@ module PWN
               violating: [tech_hit]
             }
           end
-          tokens = blob.scan(/(?:\d{1,3}\.){3}\d{1,3}|[A-Za-z0-9.-]+\.[A-Za-z]{2,}/).uniq
+          tokens = scope_targets(value: args)
           bad = tokens.reject { |tok| in_scope?(host: tok) }
           return nil if bad.empty?
 
@@ -143,8 +129,10 @@ module PWN
           return { present: false, targets_allow: [], targets_deny: [], techniques_deny: [] } unless File.file?(path)
 
           require 'yaml'
-          raw = YAML.safe_load_file(path, permitted_classes: [], symbolize_names: true) || {}
-          raw = {} unless raw.is_a?(Hash)
+          raw = YAML.safe_load_file(path, permitted_classes: [], symbolize_names: true)
+          raw = {} if raw.nil?
+          raise ArgumentError, 'Invalid RoE policy: expected a YAML mapping' unless raw.is_a?(Hash)
+
           {
             present: true,
             targets_allow: Array(raw[:targets_allow] || raw['targets_allow']),
@@ -152,8 +140,8 @@ module PWN
             techniques_deny: Array(raw[:techniques_deny] || raw['techniques_deny']),
             time_windows: raw[:time_windows] || raw['time_windows']
           }
-        rescue StandardError
-          { present: false, targets_allow: [], targets_deny: [], techniques_deny: [] }
+        rescue Psych::Exception, SystemCallError, IOError
+          raise ArgumentError, 'Invalid RoE policy: cannot read or parse the policy file'
         end
 
         public_class_method def self.authors
@@ -180,7 +168,8 @@ module PWN
 
             # Return the active engagement document.
             #{self}.status(
-              name: 'optional - engagement name (defaults to active)'
+              name: 'optional - engagement name (defaults to active)',
+              engagement: 'optional - alias for name'
             )
 
             # Return the active engagement name or nil.
@@ -188,12 +177,19 @@ module PWN
               unused: 'optional - reserved'
             )
 
+            # Validate an engagement filename component without normalizing it.
+            #{self}.validate_name(
+              name: 'required - nonempty engagement name without separators or control characters; active and .json suffixes are reserved'
+            )
+
             # True when host/ip/url is inside the active engagement scope.
             #{self}.in_scope?(
               host: 'optional - DNS hostname to test against scope_domains',
               ip: 'optional - IPv4 or IPv6 address to test against scope_cidrs',
               target: 'optional - host or IP alias when the caller has one field',
-              url: 'optional - URL whose host is extracted and tested'
+              url: 'optional - URL whose host is extracted and tested',
+              name: 'optional - explicit engagement name; otherwise use the active engagement',
+              engagement: 'optional - alias for name'
             )
 
             # Structured denial when args mention an out-of-scope host.
@@ -212,6 +208,65 @@ module PWN
             #{self}.authors
           "
           constants.sort
+        end
+
+        private_class_method def self.scope_match?(opts = {})
+          target = opts[:target].to_s
+          host = opts[:host].to_s
+          begin
+            network = IPAddr.new(target)
+          rescue IPAddr::InvalidAddressError
+            raise ArgumentError, 'Invalid scope network' if target.include?('/')
+
+            return host == target || host.end_with?(".#{target}") || (opts[:deny] == true && host.include?(target))
+          end
+          begin
+            network.include?(IPAddr.new(host))
+          rescue IPAddr::InvalidAddressError
+            false
+          end
+        end
+
+        # Read typed target fields first; scan code/commands without treating URL
+        # paths as extra destinations. IPAddr validates candidates, never resolves DNS.
+        private_class_method def self.scope_targets(opts = {})
+          value = opts[:value]
+          case value
+          when Hash
+            value.flat_map { |key, item| scope_targets(value: item, typed: key.to_s.match?(/\A(?:hosts?|ips?|targets?|urls?|hostname|address)\z/)) }.uniq
+          when Array
+            value.flat_map { |item| scope_targets(value: item, typed: opts[:typed]) }.uniq
+          when String
+            return [scope_host(target: value)] if opts[:typed] && !value.match?(/\s/)
+
+            tokens = []
+            rest = value.gsub(%r{[a-z][a-z0-9+.-]*://[^\s"'<>]+}i) do |url|
+              tokens << scope_host(target: url)
+              ' '
+            end
+            rest = rest.gsub(/(?<![\w:])[\da-f]*:[\da-f:.]+(?:%[\w.-]+)?/i) do |candidate|
+              address = IPAddr.new(candidate)
+              tokens << candidate if address.ipv6?
+              ' '
+            rescue IPAddr::InvalidAddressError
+              candidate
+            end
+            (tokens + rest.scan(/(?:\d{1,3}\.){3}\d{1,3}|[A-Za-z0-9.-]+\.[A-Za-z]{2,}/)).reject(&:empty?).uniq
+          else
+            []
+          end
+        end
+
+        private_class_method def self.scope_host(opts = {})
+          token = opts[:target].to_s
+          return URI.parse(token).hostname.to_s if token.include?('://')
+
+          host = token.split('/').first.to_s
+          return host[/\A\[([^\]]+)\]/, 1] if host.start_with?('[')
+
+          host.count(':') <= 1 ? host.split(':').first.to_s : host
+        rescue URI::InvalidURIError
+          token
         end
 
         private_class_method def self.engagement_enforce

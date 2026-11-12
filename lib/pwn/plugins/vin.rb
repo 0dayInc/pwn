@@ -42,7 +42,7 @@ module PWN
             method: http_method,
             url: "#{base_url}#{rest_call}",
             headers: headers,
-            verify_ssl: false,
+            verify_ssl: true,
             timeout: 5400
           )
         else
@@ -58,6 +58,7 @@ module PWN
           puts "HTTP RESPONSE HEADERS:\n#{e.response.headers}"
           puts "HTTP RESPONSE BODY:\n#{e.response.body.inspect}\n\n\n"
         end
+        raise e
       rescue StandardError => e
         puts e.backtrace.join("\n")
         raise e

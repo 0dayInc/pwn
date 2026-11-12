@@ -53,9 +53,11 @@ module PWN
             ready.each do |step|
               remaining.delete(step)
               row = run_step(step: step, dir: dir)
-              done[step['id']] = true
               results << row
               persist_checkpoint(dir: dir, step: step, row: row)
+              return { run_id: run_id, dir: dir, results: results, ok: false, halted: step['id'] } unless row[:ok]
+
+              done[step['id']] = true
               return { run_id: run_id, dir: dir, results: results, halted: step['id'] } if opts[:halt_after].to_s == step['id']
             end
           end
@@ -227,7 +229,7 @@ module PWN
 
         private_class_method def self.persist_checkpoint(opts = {})
           path = File.join(opts[:dir], 'checkpoints.jsonl')
-          rec = { id: opts[:step]['id'], status: 'completed', at: Time.now.utc.iso8601, result: opts[:row] }
+          rec = { id: opts[:step]['id'], status: opts[:row][:ok] ? 'completed' : 'failed', at: Time.now.utc.iso8601, result: opts[:row] }
           File.open(path, 'a') do |file|
             file.flock(File::LOCK_EX)
             file.puts(JSON.generate(rec))
@@ -245,7 +247,7 @@ module PWN
           )
           body = JSON.parse(raw, symbolize_names: true)
           result = body[:result] || body
-          ok = !result.is_a?(Hash) || result[:error].nil?
+          ok = body[:success] == true && (!result.is_a?(Hash) || result[:error].nil?)
           PWN::AI::Agent::Mission.note_technique!(technique: step['tool']) if ok && defined?(PWN::AI::Agent::Mission) && PWN::AI::Agent::Mission.active_id
           { id: step['id'], ok: ok, result: result }
         rescue StandardError => e

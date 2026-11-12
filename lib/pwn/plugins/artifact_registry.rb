@@ -51,22 +51,32 @@ module PWN
 
       public_class_method def self.register(opts = {})
         sid = (opts[:session_id] || 'default').to_s
+        raise ArgumentError, 'invalid session_id' unless sid.match?(/\A[A-Za-z0-9_-][A-Za-z0-9_.-]{0,127}\z/)
+
         src = opts[:path].to_s
         raise 'ERROR: path is required' if src.empty?
         raise "ERROR: file not found: #{src}" unless File.file?(src)
 
         dir = File.join(ROOT, sid)
-        FileUtils.mkdir_p(dir)
         dest = File.join(dir, File.basename(src))
-        FileUtils.cp(src, dest)
         meta = File.join(dir, 'index.jsonl')
+        [ROOT, dir, dest, meta].each do |path|
+          raise ArgumentError, 'artifact path is a symlink' if File.symlink?(path)
+        end
+        FileUtils.mkdir_p(dir)
+        FileUtils.cp(src, dest)
         File.open(meta, 'a') { |f| f.puts(JSON.generate(path: dest, kind: opts[:kind], src: src, at: Time.now.utc.iso8601)) }
         dest
       end
 
       public_class_method def self.list(opts = {})
         sid = (opts[:session_id] || 'default').to_s
+        raise ArgumentError, 'invalid session_id' unless sid.match?(/\A[A-Za-z0-9_-][A-Za-z0-9_.-]{0,127}\z/)
+
         meta = File.join(ROOT, sid, 'index.jsonl')
+        [ROOT, File.join(ROOT, sid), meta].each do |path|
+          raise ArgumentError, 'artifact path is a symlink' if File.symlink?(path)
+        end
         return [] unless File.file?(meta)
 
         File.readlines(meta).filter_map do |ln|

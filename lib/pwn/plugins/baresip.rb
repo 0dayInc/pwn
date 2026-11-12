@@ -1,8 +1,12 @@
 # frozen_string_literal: true
 
+require 'English'
+
 require 'fileutils'
 require 'htmlentities'
 require 'nokogiri'
+require 'timeout'
+require 'tmpdir'
 
 module PWN
   module Plugins
@@ -66,13 +70,16 @@ module PWN
 
       public_class_method def self.start(opts = {})
         src_num = opts[:src_num]
+        timeout = opts.fetch(:timeout, 30)
+        raise ArgumentError, 'timeout must be finite positive seconds' unless timeout.is_a?(Numeric) && timeout.real? && timeout.finite? && timeout.positive?
 
         baresip_bin = opts[:baresip_bin] if File.exist?(
           opts[:baresip_bin].to_s
         )
         baresip_bin ||= '/usr/bin/baresip'
 
-        session_root = opts[:session_root] if Dir.exist?(opts[:session_root].to_s)
+        session_root = opts[:session_root] || Dir.pwd
+        raise ArgumentError, 'session_root must be an existing directory' unless Dir.exist?(session_root)
 
         config_root = opts[:config_root] if Dir.exist?(
           opts[:config_root].to_s
@@ -123,9 +130,14 @@ module PWN
         baresip_obj[:session_root] = session_root
         baresip_obj[:screen_session] = screen_session
 
+        # Pin this log generation before launch; old registrations are not evidence.
+        registration_log = File.open(screenlog_path, File::RDWR | File::CREAT, 0o600) # rubocop:disable Style/FileOpen -- closed in acquisition ensure
+        registration_log.seek(0, IO::SEEK_END)
+        registration_text = ''.b
+
         # Prefer running baresip in detached screen vs --daemon mode
         # Since sndfile doesn't produce .wav files in --daemon mode
-        system(
+        launched = system(
           'screen',
           '-T',
           'xterm',
@@ -145,34 +157,52 @@ module PWN
           '/insmod sndfile',
           '-v'
         )
+        raise 'Failed to launch baresip screen session' unless launched
 
         ok = 'registered successfully'
         gone = 'account: No SIP accounts found'
         forb = '403 Forbidden'
 
-        # TODO: Make this faster.
+        deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + timeout
         print 'Starting baresip...'
         loop do
-          next unless File.exist?(screenlog_path)
+          raise Timeout::Error, 'Baresip registration timed out' if Process.clock_gettime(Process::CLOCK_MONOTONIC) >= deadline
 
-          dump_session_data = File.readlines(screenlog_path)
-          dump_session_data.delete_if do |line|
-            line.include?('ua: using best effort AF: af=AF_INET')
-          end
-          break if dump_session_data.select { |s| s.include?(ok) }.length.positive?
+          current_log = File.stat(screenlog_path)
+          raise IOError, 'Baresip registration log changed generation' unless current_log.ino == registration_log.stat.ino && current_log.dev == registration_log.stat.dev && current_log.size >= registration_log.pos
 
-          next unless dump_session_data.select { |s| s.include?(gone) }.length.positive?
-          next unless dump_session_data.select { |s| s.include?(forb) }.length.positive?
+          registration_text << registration_log.read(16_384).to_s
+          error = [gone, forb].find { |message| registration_text.include?(message) }
+          raise "Baresip registration failed: #{error}" if error
+          break if registration_text.include?(ok)
 
-          error = gone if dump_session_data.select { |s| s.include?(gone) }.length.positive?
-          error = forbid if dump_session_data.select { |s| s.include?(forb) }.length.positive?
-          raise "Something happened when attempting to start baresip: #{error}"
+          registration_text = registration_text.byteslice(-256, 256) || registration_text
+
+          sleep 0.05
         end
         puts 'ready.'
 
+        registration_log.close
+        ready = true
         baresip_obj
       rescue StandardError => e
         raise e
+      ensure
+        primary_error = $ERROR_INFO
+        begin
+          registration_log.close if registration_log && !registration_log.closed?
+        rescue StandardError, Interrupt
+          raise unless primary_error
+        ensure
+          if launched && !ready
+            begin
+              system('screen', '-S', screen_session, '-X', 'quit')
+            rescue StandardError, Interrupt
+              # Keep the registration/cancellation failure authoritative.
+              nil
+            end
+          end
+        end
       end
 
       # Supported Method Parameters::
@@ -390,8 +420,8 @@ module PWN
 
         waveform_bin = 'waveform'
 
-        # Intialize empty baresip obj for ensure block below
-        baresip_obj = {}
+        # Only stop a session after start has handed it off successfully.
+        baresip_obj = nil
 
         # Colors!
         red = "\e[31m"
@@ -400,8 +430,8 @@ module PWN
         cayan = "\e[36m"
         end_of_color = "\e[0m"
 
-        config_root_for_target_num = "#{config_root}-#{target_num}"
-        FileUtils.cp_r(config_root, config_root_for_target_num)
+        config_root_for_target_num = Dir.mktmpdir('pwn-baresip-')
+        FileUtils.cp_r(File.join(config_root, '.'), config_root_for_target_num)
         src_num = apply_src_num_rules(
           config_root: config_root_for_target_num,
           target_num: target_num,
@@ -585,19 +615,30 @@ module PWN
           puts end_of_color
         end
 
+        completed = true
         call_resp_hash
       rescue StandardError => e
         raise e
       ensure
-        # Ensure baresip session is stopped
-        call_stopped = Time.now.strftime('%Y-%m-%d_%H.%M.%S')
-        puts "\n#{green}#{call_stopped} >>> #{reason} #{target_num}#{end_of_color}"
-        call_resp_hash[:call_stopped] = call_stopped
-        call_resp_hash[:reason] = reason
-        puts "call termination reason: #{reason}"
-
-        stop(baresip_obj: baresip_obj)
-        FileUtils.rm_rf(config_root_for_target_num)
+        primary_error = completed ? nil : $ERROR_INFO
+        cleanup_error = nil
+        begin
+          if call_resp_hash
+            call_resp_hash[:call_stopped] = Time.now.strftime('%Y-%m-%d_%H.%M.%S')
+            call_resp_hash[:reason] = reason
+          end
+          stop(baresip_obj: baresip_obj) if baresip_obj
+        rescue StandardError, Interrupt => e
+          cleanup_error = e
+          raise e unless primary_error
+        ensure
+          primary_error ||= cleanup_error
+          begin
+            FileUtils.remove_entry(config_root_for_target_num) if config_root_for_target_num && Dir.exist?(config_root_for_target_num)
+          rescue StandardError, Interrupt
+            raise unless primary_error
+          end
+        end
       end
 
       # Supported Method Parameters::
@@ -689,7 +730,8 @@ module PWN
             config_root: 'optional - Optional dir of baresip config (Defaults to ~/.baresip)',
             session_root: 'optional - Optional dir of baresip session (Defaults to Dir.pwd)',
             screenlog_path: 'optional - Optional path of screenlog file (Defaults to screenlog.txt)',
-            screen_session: 'optional - Optional name of screen session (Defaults baresip)'
+            screen_session: 'optional - Optional name of screen session (Defaults baresip)',
+            timeout: 'optional - finite positive registration timeout in seconds, defaults to 30'
           )
 
           # Run baresip exec and return its result

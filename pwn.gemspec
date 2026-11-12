@@ -28,6 +28,10 @@ Gem::Specification.new do |spec|
   spec.files = `git -c safe.directory='*' ls-files -z 2>/dev/null`.split("\x00")
   raise "pwn.gemspec: git ls-files returned no files - not a git checkout, or git safe.directory refused '#{__dir__}'" if spec.files.empty?
 
+  # Removed working-tree files must not remain package or pairing candidates
+  # merely because the operator has not staged their deletion yet.
+  spec.files.select! { |path| File.file?(File.expand_path(path, __dir__)) }
+
   spec.executables = spec.files.grep(%r{^bin/}) do |f|
     File.basename(f)
   end

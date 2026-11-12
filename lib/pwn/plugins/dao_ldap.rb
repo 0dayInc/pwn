@@ -19,7 +19,7 @@ module PWN
 
       public_class_method def self.connect(opts = {})
         host = opts[:host].to_s
-        port = opts[:port].to_i
+        port = (opts[:port] || 636).to_i
         base = opts[:base]
         encryption = opts[:encryption]
         auth_method = opts[:auth_method]
@@ -57,7 +57,7 @@ module PWN
           )
         end
 
-        ldap_obj.bind
+        raise IOError, 'LDAP bind failed' unless ldap_obj.bind
 
         ldap_obj
       rescue StandardError => e

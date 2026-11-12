@@ -12,7 +12,10 @@ module PWN
       end
 
       public_class_method def self.probe(opts = {})
-        stdout = jsonl_body(opts)
+        body = jsonl_body(opts)
+        return { hosts: [], techs: [], error: 'missing jsonl file', stderr: nil, exit: nil } if body.is_a?(Hash) && body[:missing]
+
+        stdout = body
         unless stdout
           PWN::Plugins::PreflightChecker.require_bin!(name: 'httpx')
           targets = Array(opts[:targets] || opts[:target] || opts[:urls]).map(&:to_s).reject(&:empty?)
@@ -22,8 +25,9 @@ module PWN
           cmd += ['-u', *targets] if targets.length == 1
           stdout, stderr, status = capture(cmd: cmd, stdin: targets.length > 1 ? "#{targets.join("\n")}\n" : nil)
         end
-        rows = parse_jsonl(text: stdout)
-        { hosts: rows, techs: techs(rows: rows), stderr: stderr, exit: status&.exitstatus }
+        parsed = parse_jsonl(text: stdout)
+        rows = parsed[:rows]
+        { hosts: rows, techs: techs(rows: rows), stderr: stderr, exit: status&.exitstatus, rejected: parsed[:rejected] }
       end
 
       public_class_method def self.techs(opts = {})
@@ -48,7 +52,7 @@ module PWN
             target: 'optional - single URL or hostname (required unless jsonl or targets is set)',
             targets: 'optional - Array of URLs',
             urls: 'optional - alias for targets',
-            jsonl: 'optional - httpx JSONL file path or raw JSONL text (skips the httpx binary)'
+            jsonl: 'optional - httpx JSONL file path or raw JSONL text (skips the httpx binary); a missing path-like value returns an error and malformed lines increment rejected',
           )
 
           # Flatten tech/product names from parsed httpx JSONL rows.
@@ -67,15 +71,27 @@ module PWN
         src = opts[:jsonl]
         return nil if src.nil?
 
-        File.file?(src.to_s) ? File.read(src) : src.to_s
+        text = src.to_s
+        if text.start_with?('/') || text.match?(/\.jsonl\z/i)
+          return { missing: true } unless File.file?(text)
+
+          return File.read(text)
+        end
+        text
       end
 
       private_class_method def self.parse_jsonl(opts = {})
-        opts[:text].to_s.each_line.filter_map do |line|
-          JSON.parse(line)
+        rows = []
+        rejected = 0
+        opts[:text].to_s.each_line do |line|
+          next if line.strip.empty?
+
+          row = JSON.parse(line)
+          row.is_a?(Hash) ? rows << row : rejected += 1
         rescue JSON::ParserError
-          nil
+          rejected += 1
         end
+        { rows: rows, rejected: rejected }
       end
 
       private_class_method def self.capture(opts = {})

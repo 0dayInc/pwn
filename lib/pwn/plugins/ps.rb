@@ -55,7 +55,12 @@ module PWN
         pids_arr = opts[:pids_arr]
 
         pids_arr.each do |pid_line|
-          pid = pid_line[2].to_i
+          token = pid_line[2].to_s
+          next unless token.match?(/\A[0-9]+\z/)
+
+          pid = token.to_i
+          next unless pid.positive?
+
           Process.kill('TERM', pid)
         rescue Errno::ESRCH
           next

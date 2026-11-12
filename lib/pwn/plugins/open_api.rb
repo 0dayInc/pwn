@@ -40,9 +40,6 @@ module PWN
         validation_fixes = []
 
         begin
-          spec_path_root = File.dirname(spec_paths.first)
-          Dir.chdir(spec_path_root)
-
           # Parse base_url to extract host and default base path
           normalized_base_url, default_base_path = normalize_url(url: base_url)
           default_base_path ||= '' # Fallback if base_url has no path
@@ -570,7 +567,6 @@ module PWN
         paths.each do |path, path_item|
           normalized_path = path.sub(%r{^/+}, '').sub(%r{/+$}, '')
           path_segments = normalized_path.split('/').reject(&:empty?)
-          next unless path_segments.any?
 
           first_segment = path_segments.first
           matching_server = servers.find do |server|

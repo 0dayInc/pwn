@@ -1,13 +1,20 @@
 # frozen_string_literal: true
 
+require 'English'
+
 require 'yaml'
 require 'fileutils'
 require 'tmpdir'
+require 'io/wait'
+require 'timeout'
+require 'shellwords'
 module PWN
   module Plugins
     # PWN module used to interact w/ Android Devices
     module Android
       @@logger = PWN::Plugins::PWNLogger.create
+      COMMAND_TIMEOUT = 300
+      MAX_OUTPUT_BYTES = 16 * 1024 * 1024
 
       # Supported Method Parameters::
       # PWN::Plugins::Android.adb_net_connect(
@@ -17,7 +24,7 @@ module PWN
       # )
 
       public_class_method def self.adb_net_connect(opts = {})
-        adb_path = opts[:adb_path].to_s.scrub if File.exist?(opts[:adb_path].to_s.scrub)
+        adb_path = validated_adb_path(adb_path: opts[:adb_path])
         target = opts[:target].to_s.scrub
         port = if opts[:port]
                  opts[:port].to_i
@@ -25,7 +32,7 @@ module PWN
                  5555
                end
 
-        `#{adb_path} connect #{target}:#{port}`
+        adb_exec(adb_path: adb_path, args: ['connect', "#{target}:#{port}"])
       rescue StandardError => e
         raise e
       end
@@ -38,18 +45,14 @@ module PWN
       # )
 
       public_class_method def self.adb_sh(opts = {})
-        adb_path = opts[:adb_path].to_s.scrub if File.exist?(opts[:adb_path].to_s.scrub)
+        adb_path = validated_adb_path(adb_path: opts[:adb_path])
 
         command = opts[:command].to_s.scrub
 
-        as_root = if opts[:as_root]
-                    true
-                  else
-                    false
-                  end
+        as_root = root_consent?(as_root: opts.fetch(:as_root, false))
 
-        `#{adb_path} root` if as_root
-        `#{adb_path} shell #{command}`
+        adb_exec(adb_path: adb_path, args: ['root']) if as_root
+        adb_exec(adb_path: adb_path, args: ['shell', command])
       rescue StandardError => e
         raise e
       end
@@ -63,18 +66,14 @@ module PWN
       # )
 
       public_class_method def self.adb_push(opts = {})
-        adb_path = opts[:adb_path].to_s.scrub if File.exist?(opts[:adb_path].to_s.scrub)
+        adb_path = validated_adb_path(adb_path: opts[:adb_path])
         file = opts[:file].to_s.scrub
         dest = opts[:dest].to_s.scrub
 
-        as_root = if opts[:as_root]
-                    true
-                  else
-                    false
-                  end
+        as_root = root_consent?(as_root: opts.fetch(:as_root, false))
 
-        `#{adb_path} root` if as_root
-        `#{adb_path} push #{file} #{dest}`
+        adb_exec(adb_path: adb_path, args: ['root']) if as_root
+        adb_exec(adb_path: adb_path, args: ['push', file, dest])
       rescue StandardError => e
         raise e
       end
@@ -88,18 +87,14 @@ module PWN
       # )
 
       public_class_method def self.adb_pull(opts = {})
-        adb_path = opts[:adb_path].to_s.scrub if File.exist?(opts[:adb_path].to_s.scrub)
+        adb_path = validated_adb_path(adb_path: opts[:adb_path])
         file = opts[:file].to_s.scrub
         dest = opts[:dest].to_s.scrub
 
-        as_root = if opts[:as_root]
-                    true
-                  else
-                    false
-                  end
+        as_root = root_consent?(as_root: opts.fetch(:as_root, false))
 
-        `#{adb_path} root` if as_root
-        `#{adb_path} pull #{file} #{dest}`
+        adb_exec(adb_path: adb_path, args: ['root']) if as_root
+        adb_exec(adb_path: adb_path, args: ['pull', file, dest])
       rescue StandardError => e
         raise e
       end
@@ -108,11 +103,11 @@ module PWN
       # PWN::Plugins::Android.take_screenshot(
       #   adb_path: 'required - path to adb binary',
       #   dest: 'optional - destination path to save screenshot file (defaults to /sdcard/screen.png)',
-      #   as_root: 'optional - boolean (defaults to true)'
+      #   as_root: 'optional - literal true enables root; false by default'
       # )
 
       public_class_method def self.take_screenshot(opts = {})
-        adb_path = opts[:adb_path].to_s.scrub if File.exist?(opts[:adb_path].to_s.scrub)
+        adb_path = validated_adb_path(adb_path: opts[:adb_path])
 
         dest = if opts[:dest]
                  opts[:dest].to_s.scrub
@@ -120,14 +115,10 @@ module PWN
                  '/sdcard/screen.png'
                end
 
-        as_root = if opts[:as_root]
-                    false
-                  else
-                    true
-                  end
+        as_root = root_consent?(as_root: opts.fetch(:as_root, false))
 
-        `#{adb_path} root` if as_root
-        `#{adb_path} shell screencap -p #{dest}`
+        adb_exec(adb_path: adb_path, args: ['root']) if as_root
+        adb_exec(adb_path: adb_path, args: ['shell', "screencap -p #{Shellwords.escape(dest)}"])
       rescue StandardError => e
         raise e
       end
@@ -136,11 +127,11 @@ module PWN
       # PWN::Plugins::Android.screen_record(
       #   adb_path: 'required - path to adb binary',
       #   dest: 'optional - destination path to save screen record file (defaults to /sdcard/screen.mp4)',
-      #   as_root: 'optional - boolean (defaults to true)'
+      #   as_root: 'optional - literal true enables root; false by default'
       # )
 
       public_class_method def self.screen_record(opts = {})
-        adb_path = opts[:adb_path].to_s.scrub if File.exist?(opts[:adb_path].to_s.scrub)
+        adb_path = validated_adb_path(adb_path: opts[:adb_path])
 
         dest = if opts[:dest]
                  opts[:dest].to_s.scrub
@@ -148,15 +139,11 @@ module PWN
                  '/sdcard/screen.mp4'
                end
 
-        as_root = if opts[:as_root]
-                    false
-                  else
-                    true
-                  end
+        as_root = root_consent?(as_root: opts.fetch(:as_root, false))
 
         @@logger.info('Press CTRL+C to complete...')
-        `#{adb_path} root` if as_root
-        `#{adb_path} shell screenrecord #{dest}`
+        adb_exec(adb_path: adb_path, args: ['root']) if as_root
+        adb_exec(adb_path: adb_path, args: ['shell', "screenrecord #{Shellwords.escape(dest)}"])
       rescue StandardError => e
         raise e
       end
@@ -168,18 +155,14 @@ module PWN
       # )
 
       public_class_method def self.list_installed_apps(opts = {})
-        adb_path = opts[:adb_path].to_s.scrub if File.exist?(opts[:adb_path].to_s.scrub)
+        adb_path = validated_adb_path(adb_path: opts[:adb_path])
 
-        as_root = if opts[:as_root]
-                    true
-                  else
-                    false
-                  end
+        as_root = root_consent?(as_root: opts.fetch(:as_root, false))
 
-        `#{adb_path} root` if as_root
-        app_resp = `#{adb_path} shell pm list packages` if as_root
-        app_resp = `#{adb_path} shell pm list packages --user 0` unless as_root
-        app_resp.gsub("\npackage:", "\n").split("\n")
+        adb_exec(adb_path: adb_path, args: ['root']) if as_root
+        app_resp = adb_exec(adb_path: adb_path, args: ['shell', 'pm list packages']) if as_root
+        app_resp = adb_exec(adb_path: adb_path, args: ['shell', 'pm list packages --user 0']) unless as_root
+        app_resp.lines.map { |line| line.chomp.delete_prefix('package:') }.reject(&:empty?)
       rescue StandardError => e
         raise e
       end
@@ -192,20 +175,16 @@ module PWN
       # )
 
       public_class_method def self.dumpsys(opts = {})
-        adb_path = opts[:adb_path].to_s.scrub if File.exist?(opts[:adb_path].to_s.scrub)
+        adb_path = validated_adb_path(adb_path: opts[:adb_path])
         app = opts[:app].to_s.scrub
 
-        as_root = if opts[:as_root]
-                    true
-                  else
-                    false
-                  end
+        as_root = root_consent?(as_root: opts.fetch(:as_root, false))
 
-        `#{adb_path} root` if as_root
+        adb_exec(adb_path: adb_path, args: ['root']) if as_root
         if app == ''
-          app_response = `#{adb_path} shell dumpsys`
+          app_response = adb_exec(adb_path: adb_path, args: %w[shell dumpsys])
         else
-          app_response = `#{adb_path} shell dumpsys package #{app}`
+          app_response = adb_exec(adb_path: adb_path, args: ['shell', "dumpsys package #{Shellwords.escape(app)}"])
         end
 
         app_response
@@ -221,17 +200,13 @@ module PWN
       # )
 
       public_class_method def self.open_app(opts = {})
-        adb_path = opts[:adb_path].to_s.scrub if File.exist?(opts[:adb_path].to_s.scrub)
+        adb_path = validated_adb_path(adb_path: opts[:adb_path])
         app = opts[:app].to_s.scrub
 
-        as_root = if opts[:as_root]
-                    true
-                  else
-                    false
-                  end
+        as_root = root_consent?(as_root: opts.fetch(:as_root, false))
 
-        `#{adb_path} root` if as_root
-        `#{adb_path} shell monkey -p #{app} -c android.intent.category.LAUNCHER 1`
+        adb_exec(adb_path: adb_path, args: ['root']) if as_root
+        adb_exec(adb_path: adb_path, args: ['shell', "monkey -p #{Shellwords.escape(app)} -c android.intent.category.LAUNCHER 1"])
       rescue StandardError => e
         raise e
       end
@@ -245,7 +220,7 @@ module PWN
       # )
 
       public_class_method def self.find_hidden_codes(opts = {})
-        adb_path = opts[:adb_path].to_s.scrub if File.exist?(opts[:adb_path].to_s.scrub)
+        adb_path = validated_adb_path(adb_path: opts[:adb_path])
         from = opts[:from].to_i
         to = opts[:to].to_i
         interact = if opts[:interact]
@@ -256,7 +231,7 @@ module PWN
 
         (from..to).each do |n|
           @@logger.info("invoking keyevent: #{n}")
-          puts `#{adb_path} shell input keyevent #{n}`
+          puts adb_exec(adb_path: adb_path, args: ['shell', "input keyevent #{n}"])
           if interact
             print 'press enter to continue...'
             gets
@@ -274,18 +249,18 @@ module PWN
       # )
 
       public_class_method def self.swipe(opts = {})
-        adb_path = opts[:adb_path].to_s.scrub if File.exist?(opts[:adb_path].to_s.scrub)
+        adb_path = validated_adb_path(adb_path: opts[:adb_path])
         direction = opts[:direction].to_s.scrub.to_sym
 
         case direction
         when :up
-          swipe_resp = `#{adb_path} shell input touchscreen swipe 300 1500 300 600 100`
+          swipe_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input touchscreen swipe 300 1500 300 600 100'])
         when :down
-          swipe_resp = `#{adb_path} shell input touchscreen swipe 300 600 300 1500 100`
+          swipe_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input touchscreen swipe 300 600 300 1500 100'])
         when :left
-          swipe_resp = `#{adb_path} shell input touchscreen swipe 1000 1000 90 1000 100`
+          swipe_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input touchscreen swipe 1000 1000 90 1000 100'])
         when :right
-          swipe_resp = `#{adb_path} shell input touchscreen swipe 90 1000 1000 1000 100`
+          swipe_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input touchscreen swipe 90 1000 1000 1000 100'])
         else
           raise "ERROR: unknown direction to swipe: #{direction}"
         end
@@ -302,202 +277,122 @@ module PWN
       # )
 
       public_class_method def self.input(opts = {})
-        adb_path = opts[:adb_path].to_s.scrub if File.exist?(opts[:adb_path].to_s.scrub)
+        adb_path = validated_adb_path(adb_path: opts[:adb_path])
         string = opts[:string].to_s.scrub
 
         char_resp = ''
         string.each_char do |char|
           case char
           when '0'
-            char_resp << `#{adb_path} shell input keyevent KEYCODE_0`
+            char_resp << adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_0'])
           when '1'
-            char_resp << `#{adb_path} shell input keyevent KEYCODE_1`
+            char_resp << adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_1'])
           when '2'
-            char_resp << `#{adb_path} shell input keyevent KEYCODE_2`
+            char_resp << adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_2'])
           when '3'
-            char_resp << `#{adb_path} shell input keyevent KEYCODE_3`
+            char_resp << adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_3'])
           when '4'
-            char_resp << `#{adb_path} shell input keyevent KEYCODE_4`
+            char_resp << adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_4'])
           when '5'
-            char_resp << `#{adb_path} shell input keyevent KEYCODE_5`
+            char_resp << adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_5'])
           when '6'
-            char_resp << `#{adb_path} shell input keyevent KEYCODE_6`
+            char_resp << adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_6'])
           when '7'
-            char_resp << `#{adb_path} shell input keyevent KEYCODE_7`
+            char_resp << adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_7'])
           when '8'
-            char_resp << `#{adb_path} shell input keyevent KEYCODE_8`
+            char_resp << adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_8'])
           when '9'
-            char_resp << `#{adb_path} shell input keyevent KEYCODE_9`
+            char_resp << adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_9'])
           when '*'
-            char_resp << `#{adb_path} shell input keyevent KEYCODE_STAR`
+            char_resp << adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_STAR'])
           when '#'
-            char_resp << `#{adb_path} shell input keyevent KEYCODE_POUND`
-          when '}'
-            char_resp << `#{adb_path} shell input text '\\}'`
-          when '{'
-            char_resp << `#{adb_path} shell input text '\\{'`
-          when '"'
-            char_resp << `#{adb_path} shell input text '\\"'`
-          when '?'
-            char_resp << `#{adb_path} shell input text '\\?'`
-          when '<'
-            char_resp << `#{adb_path} shell input text '\\<'`
-          when '>'
-            char_resp << `#{adb_path} shell input text '\\>'`
-          when '%'
-            char_resp << `#{adb_path} shell input text '%'`
-          when ':'
-            char_resp << `#{adb_path} shell input text ':'`
-          when '$'
-            char_resp << `#{adb_path} shell input text '$'`
-          when '!'
-            char_resp << `#{adb_path} shell input text '!'`
-          when '~'
-            char_resp << `#{adb_path} shell input text '~'`
-          when '|'
-            char_resp << `#{adb_path} shell input text '\\|'`
-          when '&'
-            char_resp << `#{adb_path} shell input text '\\&'`
-          when '^'
-            char_resp << `#{adb_path} shell input text '^'`
-          when '_'
-            char_resp << `#{adb_path} shell input text '_'`
-          when 'A'
-            char_resp << `#{adb_path} shell input text 'A'`
-          when 'B'
-            char_resp << `#{adb_path} shell input text 'B'`
-          when 'C'
-            char_resp << `#{adb_path} shell input text 'C'`
-          when 'D'
-            char_resp << `#{adb_path} shell input text 'D'`
-          when 'E'
-            char_resp << `#{adb_path} shell input text 'E'`
-          when 'F'
-            char_resp << `#{adb_path} shell input text 'F'`
-          when 'G'
-            char_resp << `#{adb_path} shell input text 'G'`
-          when 'H'
-            char_resp << `#{adb_path} shell input text 'H'`
-          when 'I'
-            char_resp << `#{adb_path} shell input text 'I'`
-          when 'J'
-            char_resp << `#{adb_path} shell input text 'J'`
-          when 'K'
-            char_resp << `#{adb_path} shell input text 'K'`
-          when 'L'
-            char_resp << `#{adb_path} shell input text 'L'`
-          when 'M'
-            char_resp << `#{adb_path} shell input text 'M'`
-          when 'N'
-            char_resp << `#{adb_path} shell input text 'N'`
-          when 'O'
-            char_resp << `#{adb_path} shell input text 'O'`
-          when 'P'
-            char_resp << `#{adb_path} shell input text 'P'`
-          when 'Q'
-            char_resp << `#{adb_path} shell input text 'Q'`
-          when 'R'
-            char_resp << `#{adb_path} shell input text 'R'`
-          when 'S'
-            char_resp << `#{adb_path} shell input text 'S'`
-          when 'T'
-            char_resp << `#{adb_path} shell input text 'T'`
-          when 'U'
-            char_resp << `#{adb_path} shell input text 'U'`
-          when 'V'
-            char_resp << `#{adb_path} shell input text 'V'`
-          when 'W'
-            char_resp << `#{adb_path} shell input text 'W'`
-          when 'X'
-            char_resp << `#{adb_path} shell input text 'X'`
-          when 'Y'
-            char_resp << `#{adb_path} shell input text 'Y'`
-          when 'Z'
-            char_resp << `#{adb_path} shell input text 'Z'`
+            char_resp << adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_POUND'])
+          when '}', '{', '"', '?', '<', '>', '%', ':', '$', '!', '~', '|', '&', '^', '_', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'
+            char_resp << adb_exec(adb_path: adb_path, args: ['shell', "input text #{Shellwords.escape(char)}"])
           when 'a'
-            char_resp << `#{adb_path} shell input keyevent KEYCODE_A`
+            char_resp << adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_A'])
           when 'b'
-            char_resp << `#{adb_path} shell input keyevent KEYCODE_B`
+            char_resp << adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_B'])
           when 'c'
-            char_resp << `#{adb_path} shell input keyevent KEYCODE_C`
+            char_resp << adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_C'])
           when 'd'
-            char_resp << `#{adb_path} shell input keyevent KEYCODE_D`
+            char_resp << adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_D'])
           when 'e'
-            char_resp << `#{adb_path} shell input keyevent KEYCODE_E`
+            char_resp << adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_E'])
           when 'f'
-            char_resp << `#{adb_path} shell input keyevent KEYCODE_F`
+            char_resp << adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_F'])
           when 'g'
-            char_resp << `#{adb_path} shell input keyevent KEYCODE_G`
+            char_resp << adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_G'])
           when 'h'
-            char_resp << `#{adb_path} shell input keyevent KEYCODE_H`
+            char_resp << adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_H'])
           when 'i'
-            char_resp << `#{adb_path} shell input keyevent KEYCODE_I`
+            char_resp << adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_I'])
           when 'j'
-            char_resp << `#{adb_path} shell input keyevent KEYCODE_J`
+            char_resp << adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_J'])
           when 'k'
-            char_resp << `#{adb_path} shell input keyevent KEYCODE_K`
+            char_resp << adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_K'])
           when 'l'
-            char_resp << `#{adb_path} shell input keyevent KEYCODE_L`
+            char_resp << adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_L'])
           when 'm'
-            char_resp << `#{adb_path} shell input keyevent KEYCODE_M`
+            char_resp << adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_M'])
           when 'n'
-            char_resp << `#{adb_path} shell input keyevent KEYCODE_N`
+            char_resp << adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_N'])
           when 'o'
-            char_resp << `#{adb_path} shell input keyevent KEYCODE_O`
+            char_resp << adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_O'])
           when 'p'
-            char_resp << `#{adb_path} shell input keyevent KEYCODE_P`
+            char_resp << adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_P'])
           when 'q'
-            char_resp << `#{adb_path} shell input keyevent KEYCODE_Q`
+            char_resp << adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_Q'])
           when 'r'
-            char_resp << `#{adb_path} shell input keyevent KEYCODE_R`
+            char_resp << adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_R'])
           when 's'
-            char_resp << `#{adb_path} shell input keyevent KEYCODE_S`
+            char_resp << adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_S'])
           when 't'
-            char_resp << `#{adb_path} shell input keyevent KEYCODE_T`
+            char_resp << adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_T'])
           when 'u'
-            char_resp << `#{adb_path} shell input keyevent KEYCODE_U`
+            char_resp << adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_U'])
           when 'v'
-            char_resp << `#{adb_path} shell input keyevent KEYCODE_V`
+            char_resp << adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_V'])
           when 'w'
-            char_resp << `#{adb_path} shell input keyevent KEYCODE_W`
+            char_resp << adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_W'])
           when 'x'
-            char_resp << `#{adb_path} shell input keyevent KEYCODE_X`
+            char_resp << adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_X'])
           when 'y'
-            char_resp << `#{adb_path} shell input keyevent KEYCODE_Y`
+            char_resp << adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_Y'])
           when 'z'
-            char_resp << `#{adb_path} shell input keyevent KEYCODE_Z`
+            char_resp << adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_Z'])
           when ','
-            char_resp << `#{adb_path} shell input keyevent KEYCODE_COMMA`
+            char_resp << adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_COMMA'])
           when '.'
-            char_resp << `#{adb_path} shell input keyevent KEYCODE_PERIOD`
+            char_resp << adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_PERIOD'])
           when ' '
-            char_resp << `#{adb_path} shell input keyevent KEYCODE_SPACE`
+            char_resp << adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_SPACE'])
           when '`'
-            char_resp << `#{adb_path} shell input keyevent KEYCODE_GRAVE`
+            char_resp << adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_GRAVE'])
           when '-'
-            char_resp << `#{adb_path} shell input keyevent KEYCODE_MINUS`
+            char_resp << adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_MINUS'])
           when '='
-            char_resp << `#{adb_path} shell input keyevent KEYCODE_EQUALS`
+            char_resp << adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_EQUALS'])
           when '['
-            char_resp << `#{adb_path} shell input keyevent KEYCODE_LEFT_BRACKET`
+            char_resp << adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_LEFT_BRACKET'])
           when ']'
-            char_resp << `#{adb_path} shell input keyevent KEYCODE_RIGHT_BRACKET`
+            char_resp << adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_RIGHT_BRACKET'])
           when '\\'
-            char_resp << `#{adb_path} shell input keyevent KEYCODE_BACKSLASH`
+            char_resp << adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_BACKSLASH'])
           when ';'
-            char_resp << `#{adb_path} shell input keyevent KEYCODE_SEMICOLON`
+            char_resp << adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_SEMICOLON'])
           when "'"
-            char_resp << `#{adb_path} shell input keyevent KEYCODE_APOSTROPHE`
+            char_resp << adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_APOSTROPHE'])
           when '/'
-            char_resp << `#{adb_path} shell input keyevent KEYCODE_SLASH`
+            char_resp << adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_SLASH'])
           when '@'
-            char_resp << `#{adb_path} shell input keyevent KEYCODE_AT`
+            char_resp << adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_AT'])
           when '+'
-            char_resp << `#{adb_path} shell input keyevent KEYCODE_PLUS`
+            char_resp << adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_PLUS'])
           when '('
-            char_resp << `#{adb_path} shell input keyevent KEYCODE_LEFT_PAREN`
+            char_resp << adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_LEFT_PAREN'])
           when ')'
-            char_resp << `#{adb_path} shell input keyevent KEYCODE_RIGHT_PAREN`
+            char_resp << adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_RIGHT_PAREN'])
           else
             raise "ERROR: unknown char: #{char}"
           end
@@ -742,467 +637,467 @@ module PWN
       # )
 
       public_class_method def self.input_special(opts = {})
-        adb_path = opts[:adb_path].to_s.scrub if File.exist?(opts[:adb_path].to_s.scrub)
+        adb_path = validated_adb_path(adb_path: opts[:adb_path])
         event = opts[:event].to_s.scrub.to_sym
 
         str_resp = ''
         case event
         when :zoom_in
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_ZOOM_IN`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_ZOOM_IN'])
         when :zoom_out
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_ZOOM_OUT`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_ZOOM_OUT'])
         when :zenkaku_hankaku
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_ZENKAKU_HANKAKU`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_ZENKAKU_HANKAKU'])
         when :yen
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_YEN`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_YEN'])
         when :window
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_WINDOW`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_WINDOW'])
         when :wakeup
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_WAKEUP`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_WAKEUP'])
         when :voice_assist
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_VOICE_ASSIST`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_VOICE_ASSIST'])
         when :tv_zoom_mode
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_TV_ZOOM_MODE`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_TV_ZOOM_MODE'])
         when :tv_timer_programming
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_TV_TIMER_PROGRAMMING`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_TV_TIMER_PROGRAMMING'])
         when :tv_terrestrial_digital
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_TV_TERRESTRIAL_DIGITAL`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_TV_TERRESTRIAL_DIGITAL'])
         when :tv_terrestrial_analog
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_TV_TERRESTRIAL_ANALOG`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_TV_TERRESTRIAL_ANALOG'])
         when :tv_satellite_teletext
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_TV_SATELLITE_TELETEXT`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_TV_SATELLITE_TELETEXT'])
         when :tv_satellite_service
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_TV_SATELLITE_SERVICE`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_TV_SATELLITE_SERVICE'])
         when :tv_satellite_bs
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_TV_SATELLITE_BS`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_TV_SATELLITE_BS'])
         when :tv_satellite_cs
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_TV_SATELLITE_CS`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_TV_SATELLITE_CS'])
         when :tv_satellite
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_TV_SATELLITE`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_TV_SATELLITE'])
         when :tv_radio_service
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_TV_RADIO_SERVICE`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_TV_RADIO_SERVICE'])
         when :tv_power
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_TV_POWER`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_TV_POWER'])
         when :tv_number_entry
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_TV_NUMBER_ENTRY`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_TV_NUMBER_ENTRY'])
         when :tv_network
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_TV_NETWORK`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_TV_NETWORK'])
         when :tv_media_context_menu
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_TV_MEDIA_CONTEXT_MENU`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_TV_MEDIA_CONTEXT_MENU'])
         when :tv_input_vga1
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_TV_INPUT_VGA_1`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_TV_INPUT_VGA_1'])
         when :tv_input_hdmi1
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_TV_INPUT_HDMI_1`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_TV_INPUT_HDMI_1'])
         when :tv_input_hdmi2
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_TV_INPUT_HDMI_2`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_TV_INPUT_HDMI_2'])
         when :tv_input_hdmi3
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_TV_INPUT_HDMI_3`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_TV_INPUT_HDMI_3'])
         when :tv_input_hdmi4
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_TV_INPUT_HDMI_4`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_TV_INPUT_HDMI_4'])
         when :tv_input_composite1
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_TV_INPUT_COMPOSITE_1`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_TV_INPUT_COMPOSITE_1'])
         when :tv_input_composite2
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_TV_INPUT_COMPOSITE_2`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_TV_INPUT_COMPOSITE_2'])
         when :tv_input_component1
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_TV_INPUT_COMPONENT_1`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_TV_INPUT_COMPONENT_1'])
         when :tv_input_component2
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_TV_INPUT_COMPONENT_2`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_TV_INPUT_COMPONENT_2'])
         when :tv_input
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_TV_INPUT`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_TV_INPUT'])
         when :tv_data_service
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_TV_DATA_SERVICE`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_TV_DATA_SERVICE'])
         when :tv_contents_menu
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_TV_CONTENTS_MENU`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_TV_CONTENTS_MENU'])
         when :tv_audio_desc
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_TV_AUDIO_DESCRIPTION`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_TV_AUDIO_DESCRIPTION'])
         when :tv_audio_desc_mix_up
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_TV_AUDIO_DESCRIPTION_MIX_UP`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_TV_AUDIO_DESCRIPTION_MIX_UP'])
         when :tv_audio_desc_mix_down
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_TV_AUDIO_DESCRIPTION_MIX_DOWN`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_TV_AUDIO_DESCRIPTION_MIX_DOWN'])
         when :tv_antenna_cable
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_TV_ANTENNA_CABLE`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_TV_ANTENNA_CABLE'])
         when :tv
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_TV`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_TV'])
         when :sysrq
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_SYSRQ`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_SYSRQ'])
         when :switch_charset
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_SWITCH_CHARSET`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_SWITCH_CHARSET'])
         when :stem_primary
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_STEM_PRIMARY`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_STEM_PRIMARY'])
         when :stem1
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_STEM_1`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_STEM_1'])
         when :stem2
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_STEM_2`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_STEM_2'])
         when :stem3
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_STEM_3`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_STEM_3'])
         when :stb_power
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_STB_POWER`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_STB_POWER'])
         when :stb_input
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_STB_INPUT`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_STB_INPUT'])
         when :sleep
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_SLEEP`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_SLEEP'])
         when :settings
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_SETTINGS`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_SETTINGS'])
         when :scroll_lock
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_SCROLL_LOCK`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_SCROLL_LOCK'])
         when :ro
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_RO`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_RO'])
         when :prog_blue
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_PROG_BLUE`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_PROG_BLUE'])
         when :prog_green
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_PROG_GREEN`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_PROG_GREEN'])
         when :prog_red
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_PROG_RED`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_PROG_RED'])
         when :prog_yellow
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_PROG_YELLOW`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_PROG_YELLOW'])
         when :pairing
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_PARING`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_PARING'])
         when :num_lock
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_NUM_LOCK`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_NUM_LOCK'])
         when :numpad_subtract
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_NUMPAD_SUBTRACT`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_NUMPAD_SUBTRACT'])
         when :numpad_multiply
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_NUMPAD_MULTIPLY`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_NUMPAD_MULTIPLY'])
         when :numpad_left_paren
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_NUMPAD_LEFT_PAREN`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_NUMPAD_LEFT_PAREN'])
         when :numpad_right_paren
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_NUMPAD_RIGHT_PAREN`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_NUMPAD_RIGHT_PAREN'])
         when :numpad_equals
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_NUMPAD_EQUALS`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_NUMPAD_EQUALS'])
         when :numpad_enter
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_NUMPAD_ENTER`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_NUMPAD_ENTER'])
         when :numpad_dot
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_NUMPAD_DOT`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_NUMPAD_DOT'])
         when :numpad_divide
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_NUMPAD_DIVIDE`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_NUMPAD_DIVIDE'])
         when :numpad_comma
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_NUMPAD_COMMA`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_NUMPAD_COMMA'])
         when :numpad_add
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_NUMPAD_ADD`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_NUMPAD_ADD'])
         when :numpad0
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_NUMPAD_0`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_NUMPAD_0'])
         when :numpad1
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_NUMPAD_1`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_NUMPAD_1'])
         when :numpad2
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_NUMPAD_2`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_NUMPAD_2'])
         when :numpad3
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_NUMPAD_3`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_NUMPAD_3'])
         when :numpad4
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_NUMPAD_4`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_NUMPAD_4'])
         when :numpad5
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_NUMPAD_5`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_NUMPAD_5'])
         when :numpad6
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_NUMPAD_6`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_NUMPAD_6'])
         when :numpad7
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_NUMPAD_7`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_NUMPAD_7'])
         when :numpad8
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_NUMPAD_8`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_NUMPAD_8'])
         when :numpad9
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_NUMPAD_9`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_NUMPAD_9'])
         when :num
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_NUM`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_NUM'])
         when :nav_in
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_NAVIGATE_IN`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_NAVIGATE_IN'])
         when :nav_next
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_NAVIGATE_NEXT`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_NAVIGATE_NEXT'])
         when :nav_out
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_NAVIGATE_OUT`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_NAVIGATE_OUT'])
         when :nav_previous
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_NAVIGATE_PREVIOUS`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_NAVIGATE_PREVIOUS'])
         when :music
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_MUSIC`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_MUSIC'])
         when :muhenkan
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_MUHENKAN`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_MUHENKAN'])
         when :meta_left
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_META_LEFT`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_META_LEFT'])
         when :meta_right
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_META_RIGHT`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_META_RIGHT'])
         when :media_top_menu
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_MEDIA_TOP_MENU`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_MEDIA_TOP_MENU'])
         when :media_step_forward
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_MEDIA_STEP_FORWARD`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_MEDIA_STEP_FORWARD'])
         when :media_step_back
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_MEDIA_STEP_BACKWARD`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_MEDIA_STEP_BACKWARD'])
         when :media_skip_forward
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_MEDIA_SKIP_FORWARD`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_MEDIA_SKIP_FORWARD'])
         when :media_skip_back
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_MEDIA_SKIP_BACKWARD`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_MEDIA_SKIP_BACKWARD'])
         when :media_record
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_MEDIA_RECORD`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_MEDIA_RECORD'])
         when :media_play
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_MEDIA_PLAY`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_MEDIA_PLAY'])
         when :media_pause
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_MEDIA_PAUSE`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_MEDIA_PAUSE'])
         when :media_eject
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_MEDIA_EJECT`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_MEDIA_EJECT'])
         when :media_close
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_MEDIA_CLOSE`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_MEDIA_CLOSE'])
         when :media_audio_track
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_MEDIA_AUDIO_TRACK`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_MEDIA_AUDIO_TRACK'])
         when :manner_mode
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_MANNER_MODE`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_MANNER_MODE'])
         when :last_channel
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_LAST_CHANNEL`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_LAST_CHANNEL'])
         when :language_switch
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_LANGUAGE_SWITCH`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_LANGUAGE_SWITCH'])
         when :katakana_hiragana
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_KATAKANA_HIRAGANA`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_KATAKANA_HIRAGANA'])
         when :kana
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_KANA`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_KANA'])
         when :insert
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_INSERT`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_INSERT'])
         when :info
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_INFO`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_INFO'])
         when :henkan
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_HENKAN`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_HENKAN'])
         when :help
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_HELP`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_HELP'])
         when :guide
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_GUIDE`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_GUIDE'])
         when :function
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_FUNCTION`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_FUNCTION'])
         when :del
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_FORWARD_DEL`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_FORWARD_DEL'])
         when :f1
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_F1`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_F1'])
         when :f2
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_F2`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_F2'])
         when :f3
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_F3`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_F3'])
         when :f4
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_F4`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_F4'])
         when :f5
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_F5`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_F5'])
         when :f6
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_F6`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_F6'])
         when :f7
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_F7`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_F7'])
         when :f8
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_F8`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_F8'])
         when :f9
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_F9`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_F9'])
         when :f10
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_F10`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_F10'])
         when :f11
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_F11`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_F11'])
         when :f12
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_F12`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_F12'])
         when :escape
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_ESCAPE`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_ESCAPE'])
         when :eisu
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_EISU`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_EISU'])
         when :dvr
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_DVR`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_DVR'])
         when :ctrl_left
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_CTRL_LEFT`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_CTRL_LEFT'])
         when :ctrl_right
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_CTRL_RIGHT`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_CTRL_RIGHT'])
         when :cut
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_CUT`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_CUT'])
         when :copy
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_COPY`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_COPY'])
         when :paste
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_PASTE`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_PASTE'])
         when :contacts
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_CONTACTS`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_CONTACTS'])
         when :chan_down
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_CHANNEL_DOWN`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_CHANNEL_DOWN'])
         when :chan_up
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_CHANNEL_UP`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_CHANNEL_UP'])
         when :captions
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_CAPTIONS`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_CAPTIONS'])
         when :caps_lock
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_CAPS_LOCK`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_CAPS_LOCK'])
         when :calendar
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_CALENDAR`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_CALENDAR'])
         when :calculator
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_CALCULATOR`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_CALCULATOR'])
         when :gamepad1
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_BUTTON_1`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_BUTTON_1'])
         when :gamepad2
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_BUTTON_2`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_BUTTON_2'])
         when :gamepad3
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_BUTTON_3`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_BUTTON_3'])
         when :gamepad4
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_BUTTON_4`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_BUTTON_4'])
         when :gamepad5
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_BUTTON_5`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_BUTTON_5'])
         when :gamepad6
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_BUTTON_6`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_BUTTON_6'])
         when :gamepad7
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_BUTTON_7`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_BUTTON_7'])
         when :gamepad8
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_BUTTON_8`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_BUTTON_8'])
         when :gamepad9
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_BUTTON_9`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_BUTTON_9'])
         when :gamepad10
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_BUTTON_10`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_BUTTON_10'])
         when :gamepad11
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_BUTTON_11`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_BUTTON_11'])
         when :gamepad12
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_BUTTON_12`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_BUTTON_12'])
         when :gamepad13
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_BUTTON_13`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_BUTTON_13'])
         when :gamepad14
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_BUTTON_14`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_BUTTON_14'])
         when :gamepad15
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_BUTTON_15`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_BUTTON_15'])
         when :gamepad16
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_BUTTON_16`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_BUTTON_16'])
         when :gamepad_a
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_BUTTON_A`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_BUTTON_A'])
         when :gamepad_b
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_BUTTON_B`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_BUTTON_B'])
         when :gamepad_c
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_BUTTON_C`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_BUTTON_C'])
         when :gamepad_l1
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_BUTTON_L1`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_BUTTON_L1'])
         when :gamepad_l2
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_BUTTON_L2`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_BUTTON_L2'])
         when :gamepad_mode
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_BUTTON_MODE`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_BUTTON_MODE'])
         when :gamepad_r1
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_BUTTON_R1`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_BUTTON_R1'])
         when :gamepad_r2
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_BUTTON_R2`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_BUTTON_R2'])
         when :gamepad_select
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_BUTTON_SELECT`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_BUTTON_SELECT'])
         when :gamepad_start
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_BUTTON_START`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_BUTTON_START'])
         when :gamepad_thumbl
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_BUTTON_THUMBL`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_BUTTON_THUMBL'])
         when :gamepad_thumbr
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_BUTTON_THUMBR`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_BUTTON_THUMBR'])
         when :gamepad_x
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_BUTTON_X`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_BUTTON_X'])
         when :gamepad_y
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_BUTTON_Y`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_BUTTON_Y'])
         when :gamepad_z
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_BUTTON_Z`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_BUTTON_Z'])
         when :brightness_up
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_BRIGHTNESS_UP`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_BRIGHTNESS_UP'])
         when :brightness_down
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_BRIGHTNESS_DOWN`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_BRIGHTNESS_DOWN'])
         when :break
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_BREAK`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_BREAK'])
         when :bookmark
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_BOOKMARK`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_BOOKMARK'])
         when :avr_power
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_AVR_POWER`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_AVR_POWER'])
         when :avr_input
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_AVR_INPUT`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_AVR_INPUT'])
         when :assist
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_ASSIST`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_ASSIST'])
         when :app_switch
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_APP_SWITCH`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_APP_SWITCH'])
         when :threeDmode
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_3D_MODE`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_3D_MODE'])
         when :eleven
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_11`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_11'])
         when :twelve
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_12`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_12'])
         when :unknown
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_UNKNOWN`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_UNKNOWN'])
         when :soft_left
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_SOFT_LEFT`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_SOFT_LEFT'])
         when :soft_right
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_SOFT_RIGHT`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_SOFT_RIGHT'])
         when :soft_sleep
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_SOFT_SLEEP`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_SOFT_SLEEP'])
         when :home
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_HOME`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_HOME'])
         when :forward
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_FORWARD`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_FORWARD'])
         when :back
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_BACK`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_BACK'])
         when :call
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_CALL`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_CALL'])
         when :endcall
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_ENDCALL`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_ENDCALL'])
         when :dpad_up
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_DPAD_UP`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_DPAD_UP'])
         when :dpad_down
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_DPAD_DOWN`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_DPAD_DOWN'])
         when :dpad_left
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_DPAD_LEFT`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_DPAD_LEFT'])
         when :dpad_right
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_DPAD_RIGHT`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_DPAD_RIGHT'])
         when :dpad_down_left
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_DPAD_DOWN_LEFT`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_DPAD_DOWN_LEFT'])
         when :dpad_down_right
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_DPAD_DOWN_RIGHT`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_DPAD_DOWN_RIGHT'])
         when :dpad_up_left
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_DPAD_UP_LEFT`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_DPAD_UP_LEFT'])
         when :dpad_up_right
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_DPAD_UP_RIGHT`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_DPAD_UP_RIGHT'])
         when :dpad_center
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_DPAD_CENTER`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_DPAD_CENTER'])
         when :volume_up
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_VOLUME_UP`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_VOLUME_UP'])
         when :volume_down
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_VOLUME_DOWN`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_VOLUME_DOWN'])
         when :power
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_POWER`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_POWER'])
         when :camera
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_CAMERA`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_CAMERA'])
         when :clear
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_CLEAR`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_CLEAR'])
         when :alt_left
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_ALT_LEFT`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_ALT_LEFT'])
         when :alt_right
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_ALT_RIGHT`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_ALT_RIGHT'])
         when :shift_left
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_SHIFT_LEFT`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_SHIFT_LEFT'])
         when :shift_right
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_SHIFT_RIGHT`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_SHIFT_RIGHT'])
         when :tab
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_TAB`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_TAB'])
         when :sym
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_SYM`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_SYM'])
         when :explorer
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_EXPLORER`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_EXPLORER'])
         when :envelope
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_ENVELOPE`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_ENVELOPE'])
         when :enter
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_ENTER`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_ENTER'])
         when :backspace
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_DEL`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_DEL'])
         when :headsethook
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_HEADSETHOOK`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_HEADSETHOOK'])
         when :focus
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_FOCUS`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_FOCUS'])
         when :menu
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_MENU`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_MENU'])
         when :top_menu
-          str_resp = `#{adb_path} shell input touchscreen swipe 0 0 0 1500 100`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input touchscreen swipe 0 0 0 1500 100'])
         when :notification
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_NOTIFICATION`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_NOTIFICATION'])
         when :search
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_SEARCH`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_SEARCH'])
         when :media_play_pause
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_MEDIA_PLAY_PAUSE`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_MEDIA_PLAY_PAUSE'])
         when :media_stop
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_MEDIA_STOP`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_MEDIA_STOP'])
         when :media_next
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_MEDIA_NEXT`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_MEDIA_NEXT'])
         when :media_previous
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_MEDIA_PREVIOUS`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_MEDIA_PREVIOUS'])
         when :media_rewind
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_MEDIA_REWIND`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_MEDIA_REWIND'])
         when :media_fast_forward
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_MEDIA_FAST_FORWARD`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_MEDIA_FAST_FORWARD'])
         when :mute
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_MUTE`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_MUTE'])
         when :page_up
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_PAGE_UP`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_PAGE_UP'])
         when :page_down
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_PAGE_DOWN`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_PAGE_DOWN'])
         when :pictsymbols
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_PICTSYMBOLS`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_PICTSYMBOLS'])
         when :move_home
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_MOVE_HOME`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_MOVE_HOME'])
         when :move_end
-          str_resp = `#{adb_path} shell input keyevent KEYCODE_MOVE_END`
+          str_resp = adb_exec(adb_path: adb_path, args: ['shell', 'input keyevent KEYCODE_MOVE_END'])
         else
           raise "ERROR: unknown special event: #{event}"
         end
@@ -1219,17 +1114,13 @@ module PWN
       # )
 
       public_class_method def self.close_app(opts = {})
-        adb_path = opts[:adb_path].to_s.scrub if File.exist?(opts[:adb_path].to_s.scrub)
+        adb_path = validated_adb_path(adb_path: opts[:adb_path])
         app = opts[:app].to_s.scrub
 
-        as_root = if opts[:as_root]
-                    true
-                  else
-                    false
-                  end
+        as_root = root_consent?(as_root: opts.fetch(:as_root, false))
 
-        `#{adb_path} root` if as_root
-        `#{adb_path} shell am force-stop #{app}`
+        adb_exec(adb_path: adb_path, args: ['root']) if as_root
+        adb_exec(adb_path: adb_path, args: ['shell', "am force-stop #{Shellwords.escape(app)}"])
       rescue StandardError => e
         raise e
       end
@@ -1241,17 +1132,13 @@ module PWN
       # )
 
       public_class_method def self.invoke_event_listener(opts = {})
-        adb_path = opts[:adb_path].to_s.scrub if File.exist?(opts[:adb_path].to_s.scrub)
+        adb_path = validated_adb_path(adb_path: opts[:adb_path])
         app = opts[:app].to_s.scrub
 
-        as_root = if opts[:as_root]
-                    true
-                  else
-                    false
-                  end
+        as_root = root_consent?(as_root: opts.fetch(:as_root, false))
 
-        `#{adb_path} root` if as_root
-        `#{adb_path} shell getevent -l`
+        adb_exec(adb_path: adb_path, args: ['root']) if as_root
+        adb_exec(adb_path: adb_path, args: ['shell', 'getevent -l'])
       rescue StandardError => e
         raise e
       end
@@ -1264,7 +1151,7 @@ module PWN
       # )
 
       public_class_method def self.adb_net_disconnect(opts = {})
-        adb_path = opts[:adb_path].to_s.scrub if File.exist?(opts[:adb_path].to_s.scrub)
+        adb_path = validated_adb_path(adb_path: opts[:adb_path])
         target = opts[:target].to_s.scrub
         port = if opts[:port]
                  opts[:port].to_i
@@ -1272,7 +1159,7 @@ module PWN
                  5555
                end
 
-        `#{adb_path} disconnect #{target}:#{port}`
+        adb_exec(adb_path: adb_path, args: ['disconnect', "#{target}:#{port}"])
       rescue StandardError => e
         raise e
       end
@@ -1302,6 +1189,82 @@ module PWN
           perms = txt.scan(/android:name="([^"]+)"/).flatten.grep(/PERMISSION|permission/)
         end
         { out_dir: out, steps: steps, apk: apk, permissions: perms, manifest: (File.file?(manifest) ? manifest : nil) }
+      end
+
+      private_class_method def self.root_consent?(opts = {})
+        value = opts[:as_root]
+        raise ArgumentError, 'as_root must be literal true or false' unless value.equal?(true) || value.equal?(false)
+
+        value
+      end
+
+      private_class_method def self.validated_adb_path(opts = {})
+        path = opts[:adb_path]
+        raise ArgumentError, 'adb_path must identify an existing executable path' unless path.is_a?(String) && !path.empty? && !path.include?("\0") && File.exist?(path)
+
+        path
+      end
+
+      private_class_method def self.adb_exec(opts = {})
+        deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + COMMAND_TIMEOUT
+        reader, writer = IO.pipe
+        pid = waiter = nil
+        Thread.handle_interrupt(Interrupt => :never) do
+          pid = Process.spawn([opts[:adb_path], opts[:adb_path]], *opts[:args], in: File::NULL, out: writer, err: File::NULL, pgroup: true)
+          waiter = Process.detach(pid)
+        end
+        writer.close
+        output = ''.b
+        loop do
+          remaining = deadline - Process.clock_gettime(Process::CLOCK_MONOTONIC)
+          raise Timeout::Error, 'adb command timed out; inspect the selected device before retrying' unless remaining.positive?
+
+          chunk = reader.read_nonblock(16_384, exception: false)
+          break if chunk.nil?
+
+          if chunk == :wait_readable
+            reader.wait_readable([remaining, 0.05].min)
+            next
+          end
+          output << chunk
+          raise IOError, 'adb output limit exceeded' if output.bytesize > MAX_OUTPUT_BYTES
+        end
+        remaining = deadline - Process.clock_gettime(Process::CLOCK_MONOTONIC)
+        raise Timeout::Error, 'adb command timed out' unless remaining.positive? && waiter.join(remaining)
+
+        status = waiter.value
+        raise IOError, 'adb command failed; inspect the selected device before retrying' unless status.success?
+
+        completed = true
+        output
+      ensure
+        primary_error = completed ? nil : $ERROR_INFO
+        Thread.handle_interrupt(Interrupt => :never) do
+          terminate_adb(pid: pid, waiter: waiter) if pid
+        rescue StandardError
+          raise unless primary_error
+        ensure
+          reader.close if reader && !reader.closed?
+          writer.close if writer && !writer.closed?
+        end
+      end
+
+      private_class_method def self.terminate_adb(opts = {})
+        pid = opts[:pid]
+        waiter = opts[:waiter] || Process.detach(pid)
+        begin
+          Process.kill('TERM', -pid)
+        rescue Errno::ESRCH
+          nil
+        end
+        waiter.join(0.2)
+        # The leader may exit on TERM while a descendant retains the pipes.
+        begin
+          Process.kill('KILL', -pid)
+        rescue Errno::ESRCH
+          nil
+        end
+        raise IOError, 'adb child did not terminate after cancellation' unless waiter.join(0.5)
       end
 
       # Author(s):: 0day Inc. <support@0dayinc.com>
@@ -1350,14 +1313,14 @@ module PWN
           #{self}.take_screenshot(
             adb_path: 'required - path to adb binary',
             dest: 'optional - destination path to save screenshot file (defaults to /sdcard/screen.png)',
-            as_root: 'optional - boolean (defaults to true)'
+            as_root: 'optional - literal true enables root; false by default'
           )
 
           # Run screen record and return its result
           #{self}.screen_record(
             adb_path: 'required - path to adb binary',
             dest: 'optional - destination path to save screen record file (defaults to /sdcard/screen.mp4)',
-            as_root: 'optional - boolean (defaults to true)'
+            as_root: 'optional - literal true enables root; false by default'
           )
 
           # Run list installed apps and return its result

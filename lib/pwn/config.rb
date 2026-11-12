@@ -438,8 +438,14 @@ module PWN
     #   config: 'optional - Hash to redact sensitive artifacts from.  Defaults to PWN::Env'
     # )
     public_class_method def self.redact_sensitive_artifacts(opts = {})
-      config = opts[:config] ||= PWN::Env
-      return config.map { |value| value.is_a?(Hash) || value.is_a?(Array) ? redact_sensitive_artifacts(config: value) : value } if config.is_a?(Array)
+      redact_config(config: opts[:config] || PWN::Env, depth: 0)
+    end
+
+    private_class_method def self.redact_config(opts = {})
+      config = opts[:config]
+      depth = opts[:depth]
+      raise JSON::NestingError, 'redaction exceeds configuration nesting limit (100)' if depth >= 100
+      return config.map { |value| value.is_a?(Hash) || value.is_a?(Array) ? redact_config(config: value, depth: depth + 1) : value } if config.is_a?(Array)
 
       sensitive_keys = %i[
         admin_key
@@ -486,7 +492,7 @@ module PWN
         if sensitive_keys.include?(config.keys[k].to_s.downcase.tr('-', '_').to_sym)
           '>>> REDACTED >>> USE `pwn-vault` FOR ADMINISTRATION <<< REDACTED <<<'
         else
-          v.is_a?(Hash) || v.is_a?(Array) ? redact_sensitive_artifacts(config: v) : v
+          v.is_a?(Hash) || v.is_a?(Array) ? redact_config(config: v, depth: depth + 1) : v
         end
       end
     rescue StandardError => e
@@ -791,16 +797,17 @@ module PWN
     # Missing / malformed frontmatter returns { frontmatter: {}, body: content }.
     public_class_method def self.parse_skill_frontmatter(opts = {})
       content = opts[:content].to_s
-      return { frontmatter: {}, body: content } unless content.start_with?("---\n")
+      opening = content.match(/\A---[ \t]*\r?\n/)
+      return { frontmatter: {}, body: content } unless opening
 
-      fm_end = content.index(/^---\s*$/, 4)
-      return { frontmatter: {}, body: content } unless fm_end
+      closing = content.match(/^---[ \t]*(?:\r?\n|\z)/, opening.end(0))
+      return { frontmatter: {}, body: content } unless closing
 
       require 'yaml'
-      raw = content[4...fm_end]
+      raw = content[opening.end(0)...closing.begin(0)]
       fm  = YAML.safe_load(raw, permitted_classes: [Symbol, Date, Time], aliases: true) || {}
       fm  = {} unless fm.is_a?(Hash)
-      body = content[fm_end..].to_s.sub(/\A---\s*\n?/, '')
+      body = content[closing.end(0)..].to_s
       { frontmatter: fm, body: body }
     rescue StandardError
       { frontmatter: {}, body: content }
@@ -1055,7 +1062,7 @@ module PWN
       }
       scripts.each do |rb|
         require rb
-      rescue StandardError => e
+      rescue LoadError, SyntaxError, StandardError => e
         meta[:loaded] = false
         meta[:error] = e.message
       end
@@ -1114,7 +1121,7 @@ module PWN
           begin
             require skill_file
             skills[key] = base.merge(type: :ruby, loaded: true)
-          rescue StandardError => e
+          rescue LoadError, SyntaxError, StandardError => e
             skills[key] = base.merge(type: :ruby, loaded: false, error: e.message)
           end
         else

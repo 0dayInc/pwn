@@ -8,6 +8,15 @@ describe PWN::SDR::Decoder::LoRa do
     expect(described_class).to respond_to(:detect)
   end
 
+  it 'raises on source loss rather than silently replacing payload decoding with detection' do
+    base = PWN::SDR::Decoder::Base
+    allow(base).to receive(:resolve_iq_source).and_return(nil)
+    allow(base).to receive(:run_detector).and_return(reason: :eof, frames: 0)
+    expect { described_class.decode(freq_obj: {}, source: :file, file: 'offline.cu8', fallback: :detector) }
+      .to raise_error(RuntimeError, %r{no I/Q source available})
+    expect(base).not_to have_received(:run_detector)
+  end
+
   it 'decodes an independently encoded CRC-protected packet from chunked IQ' do
     root = File.expand_path('../../../../fixtures/sdr/lora', __dir__)
     vector = JSON.parse(File.read("#{root}/vectors.json"), symbolize_names: true).first

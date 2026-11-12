@@ -35,7 +35,6 @@ module PWN
         PWN::Plugins::Serial.connect(opts)
       rescue StandardError => e
         logger.error("Connection failed: #{e.message}")
-        disconnect(son_micro_rfid_obj: son_micro_rfid_obj) unless son_micro_rfid_obj.nil?
         raise e
       end
 
@@ -136,7 +135,7 @@ module PWN
         son_micro_rfid_obj = opts[:son_micro_rfid_obj]
         cmd = opts[:cmd].to_s.scrub.strip.chomp
 
-        Timeout.timeout(5) do
+        result = Timeout.timeout(5) do
           keep_parsing_responses = true
           next_response_detected = false
           all_cmd_responses = []
@@ -219,6 +218,8 @@ module PWN
 
           parsed_cmd_resp_arr
         end
+        completed = true
+        result
       rescue Timeout::Error
         logger.error("Device response timed out for command: #{cmd}")
         raise 'ERROR: Device response timed out'
@@ -226,7 +227,11 @@ module PWN
         logger.error("Error parsing response for command #{cmd}: #{e.message}")
         raise e
       ensure
-        PWN::Plugins::Serial.flush_session_data
+        begin
+          PWN::Plugins::Serial.flush_session_data(serial_obj: son_micro_rfid_obj) if son_micro_rfid_obj
+        rescue StandardError
+          raise if completed
+        end
       end
 
       # Supported Method Parameters::
@@ -325,12 +330,17 @@ module PWN
           cmd: cmd.to_sym
         )
         logger.info("Response for #{cmd}: #{response.inspect}")
+        completed = true
         response
       rescue StandardError => e
         logger.error("Error executing command #{cmd}: #{e.message}")
         raise e
       ensure
-        PWN::Plugins::Serial.flush_session_data
+        begin
+          PWN::Plugins::Serial.flush_session_data(serial_obj: son_micro_rfid_obj) if son_micro_rfid_obj
+        rescue StandardError
+          raise if completed
+        end
       end
 
       # Supported Method Parameters::
@@ -404,8 +414,8 @@ module PWN
       # Supported Method Parameters::
       # PWN::SDR::SonMicroRFID.write_tag(
       #   son_micro_rfid_obj: 'required - son_micro_rfid_obj returned from #connect method',
-      #   rfid_data: 'required - RFID data to write (see #read_tag for structure)',
-      #   authn: 'optional - authentication flag (default: false)',
+      #   rfid_data: 'required - tag metadata and block_data with 4 Ultralight or 16 Classic space-separated hex bytes',
+      #   authn: 'optional - authn: true required for Classic write and readback (default false)',
       #   key: 'optional - key for authentication (default: [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF])'
       # )
 
@@ -420,6 +430,15 @@ module PWN
           logger.error('Invalid rfid_data: must be a hash with :resp_code_desc and :tag_id')
           raise 'Invalid rfid_data: must be a hash with :resp_code_desc and :tag_id'
         end
+
+        block_size = case rfid_data[:resp_code_desc]
+                     when :mifare_ultralight then 4
+                     when :mifare_classic_1k, :mifare_classic_4k then 16
+                     else raise ArgumentError, "Unsupported tag type: #{rfid_data[:resp_code_desc]}"
+                     end
+        block_data = rfid_data[:block_data]
+        raise ArgumentError, "block_data must contain #{block_size} space-separated hexadecimal bytes" unless block_data.is_a?(String) && block_data.split.length == block_size && block_data.split.all? { |byte| byte.match?(/\A[0-9a-fA-F]{2}\z/) }
+        raise ArgumentError, 'authn: true is required to write and verify Classic block data' if block_size == 16 && authn != true
 
         puts "\nWriting to tag with Tag ID: #{rfid_data[:tag_id]}"
         print 'This will overwrite the tag. Continue? [y/N]: '
@@ -485,14 +504,12 @@ module PWN
         end
 
         # Verify write by re-reading
-        read_data = read_tag(son_micro_rfid_obj: son_micro_rfid_obj)
-        if read_data[:block_data] == rfid_data[:block_data]
-          puts 'Write verification successful.'
-          logger.info('Write verification successful')
-        else
-          puts 'ERROR: Written data does not match read data.'
-          logger.error('Written data does not match read data')
-        end
+        read_data = read_tag(son_micro_rfid_obj: son_micro_rfid_obj, authn: authn, key: key)
+        read_block = read_data[:block_data]
+        raise IOError, 'Written tag readback does not match requested block data' unless read_block.is_a?(String) && read_block.split.map(&:upcase) == block_data.split.map(&:upcase)
+
+        puts 'Write verification successful.'
+        logger.info('Write verification successful')
 
         logger.info("Write tag successful: #{rfid_data.inspect}")
         puts 'Tag written successfully.'
@@ -684,16 +701,17 @@ module PWN
       public_class_method def self.disconnect(opts = {})
         son_micro_rfid_obj = opts[:son_micro_rfid_obj]
 
-        logger.info('Disabling antenna power')
-        exec(
-          son_micro_rfid_obj: son_micro_rfid_obj,
-          cmd: :antenna_power,
-          params: :off
-        )
-
-        logger.info('Disconnecting from device')
-
-        PWN::Plugins::Serial.disconnect(serial_obj: son_micro_rfid_obj)
+        begin
+          logger.info('Disabling antenna power')
+          exec(
+            son_micro_rfid_obj: son_micro_rfid_obj,
+            cmd: :antenna_power,
+            params: :off
+          )
+        ensure
+          response = PWN::Plugins::Serial.disconnect(serial_obj: son_micro_rfid_obj) if son_micro_rfid_obj
+        end
+        response
       rescue StandardError => e
         logger.error("Error disconnecting: #{e.message}")
         raise e
@@ -746,8 +764,8 @@ module PWN
           # Run write tag and return its result
           #{self}.write_tag(
             son_micro_rfid_obj: 'required - son_micro_rfid_obj returned from #connect method',
-            rfid_data: 'required - RFID data to write (see #read_tag for structure)',
-            authn: 'optional - authentication flag (default: false)',
+            rfid_data: 'required - tag metadata and block_data with 4 Ultralight or 16 Classic space-separated hex bytes',
+            authn: 'optional - authn: true required for Classic write and readback (default false)',
             key: 'optional - key for authentication (default: [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF])'
           )
 

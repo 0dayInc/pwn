@@ -223,7 +223,7 @@ module PWN
         private_class_method def self.spawn_worker(opts = {})
           args = opts.fetch(:args)
           input = opts[:input]
-          Dir.mktmpdir('pwn-policy-evaluator-', '/tmp') do |root|
+          Dir.mktmpdir('pwn-policy-evaluator-') do |root|
             Open3.popen3(
               { 'HOME' => root, 'TMPDIR' => root, 'LANG' => 'C.UTF-8' },
               RbConfig.ruby, RUNNER, *args,
@@ -261,7 +261,7 @@ module PWN
         private_class_method def self.with_isolated
           refuse_live_agent
           original = ENV.to_h
-          Dir.mktmpdir('pwn-policy-heldout-', '/tmp') do |root|
+          Dir.mktmpdir('pwn-policy-heldout-') do |root|
             ENV.replace('HOME' => root, 'TMPDIR' => root, 'LANG' => 'C.UTF-8')
             PWN.const_set(:Env, { ai: { agent: { policy: false } } }) unless PWN.const_defined?(:Env)
             require_relative 'policy'

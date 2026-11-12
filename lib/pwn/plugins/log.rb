@@ -118,7 +118,7 @@ module PWN
           else
             log_event += " => #{PWN::Redaction.redact(value: msg)}"
             if msg.respond_to?('backtrace') && !msg.instance_of?(Errno::ECONNRESET)
-              log_event += " => \n\t#{msg.backtrace.join("\n\t")}"
+              log_event += " => \n\t#{Array(msg.backtrace).join("\n\t")}"
               log_event += "\n\n\n"
             end
           end

@@ -176,9 +176,9 @@ module PWN
         delete_binary = true if opts[:delete_binary] ||= false
         force_scan = true if opts[:force_scan] ||= false
         callback_url = opts[:callback_url]
-        scan_infoleak = false if opts[:scan_infoleak] ||= true
-        code_analysis = false if opts[:code_analysis] ||= true
-        scan_code_familiarity = false if opts[:scan_code_familiarity] ||= false
+        scan_infoleak = opts.fetch(:scan_infoleak, true)
+        code_analysis = opts.fetch(:code_analysis, true)
+        scan_code_familiarity = opts.fetch(:scan_code_familiarity, false)
         version = opts[:version]
         product_id = opts[:product_id]
 

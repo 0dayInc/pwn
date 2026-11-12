@@ -12,11 +12,8 @@ module PWN
       # )
 
       public_class_method def self.connect_via_screen(opts = {})
-        block_dev = opts[:block_dev].to_s if File.exist?(
-          opts[:block_dev].to_s
-        )
-
-        block_dev ||= '/dev/ttyACM0'
+        block_dev = opts.fetch(:block_dev, '/dev/ttyACM0')
+        raise ArgumentError, 'Invalid serial block device' unless block_dev.is_a?(String) && File.exist?(block_dev)
 
         screen_bin = '/usr/bin/screen'
         raise "ERROR: #{screen_bin} not found." unless File.exist?(screen_bin)
@@ -64,9 +61,9 @@ module PWN
           payload: payload
         )
         sleep 0.1
-        response = PWN::Plugins::Serial.dump_session_data.clone
+        response = PWN::Plugins::Serial.dump_session_data(serial_obj: serial_obj)
         puts response.join
-        PWN::Plugins::Serial.flush_session_data
+        PWN::Plugins::Serial.flush_session_data(serial_obj: serial_obj)
 
         response
       rescue StandardError => e

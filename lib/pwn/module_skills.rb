@@ -108,6 +108,8 @@ module PWN
       lib = opts[:lib_root].to_s
       lib = File.expand_path('..', LIB_ROOT) if lib.empty?
       mods = enumerate(lib_root: lib)
+      raise ArgumentError, 'Source tree contains no PWN modules; refusing to prune skills' if mods.empty?
+
       FileUtils.mkdir_p(File.join(dest, 'pwn'))
       written = []
       keep = {}
@@ -283,7 +285,7 @@ module PWN
         pending = []
         next if line =~ /^\s*private_class_method/
 
-        if line =~ /def self\.(\w+)/
+        if line =~ /def self\.(\w+[!?=]?)/
           meth = Regexp.last_match(1)
           methods << meth unless methods.include?(meth)
         end

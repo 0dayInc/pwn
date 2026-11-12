@@ -15,11 +15,10 @@ require 'fileutils'
 #      it { ... }
 #    end
 #
-#  NON-BLOCKING by construction: every ~/.pwn/* persistence path is redirected
-#  into a per-example tmpdir, module_reflection is forced OFF (no LLM calls),
-#  MemoryIndex is disabled, and Extrospection ambient probes are stubbed.
-#  `rake spec` therefore stays sub-second with no engine, no ~/.pwn writes,
-#  and no network / host side-effects.
+#  Registered persistence constants are redirected into a per-example tmpdir,
+#  module_reflection is forced OFF, MemoryIndex is disabled, and Extrospection
+#  ambient probes are stubbed. Tests must also isolate new path constants and
+#  dynamically resolved home paths before exercising their writers.
 # ─────────────────────────────────────────────────────────────────────────────
 
 RSpec.shared_context 'pwn tmp sandbox' do
@@ -43,6 +42,10 @@ RSpec.shared_context 'pwn tmp sandbox' do
       'PWN::AI::Agent::Reward::SENTINEL_FILE' => 'sentinel.json',
       'PWN::AI::Agent::Reward::DPO_DIR' => 'finetune',
       'PWN::AI::Agent::Curriculum::CURRICULUM_DIR' => 'curriculum',
+      'PWN::AI::Agent::Curriculum::COOLDOWN_FILE' => File.join('curriculum', 'cooldown.json'),
+      'PWN::AI::Agent::Curriculum::MODELS_FILE' => File.join('curriculum', 'models.json'),
+      'PWN::AI::Agent::Curriculum::KPI_FILE' => 'curriculum_kpi.jsonl',
+      'PWN::AI::Agent::Curriculum::DPO_DIR_CONST' => 'finetune',
       'PWN::AI::Agent::Policy::POLICY_FILE' => 'policy.json',
       'PWN::AI::Agent::Policy::TRAJECTORY_FILE' => 'policy_traj.jsonl',
       'PWN::AI::Agent::Extrospection::EXTRO_FILE' => 'extrospection.json',

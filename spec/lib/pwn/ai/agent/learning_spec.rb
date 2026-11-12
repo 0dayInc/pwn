@@ -203,7 +203,8 @@ describe PWN::AI::Agent::Learning do
       old_row = JSON.parse(before, symbolize_names: true)
       File.delete(@source)
       expect(PWN::AI::Agent::Reward).to receive(:fold_step_reward_to_metrics).with(content: 'support tool', reward: 1)
-      PWN::AI::Agent::Reward.send(:annotate_session, session_id: @sid, rewards: [1])
+      binding = PWN::AI::Agent::Reward.prm_snapshot(session_id: @sid, request: @trace.find { |row| row[:role] == 'user' }[:content])[:binding]
+      PWN::AI::Agent::Reward.send(:annotate_session, session_id: @sid, rewards: [1], binding: binding)
       trace = PWN::Sessions.load(session_id: @sid)
       expect(trace.find { |row| row[:role] == 'tool' }[:step_reward]).to eq(1)
       expect(trace.map { |row| row[:content] }).to eq(@trace.map { |row| row[:content] })

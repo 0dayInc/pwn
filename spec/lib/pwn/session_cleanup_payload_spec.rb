@@ -572,7 +572,8 @@ RSpec.describe PWN::SessionCleanup do
     expect(PWN::AI::Agent::Learning.evidence_complete?(row: row)).to be(true)
     evidence = File.join(Dir.home, '.pwn', 'learning', 'evidence', "#{row[:evidence_ref][:sha256]}.json")
     expect(Digest::SHA256.file(evidence).hexdigest).to eq(row[:evidence_ref][:sha256])
-    PWN::AI::Agent::Reward.send(:annotate_session, session_id: id, rewards: [1])
+    binding = PWN::AI::Agent::Reward.prm_snapshot(session_id: id, request: 'offline evidence fixture café')[:binding]
+    PWN::AI::Agent::Reward.send(:annotate_session, session_id: id, rewards: [1], binding: binding)
     expect(PWN::Sessions.load(session_id: id).find { |entry| entry[:role] == 'tool' }[:step_reward]).to eq(1)
     expect(Digest::SHA256.file(evidence).hexdigest).to eq(row[:evidence_ref][:sha256])
     expect(PWN::Sessions.catalog[:sessions]).to eq([])
@@ -1146,7 +1147,7 @@ RSpec.describe PWN::SessionCleanup do
     expect(dry[:candidate_ids]).to include(id)
     expect(dry[:deleted_ids]).to eq([])
     expect(File).to exist(path)
-    expect(PWN::Sessions).to receive(:delete).with(session_id: id, current_session_id: nil, force: true, cleanup_lock: an_instance_of(File)).and_call_original
+    expect(PWN::Sessions).to receive(:delete).with(session_id: id, current_session_id: nil, force: true, cleanup_lock: an_instance_of(File), deletion_progress: an_instance_of(Proc)).and_call_original
     expect(described_class.sweep(dry_run: false)[:deleted_ids]).to eq([id])
     expect(File).not_to exist(path)
     expect(File).not_to exist(meta_path)

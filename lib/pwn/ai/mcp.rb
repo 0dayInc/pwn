@@ -68,7 +68,7 @@ module PWN
       public_class_method def self.connect(opts = {})
         backend = resolve(opts)
         ident = (opts[:session_id] || backend[:name]).to_s
-        existing = @mutex.synchronize { @sessions[ident] }
+        existing = @mutex.synchronize { check_backend!(row: @sessions[ident], backend: opts[:force] ? nil : backend[:name]) }
         return summarize(row: existing) if existing && !opts[:force]
 
         connect_opts = {
@@ -100,6 +100,7 @@ module PWN
           end
         end
         backend[:module].disconnect(session: extra) if extra
+        check_backend!(row: row, backend: backend[:name])
         @mutex.synchronize { @current = row[:backend] }
         summarize(row: row)
       end
@@ -108,7 +109,10 @@ module PWN
 
       public_class_method def self.disconnect(opts = {})
         ident = session_id(opts)
-        row = @mutex.synchronize { @sessions.delete(ident) }
+        row = @mutex.synchronize do
+          check_backend!(row: @sessions[ident], backend: opts[:backend])
+          @sessions.delete(ident)
+        end
         return { disconnected: false, session_id: ident } unless row
 
         row[:module].disconnect(session: row[:session])
@@ -189,7 +193,7 @@ module PWN
         when 'poll_until', 'poll' then poll_until(args)
         when 'status'
           ident = session_id(args)
-          row = @mutex.synchronize { @sessions[ident] }
+          row = @mutex.synchronize { check_backend!(row: @sessions[ident], backend: args[:backend]) }
           return { connected: false, session_id: ident } unless row
 
           summarize(row: row).merge(connected: true)
@@ -344,11 +348,19 @@ module PWN
 
       private_class_method def self.ensure_session(opts = {})
         ident = session_id(opts)
-        row = @mutex.synchronize { @sessions[ident] }
+        row = @mutex.synchronize { check_backend!(row: @sessions[ident], backend: opts[:backend]) }
         return row if row
 
         connect(opts)
-        @mutex.synchronize { @sessions[ident] }
+        @mutex.synchronize { check_backend!(row: @sessions[ident], backend: opts[:backend]) }
+      end
+
+      private_class_method def self.check_backend!(opts = {})
+        row = opts[:row]
+        backend = opts[:backend].to_s
+        raise ArgumentError, "MCP session #{row[:session_id]} belongs to #{row[:backend]}, not #{backend}" if row && !backend.empty? && row[:backend] != backend
+
+        row
       end
 
       private_class_method def self.summarize(opts = {})

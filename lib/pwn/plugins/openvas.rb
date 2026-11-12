@@ -3,11 +3,26 @@
 require 'nokogiri'
 require 'time'
 require 'base64'
+require 'open3'
 
 module PWN
   module Plugins
     # This plugin is used for interacting w/ OpenVAS using OMP (OpenVAS Management Protocol).
     module OpenVAS
+      private_class_method def self.gvm_request(opts = {})
+        document = Nokogiri::XML::Document.new
+        node = Nokogiri::XML::Node.new(opts[:name], document)
+        (opts[:attributes] || {}).each { |key, value| node[key.to_s] = value.to_s }
+        stdout, stderr, status = Open3.capture3(
+          'sudo', 'runuser', '-u', '_gvm', '--', '/usr/bin/gvm-cli',
+          '--gmp-username', opts[:username], '--gmp-password', opts[:password],
+          'socket', '--xml', node.to_xml
+        )
+        raise IOError, "gvm-cli failed: #{stderr}" unless status.success?
+
+        Nokogiri::XML(stdout)
+      end
+
       # Supported Method Parameters::
       # task_xml_resp = PWN::Plugins::OpenVAS.get_task_id(
       #   task_name: 'required task name to start',
@@ -25,17 +40,10 @@ module PWN
                      opts[:password].to_s.scrub
                    end
 
-        get_tasks_xml_resp = Nokogiri::XML(
-          `sudo runuser -u _gvm -- /usr/bin/gvm-cli \
-            --gmp-username '#{username}' \
-            --gmp-password '#{password}' \
-            socket \
-            --xml="<get_tasks/>"
-          `
-        )
+        get_tasks_xml_resp = gvm_request(username: username, password: password, name: 'get_tasks')
 
         get_tasks_xml_resp.xpath(
-          "/get_tasks_response/task[name/text()='#{task_name}']"
+          '/get_tasks_response/task[name/text()=$name]', nil, { 'name' => task_name }
         )
       rescue StandardError => e
         raise e
@@ -64,14 +72,7 @@ module PWN
           password: password
         ).xpath('@id').text
 
-        Nokogiri::XML(
-          `sudo runuser -u _gvm -- /usr/bin/gvm-cli \
-            --gmp-username '#{username}' \
-            --gmp-password '#{password}' \
-            socket \
-            --xml="<start_task task_id='#{task_id}'/>"
-          `
-        )
+        gvm_request(username: username, password: password, name: 'start_task', attributes: { task_id: task_id })
       rescue StandardError => e
         raise e
       end
@@ -125,17 +126,10 @@ module PWN
           password: password
         ).xpath('@id').text
 
-        report_xml_resp = Nokogiri::XML(
-          `sudo runuser -u _gvm -- /usr/bin/gvm-cli \
-            --gmp-username '#{username}' \
-            --gmp-password '#{password}' \
-            socket \
-            --xml="<get_reports/>"
-          `
-        )
+        report_xml_resp = gvm_request(username: username, password: password, name: 'get_reports')
 
         report_xml_resp.xpath(
-          "/get_reports_response/report/task[@id='#{task_id}']"
+          '/get_reports_response/report/task[@id=$id]', nil, { 'id' => task_id }
         ).last.parent.xpath(
           '@id'
         ).text
@@ -187,14 +181,7 @@ module PWN
           raise "Report Type: \"#{report_type}\" not supported."
         end
 
-        report_formats_xml_resp = Nokogiri::XML(
-          `sudo runuser -u _gvm -- /usr/bin/gvm-cli \
-            --gmp-username '#{username}' \
-            --gmp-password '#{password}' \
-            socket \
-            --xml="<get_report_formats/>"
-          `
-        )
+        report_formats_xml_resp = gvm_request(username: username, password: password, name: 'get_report_formats')
 
         rpt_fmt_xml_resp_by_name = report_formats_xml_resp.xpath(
           "/get_report_formats_response/report_format[name/text()='#{report_type_name}']"
@@ -203,14 +190,7 @@ module PWN
         format_id = rpt_fmt_xml_resp_by_name.xpath('@id').text
 
         # Generate Report
-        report_xml_resp = Nokogiri::XML(
-          `sudo runuser -u _gvm -- /usr/bin/gvm-cli \
-            --gmp-username '#{username}' \
-            --gmp-password '#{password}' \
-            socket \
-            --xml="<get_reports report_id='#{report_id}' format_id='#{format_id}' filter='#{report_filter}' details='1' />"
-          `
-        )
+        report_xml_resp = gvm_request(username: username, password: password, name: 'get_reports', attributes: { report_id: report_id, format_id: format_id, filter: report_filter, details: '1' })
 
         # timestamp = Time.parse(
         #   report_xml_resp.xpath('//modification_time')
@@ -221,10 +201,18 @@ module PWN
         base64_report = report_xml_resp.xpath(
           '//report/text()'
         ).text
+        status = report_xml_resp.root && report_xml_resp.root['status']
+        decoded = begin
+          Base64.strict_decode64(base64_report)
+        rescue ArgumentError
+          nil
+        end
+        return nil if status && status != '200'
+        return nil if decoded.nil? || decoded.empty?
 
         # File.open("#{report_dir}/openvas_results-#{timestamp}.#{report_type}", 'w') do |f|
         File.open("#{report_dir}/openvas_results.#{report_type}", 'w') do |f|
-          f.puts Base64.strict_decode64(base64_report)
+          f.puts decoded
         end
       rescue StandardError => e
         raise e

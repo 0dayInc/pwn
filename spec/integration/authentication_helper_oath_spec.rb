@@ -6,7 +6,7 @@ require 'tty-prompt'
 RSpec.describe 'AuthenticationHelper native OATH integration' do
   let(:account) { '-例:tester@example.invalid .+  ' }
   let(:serial) { '00123456' }
-  let(:connection) { double('offline APDU connection', descriptor: { protocol: :apdu }, close: :closed) }
+  let(:connection) { double('offline APDU connection', descriptor: { protocol: :apdu, serial: serial }, close: :closed) }
   let(:yubikey) { { account: account, confirm: true, serial: serial, connection: connection, timeout: 5 }.freeze }
   let(:select_apdu) { ['00a4040007a0000005272101'].pack('H*') }
   let(:list_apdu) { ['00a1000000'].pack('H*') }

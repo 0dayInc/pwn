@@ -415,7 +415,7 @@ module PWN
               method: http_method,
               url: "#{base_uri}/#{rest_call}",
               headers: headers,
-              verify_ssl: false,
+              verify_ssl: true,
               timeout: timeout
             )
 
@@ -428,7 +428,7 @@ module PWN
                 url: "#{base_uri}/#{rest_call}",
                 headers: headers,
                 payload: http_body,
-                verify_ssl: false,
+                verify_ssl: true,
                 timeout: timeout
               )
             else
@@ -437,7 +437,7 @@ module PWN
                 url: "#{base_uri}/#{rest_call}",
                 headers: headers,
                 payload: http_body.to_json,
-                verify_ssl: false,
+                verify_ssl: true,
                 timeout: timeout
               )
             end
@@ -484,15 +484,6 @@ module PWN
         # Keep the HTTP type/response and actionable provider diagnostics.
         e.message = "Grok HTTP #{e.http_code} (#{http_method.to_s.upcase} #{rest_call}): #{e.response&.body}"
         raise
-      rescue StandardError => e
-        case e.message
-        when '400 Bad Request', '404 Resource Not Found'
-          nil
-        else
-          raise e unless opts[:quiet]
-
-        end
-        "#{e.message}: #{e.response}"
       ensure
         PWN::Plugins::TTYSpinner.stop(spin: spin)
       end
@@ -611,8 +602,8 @@ module PWN
         }
         http_body[:tools]       = opts[:tools]       if opts[:tools] && !opts[:tools].empty?
         http_body[:tool_choice] = opts[:tool_choice] if opts[:tool_choice]
-        effort = opts[:reasoning_effort].to_s
-        http_body[:reasoning_effort] = effort unless effort.empty? || effort == 'none'
+        effort = wire_reasoning_effort(model: model, effort: opts[:reasoning_effort])
+        http_body[:reasoning_effort] = effort if effort
         hosted = Array(opts[:server_tools]).map(&:to_s).reject(&:empty?)
         if hosted.any?
           raise ArgumentError, 'xAI hosted tools use the Responses API and are not mixed into chat/completions client tools' if opts[:tools] && !opts[:tools].empty?
@@ -698,8 +689,8 @@ module PWN
           temperature: temp,
           stream: false
         }
-        effort = opts[:reasoning_effort].to_s
-        http_body[:reasoning_effort] = effort unless effort.empty?
+        effort = wire_reasoning_effort(model: model, effort: opts[:reasoning_effort])
+        http_body[:reasoning_effort] = effort if effort
 
         if response_history[:choices].length > 1
           response_history[:choices][1..-1].each do |message|
@@ -742,6 +733,33 @@ module PWN
         json_resp
       rescue StandardError => e
         raise e
+      end
+
+      # grok-4.5 and later reject reasoning_effort none. Map it to the lowest
+      # documented level; omit it when the model has no effort menu.
+      private_class_method def self.reasoning_efforts(opts = {})
+        model = opts[:model].to_s
+        efforts = if %w[grok-4.6 grok-4.7].include?(model)
+                    %w[low medium high xhigh]
+                  elsif model == 'grok-4.5'
+                    %w[low medium high]
+                  elsif %w[grok-3-mini grok-3-mini-fast].include?(model)
+                    %w[low high]
+                  else
+                    []
+                  end
+        { efforts: efforts }
+      end
+
+      private_class_method def self.wire_reasoning_effort(opts = {})
+        effort = opts[:effort].to_s
+        return nil if effort.empty?
+
+        known = reasoning_efforts(model: opts[:model])[:efforts]
+        return known.first if effort == 'none' && known.any? && !known.include?('none')
+        return nil if effort == 'none'
+
+        effort
       end
 
       # Author(s):: 0day Inc. <support@0dayinc.com>
@@ -797,7 +815,7 @@ module PWN
             timeout: 'optional - seconds (default 180)',
             spinner: 'optional - display spinner (default false)',
             quiet: 'optional - quiet value consumed by #chat_with_tools',
-            reasoning_effort: 'optional - Grok reasoning effort (default medium; none disables thinking)',
+            reasoning_effort: 'optional - Grok reasoning effort; none is omitted or mapped to the lowest supported level',
             server_tools: 'optional - hosted tool names such as web_search; sent on the Responses API only when client tools are omitted'
           )
 
@@ -811,7 +829,8 @@ module PWN
             speak_answer: 'optional - optional speak answer using PWN::Plugins::Voice.text_to_speech (Default: nil)',
             timeout: 'optional - optional timeout in seconds (defaults to 900)',
             spinner: 'optional - display spinner (defaults to false)',
-            quiet: 'optional - quiet value consumed by #chat'
+            quiet: 'optional - quiet value consumed by #chat',
+            reasoning_effort: 'optional - Grok reasoning effort; none is omitted or mapped to the lowest supported level'
           )
 
           # Print the AUTHOR(S) string for this module.

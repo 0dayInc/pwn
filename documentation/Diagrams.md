@@ -142,7 +142,7 @@ operations. See [Operability](Operability.md).
 
 ## 5 · Domain-Specific
 
-### AWS Cloud Security (90 services)
+### AWS Cloud Security (85 services)
 [source](diagrams/dot/aws-cloud-security.dot) · doc: [AWS](AWS.md)
 ![aws-cloud-security](diagrams/aws-cloud-security.svg)
 

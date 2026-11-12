@@ -15,7 +15,12 @@ module PWN
         obj = opts[:obj]
         case obj
         when String
-          obj.force_encoding('ISO-8859-1').encode('UTF-8', invalid: :replace, undef: :replace)
+          text = obj.dup
+          text.force_encoding('UTF-8') if text.encoding == Encoding::BINARY
+          return text if text.encoding == Encoding::UTF_8 && text.valid_encoding?
+
+          text.force_encoding('ISO-8859-1') if obj.encoding == Encoding::BINARY
+          text.encode('UTF-8', invalid: :replace, undef: :replace)
         when Array
           obj.map { |item| force_utf8(obj: item) }
         when Hash
@@ -358,13 +363,14 @@ module PWN
       public_class_method def self.generate_encoded_files(opts = {})
         from = opts[:from].to_i
         to = opts[:to].to_i
-        output_dir = opts[:output_dir] if Dir.exist?(opts[:output_dir])
+        output_dir = opts[:output_dir].to_s
+        raise ArgumentError, 'output_dir must be an existing directory' unless Dir.exist?(output_dir)
 
         char_arr = generate_by_range(from: 0, to: 0).first
         char_keys = char_arr.keys
         char_keys.each do |char_key|
           encoder = char_arr[char_key][:encoder]
-          this_file = "#{output_dir}/#{from}_#{to}_#{encoder}.txt"
+          this_file = "#{output_dir}/#{from}_#{to}_#{encoder || char_key}.txt"
 
           case char_key
           when :bin, :dec, :hex, :html_entity, :html_entity_dec, :html_entity_hex, :long_int, :oct, :short_int, :url

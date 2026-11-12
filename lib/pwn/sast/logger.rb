@@ -24,7 +24,7 @@ module PWN
           -e '.warn' \
           -e '.info' \
           -e '.error' \
-          -e '.debug' {PWN_SAST_SRC_TARGET} > /dev/null | grep -i \
+          -e '.debug' {PWN_SAST_SRC_TARGET} 2> /dev/null | grep -i \
           -e log | grep -i \
           -e pass \
           -e pwd \

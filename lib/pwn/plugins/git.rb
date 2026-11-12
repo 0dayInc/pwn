@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
 require 'shellwords'
+require 'open3'
+require 'cgi'
 
 module PWN
   module Plugins
@@ -21,17 +23,17 @@ module PWN
         git_repo_branch = opts[:branch].to_s
         since_date = opts[:since]
 
-        git_pull_output = '<div style="background-color:#CCCCCC; white-space: pre-wrap; white-space: -moz-pre-wrap; white-space: -pre-wrap; white-space: -o-pre-wrap; word-wrap: break-word;">'
+        git_pull_output = +'<div style="background-color:#CCCCCC; white-space: pre-wrap; white-space: -moz-pre-wrap; white-space: -pre-wrap; white-space: -o-pre-wrap; word-wrap: break-word;">'
         if since_date
-          git_pull_output << "<h3>#{git_repo_name}->#{git_repo_branch} Diff Summary Since #{since_date}</h3>"
-          git_entity = `git log --since #{since_date} --stat-width=65535 --graph`.to_s.scrub
+          git_pull_output << "<h3>#{CGI.escapeHTML(git_repo_name)}->#{CGI.escapeHTML(git_repo_branch)} Diff Summary Since #{CGI.escapeHTML(since_date.to_s)}</h3>"
+          git_entity = Open3.capture2('git', 'log', '--since', since_date.to_s, '--stat-width=65535', '--graph', err: File::NULL).first.to_s.scrub
         else
-          git_pull_output << "<h3>#{git_repo_name}->#{git_repo_branch} Diff Summary Since Last Pull</h3>"
-          git_entity = `git log ORIG_HEAD.. --stat-width=65535 --graph 2> /dev/null`.to_s.scrub
+          git_pull_output << "<h3>#{CGI.escapeHTML(git_repo_name)}->#{CGI.escapeHTML(git_repo_branch)} Diff Summary Since Last Pull</h3>"
+          git_entity = Open3.capture2('git', 'log', 'ORIG_HEAD..', '--stat-width=65535', '--graph', err: File::NULL).first.to_s.scrub
         end
         # For debugging purposes
         @@logger.info(git_entity)
-        git_pull_output << git_entity.gsub("\n", '<br />')
+        git_pull_output << CGI.escapeHTML(git_entity).gsub("\n", '<br />')
         git_pull_output << '</div>'
         git_pull_output << '<br />'
 
@@ -53,10 +55,12 @@ module PWN
         repo_root = opts[:repo_root].to_s unless repo_root.is_a?(String)
         from_line = opts[:from_line].to_i
         to_line = opts[:to_line].to_i
-        target_file = opts[:target_file].to_s
-        target_file.gsub!(%r{^#{repo_root}/}, '')
+        target_file = opts[:target_file].to_s.delete_prefix("#{repo_root}/")
 
-        `git --git-dir="#{Shellwords.escape(repo_root)}/.git" log -L #{from_line},#{to_line}:"#{Shellwords.escape(target_file)}" 2> /dev/null | grep Author | head -n 1`.to_s.scrub if File.directory?(repo_root) && File.file?("#{repo_root}/#{target_file}")
+        return unless File.directory?(repo_root) && File.file?("#{repo_root}/#{target_file}")
+
+        output = Open3.capture2('git', "--git-dir=#{repo_root}/.git", 'log', '-L', "#{from_line},#{to_line}:#{target_file}", err: File::NULL).first
+        output.to_s.scrub.lines.find { |line| line.start_with?('Author:') }
       rescue StandardError => e
         raise e
       end
@@ -68,7 +72,7 @@ module PWN
 
       public_class_method def self.dump_all_repo_branches(opts = {})
         git_url = opts[:git_url].to_s.scrub
-        `git ls-remote #{git_url} 2> /dev/null`.to_s.scrub
+        Open3.capture2('git', 'ls-remote', '--', git_url, err: File::NULL).first.to_s.scrub
       rescue StandardError => e
         raise e
       end
@@ -93,9 +97,10 @@ module PWN
         # we need to query the original file
         # instead of the .JS-BEAUTIFIED file
         if entry_beautified
-          target_file.gsub!(/\.JS-BEAUTIFIED$/, '')
-          target_file_line_length = `wc -l #{target_file}`.split.first.to_i
-          target_file_line_length = 1 if target_file_line_length < 1 # wc -l doesn't count line is \n is missing
+          target_file = target_file.to_s.sub(/\.JS-BEAUTIFIED$/, '')
+          source_file = File.expand_path(target_file, repo_root || '.')
+          target_file_line_length = File.file?(source_file) ? File.foreach(source_file).count : 1
+          target_file_line_length = 1 if target_file_line_length < 1
 
           author = get_author_by_line_range(
             repo_root: repo_root,

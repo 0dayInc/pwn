@@ -253,31 +253,23 @@ describe PWN::Plugins::AISandbox do
     end
   end
 
-  it 'denies rm -rf /tmp/fake_root in strict mode without touching disk' do
-    root = '/tmp/fake_root'
-    FileUtils.mkdir_p(root)
-    marker = File.join(root, 'keep')
-    File.write(marker, 'safe')
-    begin
-      out = described_class.exec(kind: :shell, payload: 'rm -rf /tmp/fake_root', mode: 'strict')
+  it 'denies rm -rf outside the artifact root in strict mode without touching disk' do
+    Dir.mktmpdir('pwn-strict-delete-') do |root|
+      marker = File.join(root, 'keep')
+      File.write(marker, 'safe')
+      out = described_class.exec(kind: :shell, payload: "rm -rf #{root}", mode: 'strict')
       expect(out[:error].to_s).to match(/sandbox violation/i)
       expect(File.file?(marker)).to be true
-    ensure
-      FileUtils.rm_rf(root)
     end
   end
 
-  it 'denies FileUtils.rm_rf("/tmp/fake_root") in strict mode without touching disk' do
-    root = '/tmp/fake_root'
-    FileUtils.mkdir_p(root)
-    marker = File.join(root, 'keep')
-    File.write(marker, 'safe')
-    begin
-      out = described_class.exec(kind: :ruby, payload: "FileUtils.rm_rf('/tmp/fake_root')", mode: 'strict')
+  it 'denies FileUtils.rm_rf outside the artifact root in strict mode without touching disk' do
+    Dir.mktmpdir('pwn-strict-delete-') do |root|
+      marker = File.join(root, 'keep')
+      File.write(marker, 'safe')
+      out = described_class.exec(kind: :ruby, payload: "FileUtils.rm_rf(#{root.inspect})", mode: 'strict')
       expect(out[:error].to_s).to match(/sandbox violation/i)
       expect(File.file?(marker)).to be true
-    ensure
-      FileUtils.rm_rf(root)
     end
   end
 end

@@ -576,7 +576,7 @@ module PWN
 
         bind_address = opts[:bindAddress] ||= listener_by_id[:bindAddress]
         port = opts[:port] ||= listener_by_id[:port]
-        enabled = opts[:enabled] ||= listener_by_id[:enabled]
+        enabled = opts.fetch(:enabled, listener_by_id[:enabled])
 
         post_body = {
           id: id.to_s,
@@ -682,9 +682,11 @@ module PWN
             end
 
             host = headers['Host'] || raise('No Host header found in request')
-            scheme = 'http' # Hardcoded as protocol is not available; consider enhancing if available in site
+            scheme = site.dig(:http_service, :protocol) || 'http'
             url = "#{scheme}://#{host}#{full_path}"
             uri = URI.parse(url)
+            service_port = site.dig(:http_service, :port)
+            uri.port = service_port if service_port && URI.parse("//#{host}").port.nil?
             query_string = uri.query ? URI.decode_www_form(uri.query).map { |k, v| { name: k, value: v.to_s } } : []
 
             request_headers_size = request_head.bytesize + 4 # Account for \r\n\r\n
@@ -800,7 +802,7 @@ module PWN
             }
           }
 
-          sitemap_arr = har_log
+          return har_log
         end
 
         sitemap_arr.uniq
@@ -992,9 +994,11 @@ module PWN
             end
 
             host = headers['Host'] || raise('No Host header found in request')
-            scheme = 'http' # Hardcoded as protocol is not available; consider enhancing if available in site
+            scheme = site.dig(:http_service, :protocol) || 'http'
             url = "#{scheme}://#{host}#{full_path}"
             uri = URI.parse(url)
+            service_port = site.dig(:http_service, :port)
+            uri.port = service_port if service_port && URI.parse("//#{host}").port.nil?
             query_string = uri.query ? URI.decode_www_form(uri.query).map { |k, v| { name: k, value: v.to_s } } : []
 
             request_headers_size = request_head.bytesize + 4 # Account for \r\n\r\n
@@ -1110,7 +1114,7 @@ module PWN
             }
           }
 
-          sitemap_arr = har_log
+          return har_log
         end
 
         sitemap_arr.uniq
@@ -1168,6 +1172,7 @@ module PWN
       rescue RestClient::ExceptionWithResponse => e
         puts "ERROR: Failed to add to sitemap: #{e.message}"
         puts "HTTP error adding to sitemap: Status #{e.response.code}, Response: #{e.response.body}" if e.respond_to?(:response) && e.response.respond_to?(:code) && e.response.respond_to?(:body)
+        raise e
       rescue StandardError => e
         stop(burp_obj: burp_obj) unless burp_obj.nil?
         raise e
@@ -1230,9 +1235,6 @@ module PWN
         comment = opts[:comment].to_s.scrub
 
         debug = opts[:debug] || false
-
-        openapi_spec_root = File.dirname(openapi_spec)
-        Dir.chdir(openapi_spec_root)
 
         # Parse the OpenAPI JSON or YAML specification file
         # If the openapi_spec is YAML, convert it to JSON
@@ -1393,7 +1395,7 @@ module PWN
                 begin
                   # Construct HTTP request headers
                   request_headers = {
-                    host: host
+                    host: port == uri.default_port ? host : "#{host}:#{port}"
                   }
                   request_headers.merge!(additional_http_headers)
 
@@ -1641,12 +1643,13 @@ module PWN
 
         sitemap_arr.each do |sitemap|
           add_to_sitemap(burp_obj: burp_obj, sitemap: sitemap)
-        rescue RestClient::ExceptionWithResponse => e
-          puts e.message
-          next
         end
 
         sitemap_arr
+      rescue RestClient::ExceptionWithResponse
+        # A rejected entry is not a successful import. Preserve the HTTP error
+        # and caller-owned service; earlier successful entries are not replayed.
+        raise
       rescue StandardError => e
         stop(burp_obj: burp_obj) unless burp_obj.nil?
         raise e
