@@ -11,8 +11,44 @@ module PWN
       # PWN::Plugins::PWNLogger.create(
       # )
 
+      # Writes to the current $stdout. Logger.new($stdout) captures the terminal
+      # at construction, so rake's per-example redirect cannot hide those lines.
+      class CurrentStdout
+        def write(*)
+          return 0 if ENV['PWN_RAKE_SPEC'] == '1' && ENV['PWN_SPEC_VERBOSE'] != '1'
+
+          $stdout.write(*)
+        end
+
+        def <<(arg)
+          write(arg)
+        end
+
+        def flush
+          $stdout.flush
+        end
+
+        def sync
+          $stdout.sync
+        end
+
+        def sync=(value)
+          $stdout.sync = value
+        end
+
+        def close; end
+
+        def reopen(*)
+          self
+        end
+
+        def tty?
+          $stdout.tty?
+        end
+      end
+
       public_class_method def self.create(opts = {})
-        logger = Logger.new($stdout)
+        logger = Logger.new(CurrentStdout.new)
         level = opts[:level]
 
         case level.to_s.downcase.to_sym

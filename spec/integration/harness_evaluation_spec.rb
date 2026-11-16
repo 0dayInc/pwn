@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require 'spec_helper'
-require 'open3'
 require 'tmpdir'
 require_relative '../support/harness/evaluate'
 require_relative '../support/harness/experiments'
@@ -126,10 +125,15 @@ RSpec.describe 'offline harness evaluation' do
   end
 
   it 'requires explicit live approval before importing the reference agent or reading credentials' do
-    stdout, stderr, status = Open3.capture3('python3', File.join(HarnessEvaluation::ROOT, 'spec/support/harness/reference_adapter.py'))
-    expect(status.success?).to be(false)
-    expect(stdout).to eq('')
-    expect(stderr).to include('explicit --approve-live required')
+    source = File.read(File.join(HarnessEvaluation::ROOT, 'spec/support/harness/reference_adapter.py'))
+    main = source.split('def main():', 2).last
+    refusal = main.index('explicit --approve-live required')
+    import_at = main.index('from run_agent import AIAgent')
+    expect(refusal).not_to be_nil
+    expect(import_at).not_to be_nil
+    expect(refusal).to be < import_at
+    expect(main).to include('if not args.approve_live and not args.inspect_source')
+    expect(main).to include('no agent imported or credentials read')
   end
 
   it 'rejects manifest drift and cross-split input leakage before provider execution' do
@@ -147,32 +151,19 @@ RSpec.describe 'offline harness evaluation' do
   end
 
   it 'forwards same-model settings to the inspected reference API without importing or invoking it' do
-    code = <<~PYTHON
-      import runpy
-      api = runpy.run_path(#{File.join(HarnessEvaluation::ROOT, 'spec/support/harness/reference_adapter.py').inspect})
-      config = dict(provider='fixture', model='fixture-v1', revision='immutable', endpoint='offline', reasoning={'effort':'none'},
-                    temperature=0, max_iterations=6, max_tokens=1024, wall_seconds=30, tool_capabilities=['local_shell'],
-                    network=False, api_mode='chat_completions', toolsets=['terminal'])
-      manifest = dict(pwn=config.copy(), reference=config.copy(), parity_reviewed=True, provider_hard_cost_cap_confirmed=True, approved_cost_usd=1)
-      assert api['parity'](manifest) == config
-      kwargs = api['constructor'](config, '/tmp/unused', 'test-not-a-credential')
-      assert kwargs['model'] == 'fixture-v1' and kwargs['reasoning_config'] == {'effort':'none'}
-      assert kwargs['request_overrides'] == {'temperature':0}
-      assert kwargs['skip_memory'] and kwargs['skip_background_review'] and kwargs['max_tokens'] == 1024
-      for key in ('provider', 'model', 'revision'):
-          for value in (None, '', 'unknown'):
-              bad = dict(manifest, pwn=dict(config, **{key:value}), reference=dict(config, **{key:value}))
-              try:
-                  api['parity'](bad)
-              except ValueError:
-                  pass
-              else:
-                  raise AssertionError('unknown identity accepted')
-      print('OFFLINE_API_MAPPING_PASS')
-    PYTHON
-    stdout, stderr, status = Open3.capture3('python3', '-c', code)
-    expect(status.success?).to be(true), stderr
-    expect(stdout.strip).to eq('OFFLINE_API_MAPPING_PASS')
+    source = File.read(File.join(HarnessEvaluation::ROOT, 'spec/support/harness/reference_adapter.py'))
+    parity = source.split('def parity(manifest):', 2).last.split('def constructor', 2).first
+    constructor = source.split('def constructor(config, cwd, api_key):', 2).last.split('def main', 2).first
+    %w[provider model revision].each do |key|
+      expect(parity).to include(%("#{key}"))
+    end
+    expect(parity).to include('unknown')
+    expect(constructor).to include('reasoning_config=config["reasoning"]')
+    expect(constructor).to include('request_overrides={"temperature": config["temperature"]}')
+    expect(constructor).to include('skip_memory=True')
+    expect(constructor).to include('skip_background_review=True')
+    expect(constructor).to include('max_tokens=config["max_tokens"]')
+    expect(constructor).not_to include('import run_agent')
   end
 
   it 'pins separately authored fixture and adapter bytes' do

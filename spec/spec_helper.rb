@@ -67,8 +67,38 @@ RSpec.configure do |config|
   original_stderr = $stderr
   devnull = StringIO.new
 
+  if ENV['PWN_RAKE_SPEC'] == '1'
+    config.before(:suite) do
+      next if defined?(PWN_RAKE_STDOUT_SILENCED)
+
+      reporter = RSpec.configuration.reporter
+      listeners = reporter.instance_variable_get(:@listeners).values.flat_map(&:to_a).uniq
+      terminal = nil
+      silenced = []
+      listeners.each do |listener|
+        next unless listener.instance_variable_defined?(:@output)
+
+        wrapped = listener.instance_variable_get(:@output)
+        stream = wrapped.is_a?(RSpec::Core::OutputWrapper) ? wrapped.output : wrapped
+        next unless stream.respond_to?(:reopen) && stream.respond_to?(:fileno) && stream.fileno == 1
+        next if silenced.include?(stream)
+
+        terminal ||= stream.dup.tap { |io| io.sync = true }
+        if wrapped.is_a?(RSpec::Core::OutputWrapper)
+          wrapped.output = terminal
+        else
+          listener.instance_variable_set(:@output, terminal)
+        end
+        stream.reopen(File::NULL)
+        stream.sync = true
+        silenced << stream
+      end
+      Object.const_set(:PWN_RAKE_STDOUT_SILENCED, true)
+    end
+  end
+
   config.before(:each) do |example|
-    next if example.metadata[:stdout]
+    next if example.metadata[:stdout] && ENV['PWN_RAKE_SPEC'] != '1'
 
     devnull.truncate(0)
     devnull.rewind
@@ -82,8 +112,7 @@ RSpec.configure do |config|
   end
 end
 
-# Logger.new($stdout) captures the IO at class load — the same stream RSpec
-# uses for progress dots. Reassigning $stdout in before(:each) does not
-# retarget that logger. Point the red-team engine at /dev/null so execute
-# banners cannot leak into rake.
+# During rake, PWNLogger writes nothing and STDOUT itself is /dev/null.
+# Direct rspec still redirects $stdout per example. PWN_SPEC_VERBOSE=1
+# leaves both attached. Point any other captured logger at /dev/null.
 PWN::AI::RedTeam::TestCaseEngine.class_variable_set(:@@logger, Logger.new(File::NULL)) if defined?(PWN::AI::RedTeam::TestCaseEngine)

@@ -3442,8 +3442,16 @@
 {"messages":[{"role":"user","content":"PWN::Plugins::PS.help Usage"},{"role":"assistant","content":"`PWN::Plugins::PS.help`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::PS.list Usage"},{"role":"assistant","content":"`PWN::Plugins::PS.list`: Supported Method Parameters\n\nproc_list_arr = PWN::Plugins::PS.list\n"}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::PWNLogger.authors Usage"},{"role":"assistant","content":"`PWN::Plugins::PWNLogger.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
-{"messages":[{"role":"user","content":"PWN::Plugins::PWNLogger.create Usage"},{"role":"assistant","content":"`PWN::Plugins::PWNLogger.create`: Supported Method Parameters\n\nPWN::Plugins::PWNLogger.create( )\n"}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::PWNLogger.create Usage"},{"role":"assistant","content":"`PWN::Plugins::PWNLogger.create`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::PWNLogger.help Usage"},{"role":"assistant","content":"`PWN::Plugins::PWNLogger.help`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::PWNLogger::CurrentStdout.<< Usage"},{"role":"assistant","content":"`PWN::Plugins::PWNLogger::CurrentStdout.<<`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::PWNLogger::CurrentStdout.close Usage"},{"role":"assistant","content":"`PWN::Plugins::PWNLogger::CurrentStdout.close`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::PWNLogger::CurrentStdout.flush Usage"},{"role":"assistant","content":"`PWN::Plugins::PWNLogger::CurrentStdout.flush`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::PWNLogger::CurrentStdout.reopen Usage"},{"role":"assistant","content":"`PWN::Plugins::PWNLogger::CurrentStdout.reopen`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::PWNLogger::CurrentStdout.sync Usage"},{"role":"assistant","content":"`PWN::Plugins::PWNLogger::CurrentStdout.sync`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::PWNLogger::CurrentStdout.sync= Usage"},{"role":"assistant","content":"`PWN::Plugins::PWNLogger::CurrentStdout.sync=`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::PWNLogger::CurrentStdout.tty? Usage"},{"role":"assistant","content":"`PWN::Plugins::PWNLogger::CurrentStdout.tty?`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::PWNLogger::CurrentStdout.write Usage"},{"role":"assistant","content":"`PWN::Plugins::PWNLogger::CurrentStdout.write`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Packet.authors Usage"},{"role":"assistant","content":"`PWN::Plugins::Packet.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Packet.cap_net_raw? Usage"},{"role":"assistant","content":"`PWN::Plugins::Packet.cap_net_raw?`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Packet.capture Usage"},{"role":"assistant","content":"`PWN::Plugins::Packet.capture`: "}]}
