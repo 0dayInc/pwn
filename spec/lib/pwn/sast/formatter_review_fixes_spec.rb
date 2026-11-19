@@ -15,7 +15,7 @@ RSpec.describe PWN::SAST::TestCaseEngine, 'formatter review safeguards' do
       FileUtils.mkdir_p(@sources)
       @lock_path = File.expand_path('../../../../Gemfile.lock', __dir__)
       @lock_before = File.binread(@lock_path)
-      @js_beautify_bin = Gem.bin_path('js-beautify', 'js-beautify')
+
       saved_env = %w[BUNDLE_GEMFILE BUNDLE_LOCKFILE RUBYOPT BUNDLE_FROZEN].to_h { |key| [key, ENV.fetch(key, nil)] }
       original_path = ENV.fetch('PATH')
       # Fixture subprocesses must not inherit the checkout lock path. Clearing
@@ -150,19 +150,25 @@ RSpec.describe PWN::SAST::TestCaseEngine, 'formatter review safeguards' do
     name = 'source;printf proof>review-marker;#.js'
     source = 'var fixture={value:1};'
     File.write(File.join(@sources, name), source)
-    commands_dir = File.join(@root, 'commands')
-    FileUtils.mkdir_p(commands_dir)
     shell_commands = []
     allow(described_class).to receive(:`).and_wrap_original do |original, command|
       shell_commands << command
       original.call(command)
     end
-    # Load the actual gem launcher by its original path: it resolves its
-    # bundled parser relative to __FILE__, so symlinking that file breaks it.
-    launcher = File.join(commands_dir, 'js-beautify')
-    File.write(launcher, "#!#{RbConfig.ruby}\nload #{@js_beautify_bin.dump}\n")
-    File.chmod(0o700, launcher)
-    ENV['PATH'] = "#{commands_dir}:#{ENV.fetch('PATH')}"
+    # Exercise the installed launcher's argument handling, not its Python parser.
+    # Only the launcher child sees this PATH; it cannot fall back to host Python.
+    backend_dir = File.join(@root, 'backend')
+    Dir.mkdir(backend_dir)
+    backend = File.join(backend_dir, 'python')
+    File.write(backend, <<~RUBY)
+      #!#{RbConfig.ruby}
+      abort 'expected parser and stdin selector' unless ARGV.size == 2 && File.file?(ARGV.first) && ARGV.last == '-'
+      abort 'expected source bytes on stdin' unless STDIN.binmode.read == #{source.dump}
+      puts 'var fixture = { value: 1 };'
+    RUBY
+    File.chmod(0o700, backend)
+    launcher = Gem.bin_path('js-beautify', 'js-beautify')
+    synthetic_formatter("ENV['PATH'] = #{backend_dir.dump}\nload #{launcher.dump}")
 
     result = described_class.execute(options)
 
@@ -170,8 +176,8 @@ RSpec.describe PWN::SAST::TestCaseEngine, 'formatter review safeguards' do
     expect(shell_commands.join("\n")).not_to include(Shellwords.escape(name))
     expect(File.exist?(File.join(@sources, 'review-marker'))).to be(false)
     expect(result.length).to eq(1)
-    expect(result.first[:filename][:entry_beautified]).to be(true)
-    expect(result.first[:line_no_and_contents].first[:contents]).to include('var fixture = {')
+    expect(result.first[:filename]).to include(entry: "./#{name}", entry_beautified: true)
+    expect(result.first[:line_no_and_contents].first[:contents]).to eq("var fixture = { value: 1 };\n")
     expect(File.read(File.join(@sources, name))).to eq(source)
     expect(Digest::SHA256.file(@lock_path).hexdigest).to eq(Digest::SHA256.hexdigest(@lock_before))
   end

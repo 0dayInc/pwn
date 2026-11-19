@@ -27,16 +27,33 @@ describe 'regex-ReAct mission containment' do
     Pry.config.hooks.get_hook(:after_read, :pwn_ai_hook).call(request, pry)
   end
 
+  def namespace_pids(status)
+    status.to_s[/^NSpid:[ \t]+([1-9]\d*(?:[ \t]+[1-9]\d*)*)\n/, 1].to_s.split.map(&:to_i)
+  end
+
   def wait_for_descendant_pid(marker)
+    observer = namespace_pids(File.read('/proc/self/status'))
+    raise 'Cannot identify the test runner PID namespace' unless observer.last == Process.pid
+
     Timeout.timeout(10) do
       loop do
-        text = File.read(marker) if File.file?(marker)
-        pid = text.to_s[/^NSpid:[ \t]+([1-9]\d*)(?:[ \t]+\d+)+\n/, 1]
-        return pid.to_i if pid
+        if File.file?(marker)
+          pids = namespace_pids(File.read(marker))
+          return pids.fetch(observer.size - 1) if pids.size > observer.size
+        end
 
         sleep 0.01
       end
     end
+  end
+
+  # Pin the live task before interrupting it. A pidfd reports exit even if
+  # another process has yet to reap it, and never follows a recycled PID.
+  def open_pidfd(pid)
+    fd = PWN::AI::Agent::MissionNamespace.native('pidfd_open', [Fiddle::TYPE_INT, Fiddle::TYPE_INT]).call(pid, 0)
+    raise SystemCallError.new('pidfd_open for descendant', Fiddle.last_error) if fd.negative?
+
+    IO.new(fd)
   end
 
   it 'waits for the descendant PID contents rather than an empty readiness file' do
@@ -48,6 +65,7 @@ describe 'regex-ReAct mission containment' do
       File.write(marker, "NSpid:\t12345\t1\n")
     end
     allow(File).to receive(:read).and_call_original
+    allow(File).to receive(:read).with('/proc/self/status').and_return("NSpid:\t#{Process.pid}\n")
     allow(File).to receive(:read).with(marker).and_wrap_original do |original, path|
       text = original.call(path)
       read_empty << true if text.empty?
@@ -56,6 +74,31 @@ describe 'regex-ReAct mission containment' do
     expect(wait_for_descendant_pid(marker)).to eq(12_345)
   ensure
     writer&.kill&.join
+  end
+
+  it 'selects the PID visible to a nested upgrade runner, not the outer procfs PID' do
+    marker = File.join(@tmp, 'nested-ready')
+    File.write(marker, "NSpid:\t12345\t82\t1\n")
+    allow(File).to receive(:read).and_call_original
+    allow(File).to receive(:read).with('/proc/self/status').and_return("NSpid:\t12000\t#{Process.pid}\n")
+    expect(wait_for_descendant_pid(marker)).to eq(82)
+  end
+
+  it 'distinguishes a live child from an exited child that has not been reaped' do
+    reader, release = IO.pipe
+    pid = fork do
+      release.close
+      reader.read(1)
+      exit! 0
+    end
+    handle = open_pidfd(pid)
+    expect(handle.wait_readable(0)).to be_nil
+    release.close
+    expect(handle.wait_readable(5)).to be_truthy
+    expect(Process.kill(0, pid)).to eq(1) # The old probe still sees the zombie.
+  ensure
+    [release, reader, handle].compact.each { |io| io.close unless io.closed? }
+    Process.wait(pid) if pid
   end
 
   it 'fails closed before calling a provider when mission containment is unavailable' do
@@ -168,10 +211,11 @@ describe 'regex-ReAct mission containment' do
       nil
     end
     marker = File.join(@tmp, '.pwn', 'workspaces', 'runtime', 'pty-ready')
-    host_pid = wait_for_descendant_pid(marker)
+    descendant = open_pidfd(wait_for_descendant_pid(marker))
+    expect(descendant.wait_readable(0)).to be_nil, 'descendant exited before PTY CTRL+C'
     writer.write("\x03")
     Timeout.timeout(10) { sleep 0.01 until output.include?('CANCELLED READY') }
-    expect { Process.kill(0, host_pid) }.to raise_error(Errno::ESRCH)
+    expect(descendant.wait_readable(0)).to be_truthy, 'detached descendant still alive at CANCELLED READY'
     writer.write("second\n")
     Timeout.timeout(10) { Process.wait(pid) }
     pid = nil
@@ -192,7 +236,7 @@ describe 'regex-ReAct mission containment' do
         nil
       end
     end
-    [reader, writer].compact.each { |io| io.close unless io.closed? }
+    [descendant, reader, writer].compact.each { |io| io.close unless io.closed? }
     drain&.join(5)
   end
 
@@ -209,11 +253,12 @@ describe 'regex-ReAct mission containment' do
       rescue Interrupt
         :cancelled
       end
-      host_pid = wait_for_descendant_pid(marker)
+      descendant = open_pidfd(wait_for_descendant_pid(marker))
+      expect(descendant.wait_readable(0)).to be_nil, 'descendant exited before interrupt'
       worker.raise(Interrupt)
       expect(Timeout.timeout(10) { worker.value }).to eq(:cancelled)
       expect(repl).to have_received(:ready_tty!)
-      expect { Process.kill(0, host_pid) }.to raise_error(Errno::ESRCH)
+      expect(descendant.wait_readable(0)).to be_truthy, 'detached descendant still alive when the terminal became ready'
       sleep 1.1
       expect(File).not_to exist(late)
       allow(PWN::AI::Ollama).to receive(:chat).and_return(id: 'second', choices: [{ content: 'second complete' }])
@@ -222,6 +267,7 @@ describe 'regex-ReAct mission containment' do
       expect(PWN::Env.dig(:ai, :ollama, :response_history, :id)).to eq('second')
       expect(request).to eq('nil')
     ensure
+      descendant&.close
       worker&.raise(Interrupt) if worker&.alive?
       worker&.join(10)
     end

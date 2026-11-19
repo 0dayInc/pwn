@@ -3227,6 +3227,7 @@
 {"messages":[{"role":"user","content":"PWN::Plugins::Log.spinner_frame? Usage"},{"role":"assistant","content":"`PWN::Plugins::Log.spinner_frame?`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Log.start_debug Usage"},{"role":"assistant","content":"`PWN::Plugins::Log.start_debug`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Log.start_trace! Usage"},{"role":"assistant","content":"`PWN::Plugins::Log.start_trace!`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::Log.stderr_text Usage"},{"role":"assistant","content":"`PWN::Plugins::Log.stderr_text`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Log.stop_debug Usage"},{"role":"assistant","content":"`PWN::Plugins::Log.stop_debug`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Log.stop_trace! Usage"},{"role":"assistant","content":"`PWN::Plugins::Log.stop_trace!`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Log.trace_arguments Usage"},{"role":"assistant","content":"`PWN::Plugins::Log.trace_arguments`: "}]}

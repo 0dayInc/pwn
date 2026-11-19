@@ -439,3 +439,34 @@ describe 'PWN::Plugins::Log toggle-trace step' do
     expect(PWN::Plugins::Log.debug_dir).to include('logs')
   end
 end
+
+describe PWN::Plugins::Log::DebugStderrTee do
+  include_context 'pwn tmp sandbox'
+
+  let(:path) { File.join(@tmp, 'stderr.log') }
+  let(:original) { StringIO.new(+''.b) }
+  let(:stream) { described_class.new(orig: original) }
+
+  before { PWN::Plugins::Log.start_debug(path: path, tee: StringIO.new) }
+  after { PWN::Plugins::Log.stop_debug }
+
+  it 'preserves split UTF-8 on stderr and filters binary-tagged spinner frames from the log' do
+    parts = ["\r\e[1G⠴".b, "résumé: \xE2".b, "\x82\xAC".b, ' — done', "\n"]
+    parts.each { |part| expect(stream.write(part.freeze)).to eq(part.bytesize) }
+
+    expect(original.string).to eq(parts.map(&:b).join)
+    body = File.read(path, encoding: 'UTF-8')
+    expect(body).to include("résumé: € — done\n")
+    expect(body).not_to include('⠴', '�')
+  end
+
+  it 'replaces malformed stderr bytes in the log without losing the warning or exposing a split secret' do
+    stream.write("warning\xFF api_".b)
+    stream.write("key=synthetic-sensitive-value\n".b)
+
+    body = File.read(path, encoding: 'UTF-8')
+    expect(body).to be_valid_encoding
+    expect(body).to include('warning� [REDACTED:')
+    expect(body).not_to include('synthetic-sensitive-value')
+  end
+end

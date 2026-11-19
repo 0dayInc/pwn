@@ -338,16 +338,17 @@ module PWN
 
         return if @stderr_redaction_overflow
 
-        text = opts[:text].to_s
+        text = stderr_text(text: opts[:text])
         return if text.empty?
-        return if spinner_frame?(text: text)
+        return if spinner_frame?(text: text) && (@stderr_redaction_buffer.to_s.empty? || !text.strip.empty?)
 
         Thread.current[:pwn_log_stderr] = true
         begin
           io = @debug_file
           return if io.nil? || (io.respond_to?(:closed?) && io.closed?)
 
-          @stderr_redaction_buffer = @stderr_redaction_buffer.to_s + text.gsub(/\e\[[0-9;]*m/, '')
+          # A write can end in the middle of a UTF-8 character or an ANSI escape.
+          @stderr_redaction_buffer = @stderr_redaction_buffer.to_s.b + text.b
           buffer = @stderr_redaction_buffer
           if buffer.bytesize > 65_536
             clean = PWN::Redaction.token(kind: 'stream', value: buffer)
@@ -355,6 +356,8 @@ module PWN
           else
             # A write may split a JWT/header; PEM bodies may span many writes.
             return unless buffer.end_with?("\n")
+
+            buffer = stderr_text(text: buffer).scrub.gsub(/\e\[[0-9;]*m/, '')
             return if buffer.match?(/-----BEGIN [A-Z ]*PRIVATE KEY-----/) && !buffer.match?(/-----END [A-Z ]*PRIVATE KEY-----/)
 
             clean = sanitize_debug_text(text: buffer)
@@ -373,10 +376,18 @@ module PWN
         clean
       end
 
-      # Spinner frames stay on the TTY; never persist them in the RN log.
+      private_class_method def self.stderr_text(opts = {})
+        text = opts[:text].to_s
+        return text.dup.force_encoding(Encoding::UTF_8) if text.encoding == Encoding::BINARY
+        return text if text.encoding == Encoding::UTF_8
+
+        text.encode(Encoding::UTF_8, invalid: :replace, undef: :replace)
+      end
+
+      # Spinner frames stay on the TTY; an incomplete character isn't a frame.
       public_class_method def self.spinner_frame?(opts = {})
-        raw = opts[:text].to_s
-        return false if raw.empty?
+        raw = stderr_text(text: opts[:text])
+        return false if raw.empty? || !raw.valid_encoding?
 
         stripped = raw.gsub(/\e\[[0-9;?]*[A-Za-z]/, '').delete("\r").delete("\b")
         stripped = stripped.gsub(/[\u2800-\u28FF]/, '')
