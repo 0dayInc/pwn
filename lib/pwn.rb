@@ -6,6 +6,17 @@ require 'pwn/runtime_fingerprint'
 require 'pwn/version'
 require 'yaml'
 
+# json_schemer 2.5.0 uses the syntax class only when `implements` is public.
+# regexp_parser 2.13 keeps that writer private, so json_schemer builds an
+# instance and then raises NoMethodError on `implements`. A stripped
+# `bin/pwn-ai` process does not have that gem; skip the patch there.
+begin
+  require 'regexp_parser'
+  Regexp::Syntax::Base.singleton_class.class_eval { public :implements } if Regexp::Syntax::Base.respond_to?(:implements, true) && !Regexp::Syntax::Base.respond_to?(:implements)
+rescue LoadError
+  nil
+end
+
 # Thank you for choosing the Continuous Security Integrtion Framework!
 # Your Source for Source Code Analysis, Vulnerability Scanning, Exploitation,
 # & General Security Testing in a Continuous Integration Environment

@@ -12,11 +12,13 @@ not the ownership boundary: setsid, double forks, and nested child namespaces
 remain descendants of the mission namespace. Other sessions and unrelated
 processes are not signalled.
 
-There is no systemd, cgroup, application compiler, or PGID fallback.
+There is no systemd, cgroup, or application compiler.
 `PWN::AI::Agent::MissionNamespace` is Ruby code using stdlib Fiddle for Linux pidfds and
-process-death signals. Its runtime prerequisite is **util-linux `unshare`**
-(`pwn setup --profile ai`). Linux user/PID namespaces and pidfds must be enabled;
-unsupported kernels or local policy fail closed with setup guidance.
+process-death signals. It uses util-linux `unshare` when the kernel allows a user
+namespace. If that call is denied, or the namespace child closes the supervision
+socket, the same handshake runs in a process-group supervisor. No apparmor or
+sysctl change is required. A setsid descendant can leave a process group; a PID
+namespace, when available, is what reaps those.
 
 Ruby recreates its timer thread after fork, so creating a user namespace from a
 Ruby fork is not supported. For ordinary launches the controller **execs** an

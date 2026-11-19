@@ -10,10 +10,12 @@ metadata:
 
 # PWN::AI::Agent::MissionNamespace
 
-Launch typed mission descriptors using util-linux `unshare`, Ruby stdlib
-Fiddle pidfds, and private inherited sockets. Install `pwn setup --profile ai`.
-Linux user/PID namespaces and pidfds must be enabled. Unsupported hosts fail
-closed; there is no process-group or uncontained fallback.
+Launch typed mission descriptors using util-linux `unshare` when the kernel
+allows an unprivileged user namespace. If that call is denied, or the
+namespace child closes the supervision socket, the same handshake runs in a
+process-group supervisor. No apparmor or sysctl change is required. Pidfds
+still cancel the owned child. A setsid descendant can leave a process group;
+a PID namespace, when available, is what reaps those.
 
 The controller remains outside namespaces. Each request transfers its private
 configuration snapshot in memory, then owns a PID namespace. Cancellation kills

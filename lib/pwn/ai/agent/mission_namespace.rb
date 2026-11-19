@@ -86,10 +86,10 @@ module PWN
             end
           end
 
-          def supervise
+          def supervise(pid_namespace: true)
             channel = UNIXSocket.for_fd(3)
             snapshot = decode(JSON.parse(channel.gets))
-            checked(native('unshare', [Fiddle::TYPE_INT]).call(0x20000000), 'unshare PID namespace')
+            checked(native('unshare', [Fiddle::TYPE_INT]).call(0x20000000), 'unshare PID namespace') if pid_namespace
             reader, writer = IO.pipe
             armed, arm = IO.pipe
             init = fork do
@@ -151,6 +151,13 @@ module PWN
             channel&.close unless channel&.closed?
           end
 
+          # Same handshake without util-linux unshare or a user/PID namespace.
+          # The supervisor is a process-group leader so cancellation still reaches
+          # children that have not called setsid.
+          def supervise_host
+            supervise(pid_namespace: false)
+          end
+
           def execute(descriptor)
             case descriptor.fetch(:operation).to_sym
             when :command
@@ -202,21 +209,22 @@ module PWN
             end
             snapshot[:requires].uniq!
           end
+          mode = opts[:containment] == :host ? :host : :namespace
           payload = JSON.generate(self.class.encode(snapshot))
-          @channel, child = UNIXSocket.pair
-          mapping = opts.fetch(:fds, {}).merge(3 => child)
-          @pid = Process.spawn('unshare', '--user', '--map-current-user', '--keep-caps', RbConfig.ruby, '-I', $LOAD_PATH.join(File::PATH_SEPARATOR), '-rpwn', '-e', 'exit!(PWN::AI::Agent::MissionNamespace.supervise || 1)', mapping.merge(close_others: true))
-          child.close
-          Timeout.timeout(15) do
-            @channel.puts(payload)
-            @pidfd = @channel.recv_io
-            @channel.write('1')
-          end
+          start_supervisor(payload, opts, mode)
         rescue Exception => e # rubocop:disable Lint/RescueException -- failed startup cannot leak a child
           close
-          raise Unavailable, "mission not started: #{e.message}; install util-linux unshare and enable Linux user/PID namespaces and pidfds"
-        ensure
-          child&.close unless child&.closed?
+          detail = startup_detail(e)
+          raise Unavailable, detail unless mode != :host && !@host_attempted && namespace_denied?(detail)
+
+          @host_attempted = true
+          @child_error = nil
+          begin
+            start_supervisor(payload, opts, :host)
+          rescue Exception => host_error # rubocop:disable Lint/RescueException -- second attempt must not leak a child
+            close
+            raise Unavailable, "#{detail}; host supervisor: #{startup_detail(host_error)}"
+          end
         end
 
         def wait
@@ -230,6 +238,13 @@ module PWN
           return :reaped unless @mutex
 
           @mutex.synchronize do
+            if @group && @pid
+              begin
+                Process.kill('KILL', -@group)
+              rescue Errno::ESRCH, Errno::EPERM
+                nil
+              end
+            end
             if @pidfd && !@pidfd.closed?
               result = self.class.native('pidfd_send_signal', [Fiddle::TYPE_INT, Fiddle::TYPE_INT, Fiddle::TYPE_VOIDP, Fiddle::TYPE_INT]).call(@pidfd.fileno, Signal.list.fetch('KILL'), 0, 0)
               self.class.checked(result, 'pidfd_send_signal') unless result.negative? && Fiddle.last_error == Errno::ESRCH::Errno
@@ -262,6 +277,44 @@ module PWN
         end
 
         private
+
+        def start_supervisor(payload, opts, mode)
+          @channel, child = UNIXSocket.pair
+          err_read, err_write = IO.pipe
+          mapping = opts.fetch(:fds, {}).merge(3 => child, err: err_write)
+          entry = mode == :host ? 'supervise_host' : 'supervise'
+          command = [RbConfig.ruby, '-I', $LOAD_PATH.join(File::PATH_SEPARATOR), '-rpwn', '-e', "exit!(PWN::AI::Agent::MissionNamespace.#{entry} || 1)"]
+          command = ['unshare', '--user', '--map-current-user', '--keep-caps', *command] if mode == :namespace
+          spawn_opts = mapping.merge(close_others: true)
+          spawn_opts[:pgroup] = true if mode == :host
+          @pid = Process.spawn(*command, spawn_opts)
+          @group = @pid if mode == :host
+          child.close
+          err_write.close
+          drain = Thread.new { @child_error = err_read.read }
+          drain.report_on_exception = false
+          @stderr_thread = drain
+          @stderr_read = err_read
+          Timeout.timeout(15) do
+            @channel.puts(payload)
+            @pidfd = @channel.recv_io
+            @channel.write('1')
+          end
+        ensure
+          child&.close unless child&.closed?
+          err_write&.close unless err_write&.closed?
+        end
+
+        def startup_detail(error)
+          [@child_error.to_s.strip, error.message].reject(&:empty?).uniq.join('; ')
+        end
+
+        def namespace_denied?(detail)
+          text = detail.to_s
+          return false if text.match?(/snapshot|unknown mission operation|ArgumentError/)
+
+          text.match?(/Broken pipe|unshare|namespace|Operation not permitted|Invalid argument|No such file or directory/i)
+        end
 
         def start_prepared(opts, &operation)
           ready, announce = IO.pipe
@@ -321,6 +374,9 @@ module PWN
         def reap
           _pid, @status = Process.wait2(@pid) if @pid
           @pid = nil
+          @group = nil
+          @stderr_thread&.join(1)
+          @stderr_read&.close unless @stderr_read&.closed?
           @channel&.close unless @channel&.closed?
           @pidfd&.close unless @pidfd&.closed?
           :reaped

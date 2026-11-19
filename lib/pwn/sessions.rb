@@ -577,8 +577,9 @@ module PWN
       path = support_path(kind: :owner, session_id: "#{Process.pid}-#{start}")
       @activity_owner_mutex ||= Mutex.new
       @activity_owner_mutex.synchronize do
-        @activity_owners ||= {}
-        @activity_owners.delete_if do |owner_path, handle|
+        # A fork can inherit a Hash still being iterated by a vanished thread.
+        # Insert into a fresh registry, never into that inherited iterator.
+        @activity_owners = (@activity_owners || {}).reject do |owner_path, handle|
           expired = !File.exist?(owner_path) || !owner_path.include?(".activity-owner-#{Process.pid}-")
           handle.close if expired && !handle.closed?
           expired

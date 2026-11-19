@@ -194,6 +194,24 @@ describe PWN::Plugins::REPL, 'mesh RX error boundaries' do
     expect(ids).to all(match(PWN::Sessions::SESSION_ID))
   end
 
+  it 'does not paint a Ruby thread dump when dispatch raises outside StandardError' do
+    allow(PWN::AI::Agent::Loop).to receive(:run).and_raise(NotImplementedError, 'offline dispatch')
+    stderr = StringIO.new
+    original = $stderr
+    $stderr = stderr
+    expect(described_class.send(:mesh_maybe_dispatch_to_pwn_ai, args)).to eq(:dispatched)
+    Timeout.timeout(5) { sleep 0.01 while PWN.const_defined?(:MeshDispatchLock) }
+    expect(stderr.string).not_to include('report_on_exception')
+    expect(described_class).to have_received(:mesh_ui_puts).with(hash_including(text: a_string_starting_with('AI failed: NotImplementedError: offline dispatch')))
+  ensure
+    $stderr = original
+  end
+
+  it 'drops a leaked Ruby thread-death banner from mesh notices' do
+    text = described_class.send(:mesh_notice_text, text: "#<Thread:0x00007f68c37b6078 /opt/pwn/lib/pwn/plugins/repl/mesh.rb:3494 run> terminated with exception (report_on_exception is true):\n")
+    expect(text).to be_nil
+  end
+
   %w[AI TX].each do |stage|
     it "labels #{stage} failures correctly and closes the session lease" do
       ids = Queue.new

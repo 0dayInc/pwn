@@ -614,6 +614,7 @@
 {"messages":[{"role":"user","content":"PWN::AI::Agent::MissionNamespace.new Usage"},{"role":"assistant","content":"`PWN::AI::Agent::MissionNamespace.new`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::MissionNamespace.prepared? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::MissionNamespace.prepared?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::MissionNamespace.supervise Usage"},{"role":"assistant","content":"`PWN::AI::Agent::MissionNamespace.supervise`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::MissionNamespace.supervise_host Usage"},{"role":"assistant","content":"`PWN::AI::Agent::MissionNamespace.supervise_host`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::MissionNamespace.close Usage"},{"role":"assistant","content":"`PWN::AI::Agent::MissionNamespace.close`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::MissionNamespace.wait Usage"},{"role":"assistant","content":"`PWN::AI::Agent::MissionNamespace.wait`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Mistakes.applicable_fix? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Mistakes.applicable_fix?`: "}]}

@@ -65,7 +65,7 @@ a process that is already running. Restart after installing the matching package
 | Contract | Current behavior |
 | --- | --- |
 | Tool writes | Unspecified `pwn-ai` writes and `TMPDIR` use `~/.pwn/workspaces/runtime`. Another path is writable only when the original operator request names it, including `mv`/`to`. A missing file grants its parent so the file can be created; that parent is still granted when it contains unrelated unreadable directories. `/opt/pwn` and the loaded package stay read-only. |
-| Mission lifetime | CTRL+C kills the mission through `PWN::AI::Agent::MissionNamespace`. That owner is Ruby plus util-linux `unshare` and Linux pidfds. There is no compiled `pwn_mission` extension and no systemd fallback. |
+| Mission lifetime | CTRL+C kills the mission through `PWN::AI::Agent::MissionNamespace`. That owner is Ruby plus a pidfd. It uses util-linux `unshare` when the kernel allows a user namespace, and otherwise a process-group supervisor. There is no compiled `pwn_mission` extension and no systemd fallback. No apparmor or sysctl change is required. |
 | Recovery copies | Every PWN recovery producer uses `PWN::Backups` and `~/.pwn/backup/`, seven generation folders total. Adjacent `.bak` files are not the current producer. |
 | Housekeeping | A fresh install seeds one internal `session_cleanup` coordinator. Curriculum jobs are not seeded. Housekeeping never uses systemd. |
 | YubiKey | `PWN::Plugins::YubiKey` is native Ruby over HIDAPI and PC/SC. `required_bins` is empty and no `ykman` process is started. A library probe is not a connected device. Fixture coverage is not physical interoperability. See [YubiKey](YubiKey.md). |
