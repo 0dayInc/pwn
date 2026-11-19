@@ -51,6 +51,15 @@ require 'spec_helper'
 #      operator-usable description (what to pass, not just the key name)
 #      — same shape as PWN::WWW::Google.help.
 #
+#   7. Library code MUST NOT construct `Logger.new($stdout)` or
+#      `Logger.new(STDOUT)`. That captures the rake terminal. Log through
+#      `PWN::Plugins::PWNLogger.create`. During `rake` that logger writes
+#      nothing.
+#
+#   8. Specs MUST stay in Ruby. They MUST NOT invoke another interpreter
+#      (`python`, `python3`, `node`, `perl`, `php`, `bash`, `sh`, and the
+#      same family). A Ruby subprocess via `RbConfig.ruby` is still Ruby.
+#
 # A "leaf module file" is any file under lib/pwn/**/*.rb that opens at
 # least one `module` block. Pure namespace/index files (autoload-only,
 # no method bodies) are exempt from 4/5 via NAMESPACE_INDEX_FILES.
@@ -381,5 +390,39 @@ describe 'PWN module conventions' do
     end
     extra = misses.length > 80 ? "\n... #{misses.length} total" : ''
     expect(misses).to be_empty, "#{misses.first(80).join("\n")}#{extra}"
+  end
+
+  # ---------------------------------------------------------------- 7 --
+  it '7) loggers do not capture the rake terminal with Logger.new($stdout)' do
+    hits = []
+    c::RB_FILES.each do |path|
+      File.readlines(path).each_with_index do |line, idx|
+        next if line.strip.start_with?('#')
+        next unless line.match?(/Logger\.new\(\s*(?:\$stdout|STDOUT)\s*\)/)
+
+        hits << "#{c.rel(path)}:#{idx + 1}  #{line.strip}"
+      end
+    end
+    expect(hits).to be_empty, "captured STDOUT loggers leak [INFO] lines into rake; use PWN::Plugins::PWNLogger.create:\n#{hits.join("\n")}"
+  end
+
+  # ---------------------------------------------------------------- 8 --
+  it '8) specs do not shell out to a non-Ruby interpreter' do
+    interpreters = %w[python python3 node nodejs perl php bash sh dash zsh pwsh powershell lua].join('|')
+    invocation = /
+      (?:Open3\.|Process\.(?:spawn|exec)|\b(?:system|exec|spawn)\b|IO\.popen|\bcapture\b)
+      [^\n]{0,240}
+      ['"](?:#{interpreters})['"]
+    /x
+    hits = []
+    Dir[File.join(c::ROOT, 'spec', '**', '*.rb')].each do |path|
+      File.readlines(path).each_with_index do |line, idx|
+        next if line.strip.start_with?('#')
+        next unless line.match?(invocation)
+
+        hits << "#{c.rel(path)}:#{idx + 1}  #{line.strip}"
+      end
+    end
+    expect(hits).to be_empty, "specs must stay in Ruby; do not shell out to another interpreter:\n#{hits.join("\n")}"
   end
 end

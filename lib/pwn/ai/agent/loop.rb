@@ -1690,6 +1690,10 @@ module PWN
           Thread.current[:pwn_plan_predicted] = predicted
           predicted
         rescue StandardError => e
+          # A forbidden request is not a missing plan. Stop before calling the
+          # provider a second time with tools enabled.
+          raise if e.respond_to?(:http_code) && e.http_code == 403
+
           warn "[pwn-ai/loop] plan_first swallowed: #{e.class}: #{e.message}"
           nil
         end

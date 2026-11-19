@@ -63,6 +63,27 @@ RSpec.describe PWN::SessionCleanup, 'concurrent maintenance' do
     Timeout.timeout(5) { described_class.maintain(proc_root: @processes) }
   end
 
+  it 'registers a forked session owner while the parent is iterating its owner markers' do
+    sid = PWN::Sessions.create[:id]
+    owners = PWN::Sessions.instance_variable_get(:@activity_owners)
+    # Fork with a live Hash iterator, rather than racing the scheduler to catch one.
+    iterator = owners.each_key
+    iterator.next
+    input, output = worker do |commands, replies|
+      lease = PWN::Sessions.activate(session_id: sid)
+      replies.puts('leased')
+      commands.gets
+      PWN::Sessions.deactivate(lease: lease)
+      replies.puts('released')
+    end
+    expect(message(output)).to eq('leased')
+    expect(PWN::Sessions.active?(session_id: sid)).to be(true)
+    expect(described_class.legacy_owners(@processes)).to be_empty
+    input.puts('release')
+    expect(message(output)).to eq('released')
+    expect(PWN::Sessions.active?(session_id: sid)).to be(false)
+  end
+
   it 'retains two real active clients, deletes unrelated work and revisits released evidence' do
     ids = 3.times.map { PWN::Sessions.create[:id] }
     learning = PWN::AI::Agent::Learning

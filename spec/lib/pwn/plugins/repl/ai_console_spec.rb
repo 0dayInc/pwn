@@ -2786,6 +2786,22 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
     expect(PWN::Env.dig(:ai, :openai, :reasoning_effort)).to eq('high')
   end
 
+  it 'stops after a forbidden planning request and displays one access warning' do
+    require 'rest-client'
+    PWN::Env[:ai] = { active: :openai, openai: { model: 'fixture-model' }, agent: { plan_first: true } }
+    calls = File.join(@tmp, 'provider-calls')
+    response = Struct.new(:code, :body).new(403, 'private fixture response')
+    allow(PWN::AI::OpenAI).to receive(:chat_with_tools) do |opts|
+      File.open(calls, 'a') { |f| f.puts(opts[:tools].nil? ? 'planning' : 'turn') }
+      raise RestClient::Forbidden, response
+    end
+    launch("List the files in this directory\n".chars) { "\u0004" unless @console.send(:busy?) }
+    expect(File.readlines(calls, chomp: true)).to eq(['planning'])
+    events = @console.instance_variable_get(:@timeline)
+    expect(events.filter_map { |type, text, *| text if type == :warning }).to contain_exactly(a_string_matching(/HTTP 403.*model/i))
+    expect(events.map { |_, text, *| text }.join).not_to match(/plan_first swallowed|private fixture response/)
+  end
+
   it 'honors locally selected model and resumed session in the actual provider call' do
     sid = PWN::Sessions.create(title: 'resumed console')[:id]
     PWN::Sessions.append(session_id: sid, role: 'user', content: 'Previous fixture question')

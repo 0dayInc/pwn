@@ -243,6 +243,14 @@ RSpec.describe 'PWN::AI::Agent::MissionNamespace compiler-free process ownership
     expect(restored[:time].utc_offset).to eq(value[:time].utc_offset)
   end
 
+  it 'starts a command without a user namespace' do
+    mission = PWN::AI::Agent::MissionNamespace.new(descriptor: { operation: :command, argv: ['/bin/true'] }, containment: :host)
+    expect(mission.wait).to eq(:reaped)
+    expect(mission.status.success?).to be(true)
+  ensure
+    mission&.close
+  end
+
   it 'preserves the exit status of a failed mission' do
     mission = PWN::AI::Agent::MissionNamespace.new(descriptor: { operation: :command, argv: [RbConfig.ruby, '-e', 'exit! 73'] })
     mission.wait

@@ -806,7 +806,12 @@ module PWN
                 events << [:session_title, PWN::Sessions.refresh_title(session_id: session_id, ai_config: title_config, on_error: ->(kind) { events << [:warning, "Session title refresh unavailable (#{kind}); previous title retained."] })]
               end
             rescue StandardError, Interrupt, Control::Stopped => e
-              events << [:warning, "#{e.class}: #{e.message}"]
+              warning = if e.respond_to?(:http_code) && e.http_code == 403
+                          'Access denied (HTTP 403). Check that your account can use the selected model and endpoint.'
+                        else
+                          "#{e.class}: #{e.message}"
+                        end
+              events << [:warning, warning]
             ensure
               output.flush
               writer.close

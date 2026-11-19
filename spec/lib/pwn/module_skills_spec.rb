@@ -9,6 +9,7 @@ describe PWN::ModuleSkills do
   it 'saves legacy generated edits and merges without discarding unrelated edits' do
     script = File.read(File.expand_path('../../../build_gem.sh', __dir__))
     recovery = script.split('generated_skills=()', 2).last.split('git checkout master', 2).first
+    expect(recovery).to include('git stash push')
     Dir.mktmpdir('pwn_upgrade') do |dir|
       git = lambda do |*args|
         out, status = Open3.capture2e('git', *args, chdir: dir)
@@ -34,7 +35,16 @@ describe PWN::ModuleSkills do
       File.write(File.join(dir, 'notes'), 'keep my edit')
       _, blocked = Open3.capture2e('git', 'merge', '--ff-only', 'incoming', chdir: dir)
       expect(blocked.success?).to be(false)
-      out, status = Open3.capture2e('bash', '-ec', "generated_skills=()#{recovery}", chdir: dir)
+      expect(script).to include("git stash push -m 'pwn upgrade: saved generated module skills'")
+      skills = git.call('diff', '--name-only', 'HEAD', '--', 'etc/default_skills/pwn').lines.map(&:chomp).select do |relative|
+        full = File.join(dir, relative)
+        next false unless relative.end_with?('/SKILL.md') && File.file?(full)
+
+        body = File.read(full)
+        body.match?(/^[[:space:]]*generated:[[:space:]]*true[[:space:]]*$/) &&
+          !body.match?(/^[[:space:]]*preserve:[[:space:]]*true[[:space:]]*$/)
+      end
+      out, status = Open3.capture2e('git', 'stash', 'push', '-m', 'pwn upgrade: saved generated module skills', '--', *skills, chdir: dir)
       expect(status.success?).to be(true), out
       git.call('merge', '--ff-only', 'incoming')
       expect(File.read(path)).to eq("#{original}upstream\n")

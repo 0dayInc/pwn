@@ -1988,6 +1988,9 @@ class << PWN::Plugins::REPL # rubocop:disable Metrics/ClassLength
     # Serial.subscribe prints this on startup. It is not a diagnostic,
     # and capturing it opens a NOTICE before the TUI can be used.
     text.gsub!('Subscribing to serial FromRadio stream...', '')
+    # Ruby prints this to stderr when a worker dies. The TUI captures stderr
+    # and would open a NOTICE that hides the real failure.
+    text.gsub!(/^#<Thread:0x[0-9a-f]+ .+> terminated with exception \(report_on_exception is true\):\s*/m, '')
     text.strip!
     text.empty? ? nil : text
   end
@@ -3492,33 +3495,45 @@ class << PWN::Plugins::REPL # rubocop:disable Metrics/ClassLength
     raw = defined?(PWN::Env) && PWN::Env.is_a?(Hash) ? PWN::Env.dig(:ai, :active).to_s : ''
     engine = raw.empty? ? nil : raw.downcase.to_sym
     Thread.new do
+      Thread.current.report_on_exception = false
       stage = 'AI'
-      Thread.current[:pwn_swarm_engine] = nil
-      session = mesh_ai_session(env: env, channel_name: channel_name, network_path: opts[:network_path], from: from, to: opts[:to])
-      reply = PWN::AI::Agent::Loop.run(request: text, session_id: session[:id], nested: true, engine: engine)
-      stage = 'TX'
-      raise IOError, 'Origin connection closed; AI reply remains unsent.' if opts[:connection] && (!opts[:connection][:active] || opts[:connection][:stopped])
+      session = nil
+      begin
+        Thread.current[:pwn_swarm_engine] = nil
+        session = mesh_ai_session(env: env, channel_name: channel_name, network_path: opts[:network_path], from: from, to: opts[:to])
+        reply = PWN::AI::Agent::Loop.run(request: text, session_id: session[:id], nested: true, engine: engine)
+        stage = 'TX'
+        raise IOError, 'Origin connection closed; AI reply remains unsent.' if opts[:connection] && (!opts[:connection][:active] || opts[:connection][:stopped])
 
-      mesh_send_text(
-        env: env,
-        obj: obj,
-        transport: kind,
-        connection: opts[:connection],
-        from: mesh_self_node_id(env: env, obj: obj),
-        to: dest,
-        text: reply.to_s,
-        channel_name: channel_name,
-        radio: radio,
-        region: slot[:region],
-        topic: slot[:topic],
-        channel: slot[:channel_num] || channel_name,
-        psks: mesh_channel_psks(env: env)
-      )
-    rescue StandardError => e
-      mesh_ui_puts(text: "#{stage} failed: #{e.class}: #{e.message}", connection: opts[:connection])
-    ensure
-      PWN::Sessions.deactivate(lease: session&.dig(:lease))
-      PWN.send(:remove_const, :MeshDispatchLock) if PWN.const_defined?(:MeshDispatchLock)
+        mesh_send_text(
+          env: env,
+          obj: obj,
+          transport: kind,
+          connection: opts[:connection],
+          from: mesh_self_node_id(env: env, obj: obj),
+          to: dest,
+          text: reply.to_s,
+          channel_name: channel_name,
+          radio: radio,
+          region: slot[:region],
+          topic: slot[:topic],
+          channel: slot[:channel_num] || channel_name,
+          psks: mesh_channel_psks(env: env)
+        )
+      rescue Exception => e # rubocop:disable Lint/RescueException -- a dead worker must not dump onto the mesh TUI
+        begin
+          mesh_ui_puts(text: "#{stage} failed: #{e.class}: #{e.message}", connection: opts[:connection])
+        rescue Exception # rubocop:disable Lint/RescueException -- reporting the failure must not become a second thread dump
+          nil
+        end
+      ensure
+        begin
+          PWN::Sessions.deactivate(lease: session&.dig(:lease))
+        rescue Exception # rubocop:disable Lint/RescueException -- lease cleanup must not replace the dispatch error
+          nil
+        end
+        PWN.send(:remove_const, :MeshDispatchLock) if PWN.const_defined?(:MeshDispatchLock)
+      end
     end
     :dispatched
   end
