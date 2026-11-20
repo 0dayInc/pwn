@@ -103,6 +103,28 @@ end
   RSpec.describe provider, 'PR-LOG-01 strict-template history' do
     include_context 'provider review synthetic stream transport', key
 
+    [false, true].each do |bom|
+      it "delivers a Unicode text-only chat reply from HTTP bytes (BOM=#{bom})" do
+        answer = 'Le café coûte 3 €.'
+        @stream = if key == :ollama
+                    JSON.generate(message: { role: 'assistant', content: answer }, done: true)
+                  else
+                    "data: #{JSON.generate(choices: [{ delta: { content: answer }, finish_reason: 'stop' }])}\n\n"
+                  end
+        @stream = ((bom ? "\uFEFF" : '') + @stream).b.freeze
+        reply = described_class.chat(request: 'Read the price.', timeout: 1).fetch(:choices).last
+        expect(reply).to include(role: 'assistant', content: answer)
+        expect(reply.fetch(:content).encoding).to eq(Encoding::UTF_8)
+      end
+    end
+
+    it 'rejects malformed wire bytes without returning partial text or echoing the body' do
+      @stream = "data: {\"choices\":[{\"delta\":{\"content\":\"fixture-private-\xFF\"},\"finish_reason\":\"stop\"}]}\n\n".b
+      expect { described_class.chat(request: 'Read the price.', timeout: 1) }.to raise_error(RuntimeError, /invalid UTF-8/i) do |error|
+        expect(error.message).not_to include('fixture-private')
+      end
+    end
+
     [false, true].each do |frozen_history|
       [false, true].each do |string_keys|
         it "folds once over three turns without mutating history (frozen=#{frozen_history}, string_keys=#{string_keys})" do

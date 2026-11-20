@@ -811,6 +811,10 @@ module PWN
                         else
                           "#{e.class}: #{e.message}"
                         end
+              if e.is_a?(Encoding::CompatibilityError) && (origin = e.backtrace_locations&.first)
+                file = File.basename(origin.path.to_s)
+                warning += " (#{file}:#{origin.lineno})" if file.ascii_only? && file.match?(/\A[\w-]{1,80}\.rb\z/)
+              end
               events << [:warning, warning]
             ensure
               output.flush

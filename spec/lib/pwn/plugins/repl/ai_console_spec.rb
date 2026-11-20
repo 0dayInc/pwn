@@ -2802,6 +2802,41 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
     expect(events.map { |_, text, *| text }.join).not_to match(/plan_first swallowed|private fixture response/)
   end
 
+  it 'identifies the source line of a request-aborting encoding error without dumping request data' do
+    allow(PWN::AI::Agent::Loop).to receive(:run) { /€/.match('fixture-private-é'.b) }
+    launch("Read the price.\n".chars) { "\u0004" unless @console.send(:busy?) }
+    events = @console.instance_variable_get(:@timeline)
+    warnings = events.filter_map { |type, text, *| text if type == :warning }
+    expect(warnings).to contain_exactly(a_string_matching(/Encoding::CompatibilityError:.*ai_console_spec\.rb:\d+/m))
+    expect(warnings.join).not_to include(__dir__, 'fixture-private', 'block in')
+    expect(events.none? { |type, *| type == :assistant }).to be(true)
+  end
+
+  it 'delivers and saves a split UTF-8 text reply in a session with debugging off' do
+    require 'rest-client'
+    PWN::Env[:ai] = { active: :ollama, ollama: { model: 'fixture', base_uri: 'https://example.invalid' }, agent: { toolsets: [], plan_first: false } }
+    allow(PWN::AI::Router).to receive(:summarize).and_return('{"title":"Lemon colour","summary":"A short answer."}')
+    allow(PWN::Plugins::TransparentBrowser).to receive(:open).and_return(browser: RestClient)
+    answer = 'Yellow — jaune citron.'
+    bytes = JSON.generate(message: { role: 'assistant', content: answer }, done: true).b
+    split = bytes.index('—'.b) + 1
+    allow(RestClient::Request).to receive(:execute) do |args|
+      next '{}' if args.fetch(:url).end_with?('/show')
+
+      payload = JSON.parse(args.fetch(:payload))
+      raise 'Expected a text-only request' if payload.key?('tools')
+
+      response = double('text response', code: '200')
+      allow(response).to receive(:read_body).and_yield(bytes.byteslice(0, split)).and_yield(bytes.byteslice(split..))
+      args.fetch(:block_response).call(response)
+    end
+    launch("what color is a lemon?\n".chars) { "\u0004" unless @console.send(:busy?) }
+    events = @console.instance_variable_get(:@timeline)
+    expect(events.filter_map { |type, text, *| text if type == :warning }).to be_empty
+    expect(events.filter_map { |type, text, *| text if type == :assistant }).to include(answer)
+    expect(PWN::Sessions.load(session_id: @pry.config.pwn_ai_session_id)).to include(hash_including(role: 'assistant', content: answer))
+  end
+
   it 'honors locally selected model and resumed session in the actual provider call' do
     sid = PWN::Sessions.create(title: 'resumed console')[:id]
     PWN::Sessions.append(session_id: sid, role: 'user', content: 'Previous fixture question')
