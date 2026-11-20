@@ -147,6 +147,11 @@ module PWN
                     stream_err = "ERROR: Ollama HTTP #{code} for #{rest_call}: #{buf.to_s[0, 800]}"
                     return
                   end
+                  unless http_body.key?(:tools)
+                    # Text replies are UTF-8 on the wire. A character may span several reads.
+                    buf.force_encoding(Encoding::UTF_8)
+                    raise 'ERROR: Ollama text response contains invalid UTF-8' unless buf.valid_encoding?
+                  end
                   if buf.to_s.strip.empty?
                     stream_err = "ERROR: Ollama empty stream body for #{rest_call} (HTTP #{code})"
                     return
