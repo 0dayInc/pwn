@@ -392,6 +392,9 @@ end
 describe PWN::Sessions do
   include_context 'pwn tmp sandbox'
 
+  # Dependency discovery uses Dir.home independently of the session directory.
+  before { allow(Dir).to receive(:home).and_return(@tmp) }
+
   it 'caps provisional titles at seven Unicode-whitespace words without shortening requests' do
     sid = described_class.create(id: 'seven_words')[:id]
     request = "Investigate\u00a0café\u2003login failures and repair expired certificates today"

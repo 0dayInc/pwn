@@ -27,6 +27,8 @@ describe PWN::Plugins::REPL, 'mesh DM key exchange' do
           expect(packet.decoded.want_response).to eq(true)
           expect(Meshtastic::User.decode(packet.decoded.payload).public_key).to eq('a' * 32)
           obj[:proto_data] << { packet: { from: 0xbbccddee, decoded: { portnum: 4, payload: Meshtastic::User.new(remote_user).to_proto } } }
+        elsif packet.decoded.portnum == :TEXT_MESSAGE_APP
+          obj[:proto_data] << { packet: { decoded: { portnum: :ROUTING_APP, request_id: packet.id, payload: { error_reason: :NONE } } } }
         end
       end
       described_class.send(:mesh_send_text, env: env, obj: obj, to: '!bbccddee', text: 'private', channel_name: 'LongFast')
@@ -60,6 +62,7 @@ describe PWN::Plugins::REPL, 'mesh DM key exchange' do
       packet = Meshtastic::ToRadio.decode(opts[:to_radio]).packet
       expect(packet.pki_encrypted).to eq(true)
       expect(packet.decoded.payload).to eq('retained text')
+      obj[:proto_data] << { packet: { decoded: { portnum: :ROUTING_APP, request_id: packet.id, payload: { error_reason: :NONE } } } }
     end
     described_class.send(:pwn_mesh_run_msg, env: env, args: [])
     expect(PWN::MeshPendingDm).to be_nil
