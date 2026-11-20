@@ -3166,6 +3166,7 @@
 {"messages":[{"role":"user","content":"PWN::Plugins::Jobs.authors Usage"},{"role":"assistant","content":"`PWN::Plugins::Jobs.authors`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Jobs.cancel_graph Usage"},{"role":"assistant","content":"`PWN::Plugins::Jobs.cancel_graph`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Jobs.capture_graph Usage"},{"role":"assistant","content":"`PWN::Plugins::Jobs.capture_graph`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::Jobs.capture_owned_graph Usage"},{"role":"assistant","content":"`PWN::Plugins::Jobs.capture_owned_graph`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Jobs.graph Usage"},{"role":"assistant","content":"`PWN::Plugins::Jobs.graph`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Jobs.harvest Usage"},{"role":"assistant","content":"`PWN::Plugins::Jobs.harvest`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Jobs.help Usage"},{"role":"assistant","content":"`PWN::Plugins::Jobs.help`: "}]}

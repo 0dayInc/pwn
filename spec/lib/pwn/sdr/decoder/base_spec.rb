@@ -439,6 +439,8 @@ describe PWN::SDR::Decoder::Base do
   end
 
   it 'emits IQ frames before pipe EOF and exits on EOF without ENTER' do
+    # Keep interactive mode on, but model an idle keyboard, not the rake terminal.
+    allow($stdin).to receive(:read_nonblock).with(1, exception: false).and_return(:wait_readable)
     reader, writer = IO.pipe
     output = StringIO.new
     received = Queue.new
@@ -454,7 +456,7 @@ describe PWN::SDR::Decoder::Base do
     expect(frame[:samples].length).to eq(2)
     expect(writer).not_to be_closed
     writer.close
-    Timeout.timeout(2) { worker.value }
+    expect(Timeout.timeout(2) { worker.value }).to include(reason: :eof, capture_complete: true)
     expect(JSON.parse(output.string)['samples']).to eq(frame[:samples])
     expect(reader).to be_closed
   ensure

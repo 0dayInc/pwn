@@ -17,6 +17,8 @@ RSpec.shared_context 'offline MFA browser' do |selectors|
     @authenticated = false
     @otp_written = false
     @form_ready = false
+    # The fake browser updates its URL on click; it needs no redirect delay.
+    allow(described_class).to receive(:sleep).with(3).and_return(3)
     stub_const('PWN::Plugins::YubiKey', Module.new)
     allow(PWN::Plugins::YubiKey).to receive(:oath_code) do
       raise 'OATH requested before the MFA form was ready' unless @form_ready

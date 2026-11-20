@@ -12,7 +12,7 @@ Dir[File.join(__dir__, 'support', '**', '*.rb')].reject { |f| f.include?('/suppo
 #  RSpec binds its formatter to $stdout at configure-time (before any example
 #  runs), so redirecting $stdout / $stderr *inside* each example swallows any
 #  incidental `puts` / `print` / `p` / `warn` emitted by the code under test
-#  WITHOUT affecting the progress dots or failure reports.
+#  WITHOUT affecting the formatter's timing rows or failure reports.
 #
 #  Escape hatches:
 #    - `PWN_SPEC_VERBOSE=1 rake spec`               → no redirection at all

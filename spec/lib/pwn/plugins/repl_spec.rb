@@ -748,6 +748,7 @@ describe PWN::Plugins::REPL do # rubocop:disable Metrics/BlockLength
       require 'meshtastic'
       obj = { proto_data: [{ channel: { index: 3, role: :SECONDARY, settings: { name: 'LongFast' } } }] }
       env = { transport: 'serial', channel: { active: 'LongFast', LongFast: { channel_num: 99 } } }
+      allow(described_class).to receive(:mesh_wait_tx_slot).and_return(:ok)
       expect(Meshtastic::Serial).to receive(:send_text).with(hash_including(channel: 3))
       described_class.send(:mesh_send_text, env: env, obj: obj, channel: 99, text: 'slot three')
     end
@@ -764,6 +765,7 @@ describe PWN::Plugins::REPL do # rubocop:disable Metrics/BlockLength
         transport: 'serial',
         channel: { active: 'LongFast', LongFast: { psk: 'AQ==', channel_num: 8, topic: '2/e/LongFast/#' } }
       }
+      allow(described_class).to receive(:mesh_wait_tx_slot).and_return(:ok)
       expect(Meshtastic::Serial).to receive(:send_text).with(hash_including(channel: 2, text: 'hello LongFast'))
       described_class.send(:mesh_send_text, env: env, obj: obj, text: 'hello LongFast')
     end
@@ -781,6 +783,7 @@ describe PWN::Plugins::REPL do # rubocop:disable Metrics/BlockLength
         transport: 'serial',
         channel: { active: 'LongFast', LongFast: { psk: 'AQ==', channel_num: 8 } }
       }
+      allow(described_class).to receive(:mesh_wait_tx_slot).and_return(:ok)
       expect(Meshtastic::Serial).to receive(:send_text).with(hash_including(channel: 2, text: 'hello LongFast'))
       described_class.send(:mesh_send_text, env: env, obj: obj, text: 'hello LongFast')
     end

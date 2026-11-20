@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'spec_helper'
+require 'shellwords'
 require 'tmpdir'
 
 RSpec.describe PWN::Plugins::DAOLDAP do
@@ -286,11 +287,34 @@ RSpec.describe PWN::Plugins::BinaryParser do
 end
 
 RSpec.describe PWN::Plugins::Jobs do
-  it '[B025] terminates a timed-out graph command before its later write' do
-    Dir.mktmpdir('pwn-graph-deadline-') do |dir|
-      graph = described_class.graph(artifact_dir: dir, jobs: [{ id: 'slow', command: 'sleep 0.4; printf late > marker; sleep 0.5', timeout: 0.05 }])
-      expect(graph[:jobs]['slow']).to include(timeout: true, exit: 124)
-      expect(File.exist?(File.join(dir, 'marker'))).to be(false)
+  %i[capture spawn_handoff].each do |phase|
+    it "[B025] terminates a timed-out graph command before its later write (#{phase})" do
+      Dir.mktmpdir('pwn-graph-deadline-') do |dir|
+        File.write(File.join(dir, 'slow.rb'), <<~RUBY)
+          require 'timeout'
+          Timeout.timeout(5) { sleep 0.01 until File.exist?('release') }
+          File.write('marker', 'late')
+        RUBY
+        waiter = nil
+        allow(Open3).to receive(:popen3).and_wrap_original do |open, *args, **opts, &capture|
+          open.call(*args, **opts) do |*handles|
+            waiter = handles.last
+            if phase == :spawn_handoff
+              sleep 0.1 # The deadline expires while Open3 still owns the handles.
+              File.write(File.join(dir, 'release'), 'go')
+              waiter.join(0.3) # An unguarded payload can write and exit before capture is called.
+            end
+            capture.call(*handles)
+          ensure
+            # Also expose a survivor of normal capture cleanup before Open3 joins it.
+            File.write(File.join(dir, 'release'), 'go')
+          end
+        end
+        graph = described_class.graph(artifact_dir: dir, jobs: [{ id: 'slow', command: Shellwords.join([RbConfig.ruby, 'slow.rb']), timeout: 0.05 }])
+        expect(graph[:jobs]['slow']).to include(ok: false, timeout: true, exit: 124)
+        expect(File.exist?(File.join(dir, 'marker'))).to be(false)
+        expect(waiter.value).to be_signaled.or have_attributes(exitstatus: 124)
+      end
     end
   end
 end

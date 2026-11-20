@@ -18,6 +18,7 @@ describe PWN::Plugins::REPL, 'mesh DM transport replay' do
     packet = nil
     allow(Meshtastic::Serial).to receive(:send_to_radio) do |opts|
       packet = Meshtastic::ToRadio.decode(opts[:to_radio]).packet
+      sender[:proto_data] << { packet: { decoded: { portnum: :ROUTING_APP, request_id: packet.id, payload: { error_reason: :NONE } } } }
     end
 
     described_class.pwn_mesh_dispatch_slash!(request: '/msg !bbccddee hello receiver', env: env, pry: :fixture)

@@ -27,7 +27,7 @@ class DiagnosticSpecTask < RSpec::Core::RakeTask
 end
 
 DiagnosticSpecTask.new(:spec) do |task|
-  task.rspec_opts = "#{task.rspec_opts} --require ./spec/support/gate_failure_formatter.rb --format progress --format GateFailureFormatter"
+  task.rspec_opts = "#{task.rspec_opts} --require ./spec/support/gate_failure_formatter.rb --format GateFailureFormatter"
 end
 task :silence_rspec_filter_banner do
   ENV['PWN_RAKE_SPEC'] = '1'
