@@ -16,6 +16,25 @@ module PWN
     module Jobs
       JOBS_DIR = File.join(Dir.home, '.pwn', 'jobs')
 
+      # Do not start the command until its process group is owned and its deadline is still live.
+      # FD 3 reports launch failures only; successful exec closes it before any job code runs.
+      GRAPH_LAUNCH = <<~RUBY
+        status = IO.for_fd(3)
+        status.close_on_exec = true
+        exit! 124 unless STDIN.getbyte == 1
+        if Process.clock_gettime(Process::CLOCK_MONOTONIC) >= Float(ARGV.fetch(0))
+          status.syswrite('timeout')
+          exit! 124
+        end
+        begin
+          exec(ARGV.fetch(1))
+        rescue SystemCallError => e
+          status.syswrite(e.errno.to_s)
+          exit! 127
+        end
+      RUBY
+      private_constant :GRAPH_LAUNCH
+
       public_class_method def self.required_bins
         []
       end
@@ -209,8 +228,6 @@ module PWN
             Thread.new do
               timeout = (job[:timeout] || opts[:timeout]).to_f
               timeout = 3_600 if timeout <= 0
-              out = err = ''
-              st = nil
               signaled = false
               notify = lambda do
                 next if signaled
@@ -219,12 +236,10 @@ module PWN
                 started << true
               end
               begin
-                Timeout.timeout(timeout) do
-                  out, err, st = capture_graph(command: job[:command].to_s, dir: dir, groups: groups, started: notify)
-                end
+                out, err, st = capture_graph(command: job[:command].to_s, dir: dir, groups: groups, started: notify, timeout: timeout)
                 { id: job[:id], ok: st.success?, stdout: out, stderr: err, exit: st.exitstatus }
               rescue Timeout::Error
-                { id: job[:id], ok: false, stdout: out, stderr: 'timeout', exit: 124, timeout: true }
+                { id: job[:id], ok: false, stdout: '', stderr: 'timeout', exit: 124, timeout: true }
               ensure
                 notify.call
               end
@@ -250,26 +265,43 @@ module PWN
       end
 
       private_class_method def self.capture_graph(opts = {})
-        Open3.popen3(opts[:command], chdir: opts[:dir], pgroup: true) do |stdin, stdout, stderr, waiter|
-          stdin.close
-          Array(opts[:groups]) << waiter.pid
-          opts[:started]&.call
-          readers = [Thread.new { stdout.read }, Thread.new { stderr.read }]
-          begin
-            [readers[0].value, readers[1].value, waiter.value]
-          ensure
-            if waiter.alive? || readers.any?(&:alive?)
-              begin
-                Process.kill('KILL', -waiter.pid)
-              rescue Errno::ESRCH, Errno::EPERM
-                nil
-              end
-            end
-            readers.each do |thread|
-              thread.kill if thread.alive?
-              thread.join
-            end
+        deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + opts.fetch(:timeout)
+        launcher = [RbConfig.ruby, '--disable=gems,rubyopt', '-e', GRAPH_LAUNCH, '--', deadline.to_s, opts.fetch(:command)]
+        IO.pipe do |status, writer|
+          Open3.popen3(*launcher, 3 => writer, chdir: opts[:dir], pgroup: true) do |stdin, stdout, stderr, waiter|
+            writer.close
+            capture_owned_graph(opts.merge(deadline: deadline, stdin: stdin, outputs: [stdout, stderr], waiter: waiter, status: status))
           end
+        end
+      end
+
+      private_class_method def self.capture_owned_graph(opts = {})
+        waiter = opts.fetch(:waiter)
+        deadline = opts.fetch(:deadline)
+        readers = []
+        finished = false
+        opts.fetch(:groups) << waiter.pid
+        opts.fetch(:started).call
+        raise Timeout::Error if Process.clock_gettime(Process::CLOCK_MONOTONIC) >= deadline
+
+        opts[:stdin].write("\x01")
+        opts[:stdin].close
+        readers = opts[:outputs].map { |io| Thread.new { io.read } }
+        [*readers, waiter].each do |thread|
+          remaining = deadline - Process.clock_gettime(Process::CLOCK_MONOTONIC)
+          raise Timeout::Error unless remaining.positive? && thread.join(remaining)
+        end
+        finished = true
+        status = opts[:status].read
+        raise Timeout::Error if status == 'timeout'
+        raise SystemCallError.new(opts[:command], Integer(status)) unless status.empty?
+
+        [readers[0].value, readers[1].value, waiter.value]
+      ensure
+        cancel_graph(groups: [waiter.pid]) if waiter && !finished
+        readers&.each do |thread|
+          thread.kill if thread.alive?
+          thread.join
         end
       end
 
