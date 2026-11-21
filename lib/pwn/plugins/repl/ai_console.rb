@@ -273,6 +273,7 @@ module PWN
         # Cancellation never raises asynchronously into a tool.
         class Control < PWN::AI::Agent::Loop::Steering
           class Stopped < Exception; end # rubocop:disable Lint/InheritException
+          class PreviewShown < Stopped; end
 
           def stopping?
             @stopping == true
@@ -769,6 +770,19 @@ module PWN
             %i[pwn_ai_session_id pwn_ai_debug pwn_ai_trace pwn_ai_speak pwn_ai_agent].to_h { |key| [key, @pry.config.public_send(key)] }
           end
 
+          def with_stream_preview(events)
+            previous = Thread.current[:pwn_openwebui_preview]
+            Thread.current[:pwn_openwebui_preview] = lambda do |text, pending|
+              visible = text.gsub(/[\x00-\x08\x0B-\x1F\x7F-\u009F]/, '')
+              events << [:assistant, visible] unless visible.empty?
+              status = pending ? 'A requested action was not processed.' : 'No actions from this reply were processed.'
+              raise Control::PreviewShown, "Open WebUI reply recovered for display only. #{status} This turn has ended."
+            end
+            yield
+          ensure
+            Thread.current[:pwn_openwebui_preview] = previous
+          end
+
           def mission_request_child(data, writer, commands)
             request, generation, session_id, title_config = data.values_at(:request, :generation, :session_id, :title_config)
             events = MissionEvents.new(writer, generation)
@@ -797,14 +811,18 @@ module PWN
                     events << [:result, result.to_s]
                   end
                 end
-                final = PWN::AI::Agent::Loop.run(request: request, session_id: session_id,
-                                                 enabled_toolsets: PWN::Env.dig(:ai, :agent, :toolsets),
-                                                 on_tool: on_tool, steering: control, debug: @pry.config.pwn_ai_debug,
-                                                 trace: @pry.config.pwn_ai_trace, debug_tee: output)
+                final = with_stream_preview(events) do
+                  PWN::AI::Agent::Loop.run(request: request, session_id: session_id,
+                                           enabled_toolsets: PWN::Env.dig(:ai, :agent, :toolsets),
+                                           on_tool: on_tool, steering: control, debug: @pry.config.pwn_ai_debug,
+                                           trace: @pry.config.pwn_ai_trace, debug_tee: output)
+                end
                 promoted = Thread.current[:pwn_thinking_promoted] && final.to_s.strip == Thread.current[:pwn_last_thinking].to_s.strip
                 events << [:assistant, final.to_s] unless promoted
                 events << [:session_title, PWN::Sessions.refresh_title(session_id: session_id, ai_config: title_config, on_error: ->(kind) { events << [:warning, "Session title refresh unavailable (#{kind}); previous title retained."] })]
               end
+            rescue Control::PreviewShown => e
+              events << [:warning, e.message]
             rescue StandardError, Interrupt, Control::Stopped => e
               warning = if e.respond_to?(:http_code) && e.http_code == 403
                           'Access denied (HTTP 403). Check that your account can use the selected model and endpoint.'
