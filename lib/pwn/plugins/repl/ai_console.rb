@@ -771,16 +771,16 @@ module PWN
           end
 
           def with_stream_preview(events)
-            previous = Thread.current[:pwn_openwebui_preview]
-            Thread.current[:pwn_openwebui_preview] = lambda do |text, pending|
+            previous = Thread.current[:pwn_stream_preview]
+            Thread.current[:pwn_stream_preview] = lambda do |provider, text, pending|
               visible = text.gsub(/[\x00-\x08\x0B-\x1F\x7F-\u009F]/, '')
               events << [:assistant, visible] unless visible.empty?
               status = pending ? 'A requested action was not processed.' : 'No actions from this reply were processed.'
-              raise Control::PreviewShown, "Open WebUI reply recovered for display only. #{status} This turn has ended."
+              raise Control::PreviewShown, "#{provider} reply recovered for display only. #{status} This turn has ended."
             end
             yield
           ensure
-            Thread.current[:pwn_openwebui_preview] = previous
+            Thread.current[:pwn_stream_preview] = previous
           end
 
           def mission_request_child(data, writer, commands)

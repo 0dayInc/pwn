@@ -4,6 +4,7 @@ require 'json'
 require 'base64'
 require 'securerandom'
 require 'uri'
+require 'pwn/ai'
 
 module PWN
   module AI
@@ -269,13 +270,14 @@ module PWN
       # SSE on /v1/chat/completions) into a single JSON string matching the
       # non-stream response shape used by #chat / #chat_with_tools.
       private_class_method def self.assemble_ollama_stream(opts = {})
-        body = opts[:body].to_s
+        preview = StreamPreview.new(body: opts[:body].to_s, provider: 'Ollama')
         rest_call = opts[:rest_call].to_s
 
-        records = stream_records(body: body, rest_call: rest_call)
+        records = stream_records(body: preview.body, rest_call: rest_call)
         done = false
         payloads = records.filter_map do |record|
           raise "ERROR: Ollama incomplete SSE stream for #{rest_call}: unterminated event" if record[:incomplete]
+          raise "ERROR: Ollama stream error for #{rest_call}" if preview.required? && record[:event] == 'error'
 
           data = record[:data]
           if data == '[DONE]'
@@ -287,6 +289,8 @@ module PWN
           payload = parse_stream_payload(data: data, rest_call: rest_call)
           error = payload[:error] || (payload if record[:event] == 'error')
           if error
+            raise "ERROR: Ollama stream error for #{rest_call}" if preview.required?
+
             detail = error.is_a?(Hash) ? (error[:message] || error) : error
             raise "ERROR: Ollama stream error for #{rest_call}: #{detail}"
           end
@@ -299,10 +303,14 @@ module PWN
           finished = payloads.any? { |p| Array(p[:choices]).any? { |ch| ch[:finish_reason] } }
           raise "ERROR: Ollama incomplete stream for #{rest_call}: missing terminal event" unless done || finished
 
+          return preview.display!(payloads: payloads, sse: true, done: done) if preview.required?
+
           assemble_openai_compat_stream(payloads: payloads)
         else
           raise "ERROR: Ollama malformed native stream for #{rest_call}: expected message object" unless payloads.any? { |p| p[:message].is_a?(Hash) } && payloads.all? { |p| !p.key?(:message) || p[:message].is_a?(Hash) }
           raise "ERROR: Ollama incomplete native stream for #{rest_call}: missing terminal done frame" unless payloads.last[:done] == true && payloads[0...-1].all? { |p| p[:done] == false }
+
+          return preview.display!(payloads: payloads, sse: false) if preview.required?
 
           assemble_native_chat_stream(payloads: payloads)
         end

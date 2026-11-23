@@ -16,24 +16,7 @@ describe PWN::Cron do
     expect(help_response).to respond_to :help
   end
 
-  describe 'in-process scheduler' do
-    before do
-      @tmp = Dir.mktmpdir('pwn-cron-spec-')
-      stub_const('PWN::Cron::CRON_DIR', @tmp)
-      stub_const('PWN::Cron::JOBS_FILE', File.join(@tmp, 'jobs.yml'))
-      stub_const('PWN::Cron::PID_FILE', File.join(@tmp, 'worker.pid'))
-      stub_const('PWN::Cron::WORKER_LOG', File.join(@tmp, 'worker.log'))
-    end
-
-    after do
-      begin
-        PWN::Cron.stop_worker
-      rescue StandardError
-        nil
-      end
-      FileUtils.remove_entry(@tmp) if @tmp && Dir.exist?(@tmp)
-    end
-
+  describe 'in-process scheduler', :isolated_cron_store do
     it 'removes only a schedule without native effects when explicitly requested' do
       target = described_class.create(name: 'curriculum_practice_nightly', enabled: false, sync_native: false)
       other = described_class.create(name: 'custom', enabled: false, sync_native: false)
@@ -160,7 +143,6 @@ describe PWN::Cron do
         schedule: 'every 1s',
         ruby: "File.write(#{marker.inspect}, Time.now.utc.iso8601)"
       )
-      ENV['PWN_CRON_DIR'] = @tmp
       begin
         res = PWN::Cron.start_worker(interval: 1, restart: true)
         expect(res[:started]).to be(true), "worker did not start: #{res.inspect} log=#{begin
@@ -180,7 +162,6 @@ describe PWN::Cron do
         expect(last).not_to be_nil
         expect(File).to exist(marker)
       ensure
-        ENV.delete('PWN_CRON_DIR')
         PWN::Cron.stop_worker
         expect(PWN::Cron.worker_status[:running]).to be false
       end
@@ -200,25 +181,7 @@ describe PWN::Cron do
 end
 
 describe PWN::Cron do
-  describe 'OS-agnostic scheduler' do
-    before do
-      # install_defaults owns siblings of cron_dir (maintenance/cache/tmp).
-      # Give it a complete private root, never the shared Dir.tmpdir parent.
-      @root = Dir.mktmpdir('pwn-cron-os-spec-')
-      @tmp = File.join(@root, 'cron')
-      FileUtils.mkdir_p(@tmp)
-      stub_const('PWN::Cron::CRON_DIR', @tmp)
-      stub_const('PWN::Cron::JOBS_FILE', File.join(@tmp, 'jobs.yml'))
-      stub_const('PWN::Cron::PID_FILE', File.join(@tmp, 'worker.pid'))
-      stub_const('PWN::Cron::WORKER_LOG', File.join(@tmp, 'worker.log'))
-      ENV['PWN_CRON_DIR'] = @tmp
-    end
-
-    after do
-      ENV.delete('PWN_CRON_DIR')
-      FileUtils.remove_entry(@root) if @root && Dir.exist?(@root)
-    end
-
+  describe 'OS-agnostic scheduler', :isolated_cron_store do
     it 'keeps default housekeeping off every native installer' do
       allow(described_class).to receive(:scheduler_backend).and_return(:systemd_user)
       expect(described_class).not_to receive(:systemd_user)

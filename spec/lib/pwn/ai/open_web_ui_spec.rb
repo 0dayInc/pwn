@@ -349,18 +349,18 @@ describe PWN::AI::OpenWebUI, 'binary stream display recovery' do
   let(:previews) { [] }
 
   around do |example|
-    previous = Thread.current[:pwn_openwebui_preview]
-    Thread.current[:pwn_openwebui_preview] = ->(text, pending) { previews << [text, pending] }
+    previous = Thread.current[:pwn_stream_preview]
+    Thread.current[:pwn_stream_preview] = ->(*args) { previews << args }
     example.run
   ensure
-    Thread.current[:pwn_openwebui_preview] = previous
+    Thread.current[:pwn_stream_preview] = previous
   end
 
   it 'recovers only visible assistant text, without returning a provider response' do
     event = JSON.generate(message: { role: 'assistant', thinking: 'private', content: 'Café' }, done: true)
     wire = "\uFEFF#{event}".b.freeze
     expect { described_class.send(:assemble_openwebui_stream, body: wire, rest_call: 'ollama/api/chat') }.to raise_error(RuntimeError, /display.only/i)
-    expect(previews).to eq([['Café', false]])
+    expect(previews).to eq([['Open WebUI', 'Café', false]])
     expect(wire.encoding).to eq(Encoding::BINARY)
   end
 
@@ -369,7 +369,7 @@ describe PWN::AI::OpenWebUI, 'binary stream display recovery' do
     event = JSON.generate(choices: [{ delta: delta, finish_reason: 'function_call' }])
     wire = "data: #{event}\r\n\r\ndata: [DONE]\r\n\r\n".b
     expect { described_class.send(:assemble_openwebui_stream, body: wire, rest_call: 'api/v1/chat/completions') }.to raise_error(RuntimeError, /display.only/i)
-    expect(previews).to eq([['Résumé', true]])
+    expect(previews).to eq([['Open WebUI', 'Résumé', true]])
   end
 
   it 'does not preview invalid bytes or an incomplete reply' do

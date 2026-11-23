@@ -30,18 +30,13 @@ describe PWN::Setup do
     expect(PWN::Setup).to respond_to(:ensure_cron)
   end
 
-  it 'ensure_cron seeds defaults and starts (or reuses) the worker' do
-    tmp = Dir.mktmpdir('pwn-setup-cron-')
-    stub_const('PWN::Cron::CRON_DIR', tmp)
-    stub_const('PWN::Cron::JOBS_FILE', File.join(tmp, 'jobs.yml'))
-    stub_const('PWN::Cron::PID_FILE', File.join(tmp, 'worker.pid'))
-    stub_const('PWN::Cron::WORKER_LOG', File.join(tmp, 'worker.log'))
-    ENV['PWN_CRON_DIR'] = tmp
+  it 'ensure_cron seeds defaults and starts (or reuses) the worker', :isolated_cron_store do
     allow(PWN::Cron).to receive(:install_worker_crontab).and_return('stubbed')
     io = StringIO.new
     first = PWN::Setup.ensure_cron(restart: false, io: io)
     expect(first[:ok]).to be true
     expect(first[:worker][:running]).to be true
+    expect(File).to exist(File.join(Dir.home, '.pwn', 'maintenance', 'background.json'))
     pid = first[:worker][:pid]
     expect(pid).to be_a(Integer)
     second = PWN::Setup.ensure_cron(restart: false, io: StringIO.new)
@@ -55,11 +50,9 @@ describe PWN::Setup do
     rescue StandardError
       nil
     end
-    ENV.delete('PWN_CRON_DIR')
-    FileUtils.remove_entry(tmp) if tmp && Dir.exist?(tmp)
   end
 
-  it 'ensure_cron dry_run does not spawn' do
+  it 'ensure_cron dry_run does not spawn', :isolated_cron_store do
     io = StringIO.new
     allow(PWN::Cron).to receive(:worker_status).and_return(
       running: false, pid: nil, pid_file: '/tmp/x', log: '/tmp/y'
@@ -68,13 +61,7 @@ describe PWN::Setup do
     expect(res[:dry_run]).to be true
     expect(res[:ok]).to be true
   end
-  it 'ensure_cron enabled:false disables only the internal worker without native changes' do
-    tmp = Dir.mktmpdir('pwn-setup-nocron-')
-    stub_const('PWN::Cron::CRON_DIR', tmp)
-    stub_const('PWN::Cron::JOBS_FILE', File.join(tmp, 'jobs.yml'))
-    stub_const('PWN::Cron::PID_FILE', File.join(tmp, 'worker.pid'))
-    stub_const('PWN::Cron::WORKER_LOG', File.join(tmp, 'worker.log'))
-    ENV['PWN_CRON_DIR'] = tmp
+  it 'ensure_cron enabled:false disables only the internal worker without native changes', :isolated_cron_store do
     io = StringIO.new
     expect(PWN::Cron).not_to receive(:install_scheduler)
     expect(PWN::Cron).not_to receive(:uninstall_scheduler)
@@ -92,8 +79,6 @@ describe PWN::Setup do
     rescue StandardError
       nil
     end
-    ENV.delete('PWN_CRON_DIR')
-    FileUtils.remove_entry(tmp) if tmp && Dir.exist?(tmp)
   end
 
   it 'bin/pwn_setup exposes --[no-]cron' do

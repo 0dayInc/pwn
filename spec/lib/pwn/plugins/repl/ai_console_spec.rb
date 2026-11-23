@@ -2766,24 +2766,36 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
     PWN::Env[:ai][:openai] = { model: 'old', reasoning_effort: 'medium' }
     allow(PWN::Plugins::REPL).to receive(:persist_ai_selection).and_return(false)
     allow(PWN::AI::OpenAI).to receive(:get_models).and_return(data: [{ id: 'gpt-6-astra', supported_reasoning_levels: [{ effort: 'low' }, { effort: 'medium' }, { effort: 'high' }] }])
-    allow(PWN::AI::OpenAI).to receive(:chat_with_tools).with(hash_including(reasoning_effort: 'high')) do
+    calls = File.join(@tmp, 'provider-efforts')
+    allow(PWN::AI::OpenAI).to receive(:chat_with_tools) do |opts|
+      File.open(calls, 'a') { |file| file.puts(opts[:reasoning_effort]) }
       { choices: [{ message: { role: 'assistant', content: 'Effort accepted.', tool_calls: [] } }] }
     end
     keys = "/model openai gpt-6-astra\n".chars
-    accepted = false
+    @launch_phase = :select_effort
     launch(keys) do
-      if !accepted && @paint.any? { |row| row.include?('REASONING EFFORT · SELECT') }
-        accepted = true
-        keys.concat([:down, "\n"] + "what color is a lemon?\n".chars)
+      case @launch_phase
+      when :select_effort
+        next unless @rendered.any? { |row| row.last.include?('REASONING EFFORT · SELECT') }
+
+        keys.push(:down, "\n")
+        @launch_phase = :wait_for_model
         nil
-      elsif @paint.any? { |row| row.include?('Effort accepted.') }
-        "\u0004"
-      else
-        Thread.pass
+      when :wait_for_model
+        # Accepting the prompt does not mean the /model worker has finished.
+        next if @console.send(:busy?)
+
+        expect(PWN::Env.dig(:ai, :openai, :reasoning_effort)).to eq('high')
+        keys.concat("what color is a lemon?\n".chars)
+        @launch_phase = :await_reply
         nil
+      when :await_reply
+        "\u0004" unless @console.send(:busy?)
       end
     end
-    expect(PWN::Env.dig(:ai, :openai, :reasoning_effort)).to eq('high')
+    expect(File).to exist(calls), 'The follow-up question did not reach the provider'
+    expect(File.readlines(calls, chomp: true)).to eq(['high'])
+    expect(@paint.join).to include('Effort accepted.')
   end
 
   it 'stops after a forbidden planning request and displays one access warning' do
@@ -2812,16 +2824,16 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
     expect(events.none? { |type, *| type == :assistant }).to be(true)
   end
 
-  it 'shows a split UTF-8 Open WebUI preview once without returning actions to the worker' do
+  def check_split_stream_preview(engine, adapter, label)
     require 'rest-client'
-    PWN::Env[:ai] = { active: :openwebui, openwebui: { model: 'fixture', base_uri: 'https://example.invalid', key: 'fixture-key' }, agent: { toolsets: [], plan_first: false } }
+    PWN::Env[:ai] = { active: engine, engine => { model: 'fixture', base_uri: 'https://example.invalid', key: 'fixture-key' }, agent: { toolsets: [], plan_first: false } }
     calls = File.join(@tmp, 'preview-calls')
     answer = 'Café — ready.'
     msg = { role: 'assistant', content: answer, tool_calls: [{ function: { name: 'fixture', arguments: { value: 'private-fixture' } } }] }
     wire = JSON.generate(message: msg, done: true).b
     cut = wire.index('é'.b) + 1
     allow(PWN::AI::Router).to receive(:summarize).and_return('{"title":"Preview","summary":"A text preview."}')
-    allow(PWN::AI::OpenWebUI).to receive(:chat_with_tools).and_wrap_original do |chat, opts|
+    allow(adapter).to receive(:chat_with_tools).and_wrap_original do |chat, opts|
       chat.call(opts.merge(tools: [{ type: 'function', function: { name: 'fixture', parameters: { type: 'object' } } }]))
       File.open(calls, 'a') { |file| file.puts 'returned to caller' }
       raise 'Unexpected normal return'
@@ -2842,9 +2854,17 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
     launch("what color is a lemon?\n".chars) { "\u0004" unless @console.send(:busy?) }
     events = @console.instance_variable_get(:@timeline)
     expect(events.filter_map { |type, text, *| text if type == :assistant }).to contain_exactly(answer)
-    expect(events.filter_map { |type, text, *| text if type == :warning }).to contain_exactly(a_string_matching(/action.*not processed/i))
+    expect(events.filter_map { |type, text, *| text if type == :warning }).to contain_exactly(a_string_matching(/#{Regexp.escape(label)}.*action.*not processed/i))
     expect(events.to_s).not_to include('private-fixture')
     expect(File.readlines(calls, chomp: true)).to eq(['read'])
+  end
+
+  it 'shows a split UTF-8 Open WebUI preview once without returning actions to the worker' do
+    check_split_stream_preview(:openwebui, PWN::AI::OpenWebUI, 'Open WebUI')
+  end
+
+  it 'shows a split UTF-8 Ollama preview once without returning actions to the worker' do
+    check_split_stream_preview(:ollama, PWN::AI::Ollama, 'Ollama')
   end
 
   it 'states that instructions in preview text were not run even without structured actions' do
