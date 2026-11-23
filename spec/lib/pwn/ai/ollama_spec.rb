@@ -338,3 +338,30 @@ describe PWN::AI::Ollama do
     expect(described_class).not_to respond_to(:get_plan_usage)
   end
 end
+
+describe PWN::AI::Ollama, 'binary stream display recovery' do
+  it 'previews complete UTF-8 SSE without returning a provider response or changing the wire bytes' do
+    event = JSON.generate(choices: [{ delta: { role: 'assistant', content: 'Café', reasoning_content: 'not for display' } }])
+    wire = "\uFEFFdata: #{event}\r\n\r\ndata: [DONE]\r\n\r\n".b.freeze
+    previews = []
+    previous = Thread.current[:pwn_stream_preview]
+    Thread.current[:pwn_stream_preview] = ->(*args) { previews << args }
+    expect { described_class.send(:assemble_ollama_stream, body: wire, rest_call: 'v1/chat/completions') }.to raise_error(RuntimeError, /Ollama.*display-only/)
+    expect(previews).to eq([['Ollama', 'Café', false]])
+    expect(wire.encoding).to eq(Encoding::BINARY)
+  ensure
+    Thread.current[:pwn_stream_preview] = previous
+  end
+
+  it 'rejects invalid bytes, incomplete native frames and provider errors before showing any text' do
+    wire = JSON.generate(message: { role: 'assistant', content: 'Café' }, done: false).b
+    parse = ->(body) { described_class.send(:assemble_ollama_stream, body: body, rest_call: 'api/chat') }
+    previous = Thread.current[:pwn_stream_preview]
+    Thread.current[:pwn_stream_preview] = ->(*) { raise 'Unexpected preview' }
+    expect { parse.call(wire + "\xFF".b) }.to raise_error(RuntimeError, /Ollama.*invalid UTF-8/)
+    expect { parse.call(wire) }.to raise_error(RuntimeError, /incomplete native stream/)
+    expect { parse.call("#{wire}\n{\"error\":\"private detail\"}".b) }.to raise_error(RuntimeError, 'ERROR: Ollama stream error for api/chat')
+  ensure
+    Thread.current[:pwn_stream_preview] = previous
+  end
+end

@@ -100,6 +100,38 @@ end
     end
   end
 
+  RSpec.describe provider, 'display-only SSE completeness' do
+    let(:assemble) { key == :ollama ? :assemble_ollama_stream : :assemble_openwebui_stream }
+    let(:previews) { [] }
+    let(:partial) { "data: #{JSON.generate(choices: [{ index: 0, delta: { content: 'Café' } }])}\n\n" }
+
+    around do |example|
+      previous = Thread.current[:pwn_stream_preview]
+      Thread.current[:pwn_stream_preview] = ->(*args) { previews << args }
+      example.run
+    ensure
+      Thread.current[:pwn_stream_preview] = previous
+    end
+
+    it 'does not use another choice to finish the displayed text' do
+      other = "data: #{JSON.generate(choices: [{ index: 1, delta: {}, finish_reason: 'stop' }])}\n\n"
+      expect { described_class.send(assemble, body: (partial + other).b, rest_call: 'v1/chat/completions') }.to raise_error(RuntimeError, /incomplete/i)
+      expect(previews).to be_empty
+    end
+
+    it 'honors an error event even when its data is the normal end marker' do
+      wire = "#{partial}event: error\ndata: [DONE]\n\n".b
+      expect { described_class.send(assemble, body: wire, rest_call: 'v1/chat/completions') }.to raise_error(RuntimeError, /stream error/i)
+      expect(previews).to be_empty
+    end
+
+    it 'accepts the displayed choice finishing without a global end marker' do
+      finish = "data: #{JSON.generate(choices: [{ index: 0, delta: {}, finish_reason: 'stop' }])}\n\n"
+      expect { described_class.send(assemble, body: (partial + finish).b, rest_call: 'v1/chat/completions') }.to raise_error(RuntimeError, /display-only/)
+      expect(previews.map { |_, text, pending| [text, pending] }).to eq([['Café', false]])
+    end
+  end
+
   RSpec.describe provider, 'PR-LOG-01 strict-template history' do
     include_context 'provider review synthetic stream transport', key
 

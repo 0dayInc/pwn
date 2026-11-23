@@ -3,6 +3,33 @@
 require 'tmpdir'
 require 'fileutils'
 
+# Cron installs and polls maintenance state beside cron/, not inside it.
+RSpec.shared_context 'isolated cron store' do
+  around do |example|
+    previous_home, previous_cron = ENV.values_at('HOME', 'PWN_CRON_DIR')
+    Dir.mktmpdir('pwn-cron-spec-') do |home|
+      @root = File.join(home, '.pwn')
+      @tmp = File.join(@root, 'cron')
+      FileUtils.mkdir_p(@tmp)
+      example.run
+    ensure
+      ENV['PWN_CRON_DIR'] = previous_cron
+      ENV['HOME'] = previous_home
+    end
+  end
+
+  before do
+    stub_const('PWN::Cron::CRON_DIR', @tmp)
+    stub_const('PWN::Cron::JOBS_FILE', File.join(@tmp, 'jobs.yml'))
+    stub_const('PWN::Cron::PID_FILE', File.join(@tmp, 'worker.pid'))
+    stub_const('PWN::Cron::WORKER_LOG', File.join(@tmp, 'worker.log'))
+    ENV['HOME'] = File.dirname(@root)
+    ENV['PWN_CRON_DIR'] = @tmp
+  end
+end
+
+RSpec.configure { |config| config.include_context 'isolated cron store', :isolated_cron_store }
+
 # ─────────────────────────────────────────────────────────────────────────────
 #  shared_context 'pwn tmp sandbox'
 #

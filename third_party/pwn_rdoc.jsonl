@@ -1423,7 +1423,6 @@
 {"messages":[{"role":"user","content":"PWN::AI::OpenWebUI.openwebui_rest_call Usage"},{"role":"assistant","content":"`PWN::AI::OpenWebUI.openwebui_rest_call`: Supported Method Parameters\n\nopenwebui_rest_call(\n\nhttp_method: 'optional HTTP method (defaults to GET)',\nrest_call: 'required rest call path relative to base_uri',\nparams: 'optional params passed in the URI or HTTP Headers',\nhttp_body: 'optional HTTP body sent in HTTP methods that support it e.g. POST',\ntimeout: 'optional timeout in seconds (defaults to 900)',\nspinner: 'optional - display spinner (defaults to false)'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::AI::OpenWebUI.parse_stream_payload Usage"},{"role":"assistant","content":"`PWN::AI::OpenWebUI.parse_stream_payload`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::OpenWebUI.parse_tool_arguments_object Usage"},{"role":"assistant","content":"`PWN::AI::OpenWebUI.parse_tool_arguments_object`: "}]}
-{"messages":[{"role":"user","content":"PWN::AI::OpenWebUI.preview_stream! Usage"},{"role":"assistant","content":"`PWN::AI::OpenWebUI.preview_stream!`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::OpenWebUI.real_config_value? Usage"},{"role":"assistant","content":"`PWN::AI::OpenWebUI.real_config_value?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::OpenWebUI.server_tool_ids Usage"},{"role":"assistant","content":"`PWN::AI::OpenWebUI.server_tool_ids`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::OpenWebUI.stream_records Usage"},{"role":"assistant","content":"`PWN::AI::OpenWebUI.stream_records`: "}]}
@@ -1553,6 +1552,9 @@
 {"messages":[{"role":"user","content":"PWN::AI::ServerTools.route Usage"},{"role":"assistant","content":"`PWN::AI::ServerTools.route`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::ServerTools.selected Usage"},{"role":"assistant","content":"`PWN::AI::ServerTools.selected`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::ServerTools.wire Usage"},{"role":"assistant","content":"`PWN::AI::ServerTools.wire`: Supported Method Parameters\n\nobjects = PWN::AI::ServerTools.wire(\n\nengine: 'required - provider name',\nnames: 'required - hosted tool names such as web_search or google_search'\n\n)\n"}]}
+{"messages":[{"role":"user","content":"PWN::AI::StreamPreview.new Usage"},{"role":"assistant","content":"`PWN::AI::StreamPreview.new`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::StreamPreview.display! Usage"},{"role":"assistant","content":"`PWN::AI::StreamPreview.display!`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::StreamPreview.required? Usage"},{"role":"assistant","content":"`PWN::AI::StreamPreview.required?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AWS.authors Usage"},{"role":"assistant","content":"`PWN::AWS.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
 {"messages":[{"role":"user","content":"PWN::AWS.help Usage"},{"role":"assistant","content":"`PWN::AWS.help`: "}]}
 {"messages":[{"role":"user","content":"PWN::AWS::ACM.authors Usage"},{"role":"assistant","content":"`PWN::AWS::ACM.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
