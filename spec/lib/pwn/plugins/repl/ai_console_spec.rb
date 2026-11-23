@@ -2812,6 +2812,54 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
     expect(events.none? { |type, *| type == :assistant }).to be(true)
   end
 
+  it 'shows a split UTF-8 Open WebUI preview once without returning actions to the worker' do
+    require 'rest-client'
+    PWN::Env[:ai] = { active: :openwebui, openwebui: { model: 'fixture', base_uri: 'https://example.invalid', key: 'fixture-key' }, agent: { toolsets: [], plan_first: false } }
+    calls = File.join(@tmp, 'preview-calls')
+    answer = 'Café — ready.'
+    msg = { role: 'assistant', content: answer, tool_calls: [{ function: { name: 'fixture', arguments: { value: 'private-fixture' } } }] }
+    wire = JSON.generate(message: msg, done: true).b
+    cut = wire.index('é'.b) + 1
+    allow(PWN::AI::Router).to receive(:summarize).and_return('{"title":"Preview","summary":"A text preview."}')
+    allow(PWN::AI::OpenWebUI).to receive(:chat_with_tools).and_wrap_original do |chat, opts|
+      chat.call(opts.merge(tools: [{ type: 'function', function: { name: 'fixture', parameters: { type: 'object' } } }]))
+      File.open(calls, 'a') { |file| file.puts 'returned to caller' }
+      raise 'Unexpected normal return'
+    end
+    allow(PWN::Plugins::TransparentBrowser).to receive(:open).and_return(browser: RestClient)
+    allow(RestClient::Request).to receive(:execute) do |args|
+      next '{}' if args.fetch(:url).end_with?('/show')
+
+      File.open(calls, 'a') { |file| file.puts 'read' }
+      response = double('offline stream', code: '200')
+      allow(response).to receive(:read_body).and_yield(wire.byteslice(0, cut)).and_yield(wire.byteslice(cut..))
+      args.fetch(:block_response).call(response)
+    end
+    allow(PWN::AI::Agent::Dispatch).to receive(:call) do
+      File.open(calls, 'a') { |file| file.puts 'unexpected dispatch' }
+      raise 'Action must not be dispatched'
+    end
+    launch("what color is a lemon?\n".chars) { "\u0004" unless @console.send(:busy?) }
+    events = @console.instance_variable_get(:@timeline)
+    expect(events.filter_map { |type, text, *| text if type == :assistant }).to contain_exactly(answer)
+    expect(events.filter_map { |type, text, *| text if type == :warning }).to contain_exactly(a_string_matching(/action.*not processed/i))
+    expect(events.to_s).not_to include('private-fixture')
+    expect(File.readlines(calls, chomp: true)).to eq(['read'])
+  end
+
+  it 'states that instructions in preview text were not run even without structured actions' do
+    console = PWN::Plugins::REPL::AIConsole::Console.new(pry: Pry.new, input: StringIO.new, curses: nil, getch: nil)
+    events = []
+    text = 'Please highlight the word café.'
+    wire = JSON.generate(message: { role: 'assistant', content: text }, done: true).b
+    expect do
+      console.send(:with_stream_preview, events) do
+        PWN::AI::OpenWebUI.send(:assemble_openwebui_stream, body: wire, rest_call: 'ollama/api/chat')
+      end
+    end.to raise_error(PWN::Plugins::REPL::AIConsole::Control::PreviewShown, /No actions from this reply were processed/)
+    expect(events).to eq([[:assistant, text]])
+  end
+
   it 'delivers and saves a split UTF-8 text reply in a session with debugging off' do
     require 'rest-client'
     PWN::Env[:ai] = { active: :ollama, ollama: { model: 'fixture', base_uri: 'https://example.invalid' }, agent: { toolsets: [], plan_first: false } }

@@ -1423,6 +1423,7 @@
 {"messages":[{"role":"user","content":"PWN::AI::OpenWebUI.openwebui_rest_call Usage"},{"role":"assistant","content":"`PWN::AI::OpenWebUI.openwebui_rest_call`: Supported Method Parameters\n\nopenwebui_rest_call(\n\nhttp_method: 'optional HTTP method (defaults to GET)',\nrest_call: 'required rest call path relative to base_uri',\nparams: 'optional params passed in the URI or HTTP Headers',\nhttp_body: 'optional HTTP body sent in HTTP methods that support it e.g. POST',\ntimeout: 'optional timeout in seconds (defaults to 900)',\nspinner: 'optional - display spinner (defaults to false)'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::AI::OpenWebUI.parse_stream_payload Usage"},{"role":"assistant","content":"`PWN::AI::OpenWebUI.parse_stream_payload`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::OpenWebUI.parse_tool_arguments_object Usage"},{"role":"assistant","content":"`PWN::AI::OpenWebUI.parse_tool_arguments_object`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::OpenWebUI.preview_stream! Usage"},{"role":"assistant","content":"`PWN::AI::OpenWebUI.preview_stream!`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::OpenWebUI.real_config_value? Usage"},{"role":"assistant","content":"`PWN::AI::OpenWebUI.real_config_value?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::OpenWebUI.server_tool_ids Usage"},{"role":"assistant","content":"`PWN::AI::OpenWebUI.server_tool_ids`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::OpenWebUI.stream_records Usage"},{"role":"assistant","content":"`PWN::AI::OpenWebUI.stream_records`: "}]}
@@ -3712,6 +3713,7 @@
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Console.toggle_verbose Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Console.toggle_verbose`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Console.tone Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Console.tone`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Console.width Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Console.width`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Console.with_stream_preview Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Console.with_stream_preview`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Console.wrap Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Console.wrap`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Console.wrap_command Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Console.wrap_command`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Control.checkpoint Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Control.checkpoint`: "}]}

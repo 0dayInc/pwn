@@ -344,3 +344,38 @@ describe PWN::AI::OpenWebUI do
     expect(described_class).not_to respond_to(:get_plan_usage)
   end
 end
+
+describe PWN::AI::OpenWebUI, 'binary stream display recovery' do
+  let(:previews) { [] }
+
+  around do |example|
+    previous = Thread.current[:pwn_openwebui_preview]
+    Thread.current[:pwn_openwebui_preview] = ->(text, pending) { previews << [text, pending] }
+    example.run
+  ensure
+    Thread.current[:pwn_openwebui_preview] = previous
+  end
+
+  it 'recovers only visible assistant text, without returning a provider response' do
+    event = JSON.generate(message: { role: 'assistant', thinking: 'private', content: 'Café' }, done: true)
+    wire = "\uFEFF#{event}".b.freeze
+    expect { described_class.send(:assemble_openwebui_stream, body: wire, rest_call: 'ollama/api/chat') }.to raise_error(RuntimeError, /display.only/i)
+    expect(previews).to eq([['Café', false]])
+    expect(wire.encoding).to eq(Encoding::BINARY)
+  end
+
+  it 'reports an SSE action without displaying its arguments or returning it to the caller' do
+    delta = { role: 'assistant', content: 'Résumé', function_call: { name: 'fixture', arguments: 'private' } }
+    event = JSON.generate(choices: [{ delta: delta, finish_reason: 'function_call' }])
+    wire = "data: #{event}\r\n\r\ndata: [DONE]\r\n\r\n".b
+    expect { described_class.send(:assemble_openwebui_stream, body: wire, rest_call: 'api/v1/chat/completions') }.to raise_error(RuntimeError, /display.only/i)
+    expect(previews).to eq([['Résumé', true]])
+  end
+
+  it 'does not preview invalid bytes or an incomplete reply' do
+    wire = JSON.generate(message: { content: 'Café' }, done: false).b
+    expect { described_class.send(:assemble_openwebui_stream, body: wire + "\xFF".b, rest_call: 'ollama/api/chat') }.to raise_error(RuntimeError, /invalid UTF-8/)
+    expect { described_class.send(:assemble_openwebui_stream, body: wire, rest_call: 'ollama/api/chat') }.to raise_error(RuntimeError, /incomplete/)
+    expect(previews).to be_empty
+  end
+end

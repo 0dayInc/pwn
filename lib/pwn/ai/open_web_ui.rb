@@ -285,6 +285,13 @@ module PWN
         body = opts[:body].to_s
         rest_call = opts[:rest_call].to_s
 
+        # Net::HTTP can deliver valid UTF-8 tagged as binary, even across character boundaries.
+        # Decode the complete buffer for a display-only preview, never for action assembly.
+        preview = body.encoding == Encoding::BINARY && !body.ascii_only?
+        if preview
+          body = body.dup.force_encoding(Encoding::UTF_8)
+          raise 'ERROR: Open WebUI response contains invalid UTF-8' unless body.valid_encoding?
+        end
         records = stream_records(body: body, rest_call: rest_call)
         done = false
         payloads = records.filter_map do |record|
@@ -300,6 +307,8 @@ module PWN
           payload = parse_stream_payload(data: data, rest_call: rest_call)
           error = payload[:error] || (payload if record[:event] == 'error')
           if error
+            raise "ERROR: Open WebUI stream error for #{rest_call}" if preview
+
             detail = error.is_a?(Hash) ? (error[:message] || error) : error
             raise "ERROR: Open WebUI stream error for #{rest_call}: #{detail}"
           end
@@ -312,13 +321,37 @@ module PWN
           finished = payloads.any? { |p| Array(p[:choices]).any? { |ch| ch[:finish_reason] } }
           raise "ERROR: Open WebUI incomplete stream for #{rest_call}: missing terminal event" unless done || finished
 
+          return preview_stream!(payloads: payloads, sse: true) if preview
+
           assemble_openai_compat_stream(payloads: payloads)
         else
           raise "ERROR: Open WebUI malformed native stream for #{rest_call}: expected message object" unless payloads.any? { |p| p[:message].is_a?(Hash) } && payloads.all? { |p| !p.key?(:message) || p[:message].is_a?(Hash) }
           raise "ERROR: Open WebUI incomplete native stream for #{rest_call}: missing terminal done frame" unless payloads.last[:done] == true && payloads[0...-1].all? { |p| p[:done] == false }
 
+          return preview_stream!(payloads: payloads, sse: false) if preview
+
           assemble_native_chat_stream(payloads: payloads)
         end
+      end
+
+      # Never return a recovered record to the caller. Do not collect arguments or thinking.
+      private_class_method def self.preview_stream!(opts = {})
+        text = +''
+        role = 'assistant'
+        pending = false
+        opts[:payloads].each do |payload|
+          choices = opts[:sse] ? Array(payload[:choices]) : [{ message: payload[:message], finish_reason: payload[:done_reason] }]
+          choices.each_with_index do |choice, index|
+            msg = choice[:delta] || choice[:message] || {}
+            pending ||= %w[tool_calls function_call].include?(choice[:finish_reason]) || !Array(msg[:tool_calls]).empty? || !msg[:function_call].nil?
+            next unless 0.eql?(choice.fetch(:index, index))
+
+            role = msg[:role] || role
+            text << msg[:content] if role == 'assistant' && msg[:content].is_a?(String)
+          end
+        end
+        Thread.current[:pwn_openwebui_preview]&.call(text, pending)
+        raise 'Open WebUI reply is display-only; no actions from this reply were submitted.'
       end
 
       # SSE dispatches at blank lines, joining every data field with a newline.
