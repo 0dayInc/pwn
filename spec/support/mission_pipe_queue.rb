@@ -4,9 +4,20 @@ require 'json'
 
 # Real IPC barriers for examples whose producer lives in a mission child.
 class PWNTestPipeQueue
+  # Process-local, not thread-local: a worker can construct a queue too.
+  CREATED = Queue.new
+  private_constant :CREATED
+
+  def self.close_created
+    while (queue = CREATED.pop(timeout: 0))
+      queue.close
+    end
+  end
+
   def initialize
     @reader, @writer = IO.pipe
     @mutex = Mutex.new
+    CREATED << self
   end
 
   def <<(value)
@@ -29,5 +40,5 @@ class PWNTestPipeQueue
 end
 
 RSpec.configure do |config|
-  config.after { ObjectSpace.each_object(PWNTestPipeQueue, &:close) }
+  config.after { PWNTestPipeQueue.close_created }
 end

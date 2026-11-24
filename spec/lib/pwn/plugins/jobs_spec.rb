@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'spec_helper'
+require 'shellwords'
 
 describe PWN::Plugins::Jobs do
   before do
@@ -65,7 +66,9 @@ describe PWN::Plugins::Jobs do
   end
 
   it 'pages binary logs with byte offsets and distinguishes EOF from completion' do
-    row = described_class.start(command: "printf 'abc\\377def'; sleep 1", max_runtime: 5)
+    release = File.join(@root, 'release')
+    writer = 'STDOUT.binmode; STDOUT.write("abc\\xffdef".b); STDOUT.flush; sleep 0.01 until File.exist?(ARGV.fetch(0))'
+    row = described_class.start(command: Shellwords.join([RbConfig.ruby, '--disable=gems,rubyopt', '-e', writer, release]), max_runtime: 5)
     first = Timeout.timeout(8) do
       loop do
         page = described_class.job_tail(handle: row[:id], offset: 0, length: 4)
@@ -80,9 +83,15 @@ describe PWN::Plugins::Jobs do
     expect(Base64.strict_decode64(first[:data])).to eq("abc\xFF".b)
     last = described_class.tail(id: row[:id], offset: 4, length: 100)
     expect(last).to include(body: 'def', data: 'def', bytes: 3, next_offset: 7, eof: true, status: 'RUNNING')
+    File.write(release, '')
     finished(row[:id])
     expect(described_class.tail(id: row[:id], offset: 7)).to include(bytes: 0, eof: true, status: 'COMPLETED')
     expect(described_class.tail(id: row[:id])).to be_a(String)
+  ensure
+    if row && !File.exist?(release)
+      File.write(release, '')
+      finished(row[:id])
+    end
   end
 
   it 'filters and limits durable jobs across sessions' do

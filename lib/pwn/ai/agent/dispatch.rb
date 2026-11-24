@@ -72,7 +72,8 @@ module PWN
           violation = JSONSchemer.schema(JSON.parse(JSON.generate(type_schema))).validate(JSON.parse(JSON.generate(args))).first
           return schema_denial(violation.transform_keys(&:to_sym)) if violation
 
-          if defined?(PWN::Plugins::Vault)
+          reviewed_memory = entry.name == 'memory_remember'
+          if !reviewed_memory && defined?(PWN::Plugins::Vault)
             begin
               args = expand_vault_args(args: args)
             rescue StandardError
@@ -127,6 +128,13 @@ module PWN
 
           budget = prepare_budget(opts.merge(entry: entry, args: args))
           return JSON.generate(budget[:denial]) if budget && budget[:denial]
+
+          # Controller receipts contain no entry contents or external tool output.
+          # Reporting a reviewed save must not require opening an operator vault.
+          if reviewed_memory
+            receipt = review_memory_save(runtime: owner, args: args, action_id: tool_call[:id] || tool_call['id'])
+            return JSON.generate(success: receipt[:saved] == true, effect: 'store', result: receipt)
+          end
 
           started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
           begin
@@ -211,6 +219,51 @@ module PWN
           best
         rescue StandardError
           nil
+        end
+
+        # This one fixed operation uses the controller's writer. Neither a
+        # registry handler nor caller-selected paths execute on the controller.
+        private_class_method def self.review_memory_save(opts = {})
+          runtime = opts[:runtime]
+          no_write = { success: false, saved: false, execution_state: 'not_started' }
+          return { success: false, error: 'uncertain_side_effect', hint: 'An earlier memory save is unresolved; no new save was attempted.' } if runtime && runtime.blocking_effects.any? { |row| row[:tool] == 'memory_remember' }
+
+          review = Thread.current[:pwn_review_memory]
+          return no_write.merge(error: 'Memory was not saved. Use /memory remember KEY VALUE or review the proposed save in the interactive console.') unless runtime && review && !Thread.current[:pwn_repository_worker]
+
+          args = opts.fetch(:args)
+          fields = { category: 'fact' }.merge(args)
+          key, value, category = fields.values_at(:key, :value, :category)
+          valid = (fields.keys - %i[key value category]).empty? && %w[fact preference lesson env].include?(category) &&
+                  key.is_a?(String) && key.bytesize <= 128 && !key.strip.empty? &&
+                  value.is_a?(String) && value.bytesize <= PWN::Memory::VALUE_MAX_CHARS && !value.strip.empty?
+          return no_write.merge(error: 'Invalid memory fields. Supply only a short key, a text value and an optional category.') unless valid
+          return no_write.merge(error: 'Cannot save a credential or vault reference to prompt memory.') if fields.values.any? { |text| text.include?('{{vault:') } || PWN::Redaction.redact(value: { key => value }) != { key => value }
+
+          fields = fields.transform_values { |text| text.dup.freeze }.freeze
+          return no_write.merge(error: 'Memory save not approved; nothing was saved.') unless review.call(fields).equal?(true)
+
+          runtime.execute_tool(name: 'memory_remember', args: args, action_id: opts[:action_id], effect: :store, reviewed_memory: true) { save_reviewed_memory(fields) }
+        rescue StandardError => e
+          { success: false, error: "Memory save did not return a verified receipt (#{e.class})." }
+        end
+
+        private_class_method def self.save_reviewed_memory(opts = {})
+          admitted = false
+          PWN::Memory.transaction do
+            admitted = true
+            PWN::Memory.remember(**opts)
+            stored = PWN::Memory.load
+            row = stored.fetch(opts.fetch(:key).to_sym)
+            raise IOError, 'memory save could not be verified' unless row[:value] == opts[:value] && row[:category].to_s == opts[:category]
+
+            { saved: true }
+          end
+        rescue SystemCallError => e
+          # Once inside the transaction even EACCES could be after rename.
+          raise if admitted
+
+          raise RequestRuntime::MemoryWriteNotStarted, "Memory writer unavailable (#{e.class}); nothing was saved."
         end
 
         private_class_method def self.schema_denial(opts = {})

@@ -424,10 +424,11 @@ describe PWN::AI::Agent::Policy do
         described_class.begin_episode(request: 'inspect')
         steps = %w[noop producer noop].each_with_index.map do |action, index|
           before = File.file?(artifact) ? Digest::SHA256.file(artifact).hexdigest : nil
+          # These are real, independent Ruby actions, but neither needs to boot the project's bundle.
           if action == 'producer'
-            expect(system(RbConfig.ruby, '-e', 'File.write(ARGV.fetch(0), "verified artifact")', artifact)).to be(true)
+            expect(system(RbConfig.ruby, '--disable=gems,rubyopt', '-e', 'File.write(ARGV.fetch(0), "verified artifact")', artifact)).to be(true)
           else
-            expect(system(RbConfig.ruby, '-e', 'exit 0')).to be(true)
+            expect(system(RbConfig.ruby, '--disable=gems,rubyopt', '-e', 'exit 0')).to be(true)
           end
           after = File.file?(artifact) ? Digest::SHA256.file(artifact).hexdigest : nil
           step = described_class.observe_step(action: action, action_id: "private-call-#{index}", ok: true)

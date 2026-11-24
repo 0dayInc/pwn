@@ -16,6 +16,8 @@ module PWN
     module Agent
       # Connect request-scoped routing, evidence context and replay records.
       class RequestRuntime # rubocop:disable Metrics/ClassLength -- one owner for routing, scope and durable evidence
+        class MemoryWriteNotStarted < StandardError; end
+
         OUTCOMES = %w[complete incomplete blocked cancelled verification_error].freeze
         attr_reader :original_request, :request, :session_id, :request_id, :contract, :amendments, :outcome, :checkpoint_path, :engine, :last_provider_attempts
 
@@ -413,6 +415,11 @@ module PWN
                       'failed'
                     end
             result
+          rescue MemoryWriteNotStarted => e
+            raise unless opts[:reviewed_memory] && opts[:name] == 'memory_remember'
+
+            state = 'failed'
+            { success: false, error: e.message, saved: false, execution_state: 'not_started' }
           rescue PWN::Plugins::AISandbox::NotStarted => e
             state = 'rejected'
             action[:diagnostic] = e.message

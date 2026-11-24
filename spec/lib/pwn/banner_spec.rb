@@ -543,8 +543,13 @@ describe PWN::Banner do
 
   it 'keeps every active tetromino color beside the stack throughout its fall and lock' do
     rotations = Hash.new { |hash, key| hash[key] = [] }
-    [5, 8, 16, 20].product([1, 73, 74], [true, false]).each do |size, seed, branding|
+    # Finish on default seeded, branded boards; the following examples can read them through the real cache.
+    [1, 74, 73].product([false, true], [5, 8, 16, 20]).each do |seed, branding, size|
       args = { name: :falling_blocks, width: size, height: size, seed: seed, branding: branding }
+      decoded = {}
+      stack_colors = Hash.new do |cache, row|
+        cache[row] = row.chars.map { |pixel| pixel == ' ' ? :black : described_class::MINI_PIXELS.fetch(pixel)[1] }.freeze
+      end
       frames = described_class.send(:mini_replay, **args, height: size + (branding ? 0 : 1))
       frames.each_with_index do |frame, index|
         next unless frame[:state][:active]
@@ -553,9 +558,10 @@ describe PWN::Banner do
         type = frame[:state][:type]
         cells = described_class.mini_cells(**args, frame: index)
         color = %i[cyan yellow magenta blue red green green][type]
-        expected = frame[:state][:stack].map { |row| row.chars.map { |pixel| pixel == ' ' ? :black : described_class::MINI_PIXELS.fetch(pixel)[1] } }
+        expected = frame[:state][:stack].map { |row| stack_colors[row].dup }
         points.each { |x, y| expected[y][x] = color }
-        expect(block_colors(frame[:rows].drop(1))).to eq(expected)
+        actual_rows = frame[:rows].drop(1).flat_map { |row| decoded[row] ||= block_colors([row]) }
+        expect(actual_rows).to eq(expected)
         points.each do |x, y|
           expect(x).to be_between(0, size - 1)
           expect(y).to be_between(0, ((size - (branding ? 1 : 0)) * 2) - 1)
@@ -617,20 +623,27 @@ describe PWN::Banner do
   it 'packs blocks into two quadrants and snake segments into one without losing ink' do
     %i[falling_blocks snake].product((5..16).to_a).each do |name, size|
       frames = described_class.send(:mini_replay, name: name, width: size, height: size, seed: 73)
-      frames.each do |frame|
-        pixels = frame[:rows].drop(1).join.chars.reject { |pixel| pixel == ' ' }
-        expect(pixels).to all(satisfy { |pixel| pixel.ord >= 256 })
-        area = pixels.sum { |pixel| ((pixel.ord - 256) % 16).digits(2).sum }
+      # A packed row's ink depends only on its contents, not its place in the replay.
+      row_ink = {}
+      widths = [size] * size
+      label = 'PWN'.center(size)
+      frames.each_with_index do |frame, index|
+        area = frame[:rows].drop(1).sum do |row|
+          row_ink[row] ||= begin
+            pixels = row.delete(' ').codepoints
+            expect(pixels.find { |code| code < 256 }).to be_nil, -> { "Unpacked pixel in #{name} size #{size} frame #{index}: #{row.inspect}" }
+            pixels.sum { |code| ((code - 256) % 16).digits(2).sum }
+          end
+        end
         state = frame[:state]
         expected = if state[:body]
                      state[:body].length + (state[:food] ? 1 : 0)
                    elsif state[:active]
                      (state[:stack].sum { |row| row.count('^ ') } + 4) * 2
                    end
-        expect(area).to eq(expected) if expected
-        expect(frame[:rows].length).to eq(size)
-        expect(frame[:rows].map(&:length)).to all(eq(size))
-        expect(frame[:rows].first).to eq('PWN'.center(size))
+        expect(area).to eq(expected), -> { "#{name} size #{size} frame #{index}: expected #{expected} ink, got #{area}" } if expected
+        expect(frame[:rows].map(&:length)).to eq(widths)
+        expect(frame[:rows].first).to eq(label)
       end
     end
   end
@@ -739,7 +752,8 @@ describe PWN::Banner do
   end
 
   it 'spawns rocks clear of the ship instead of starting with overlapping sprites' do
-    [5, 8, 16].product([1, 73, 74]).each do |size, seed|
+    # Walk back through the same cases so the real bounded cache can serve recent replays.
+    [5, 8, 16].product([1, 73, 74]).reverse_each do |size, seed|
       frames = described_class.send(:mini_replay, name: :asteroids, width: size, height: size, seed: seed)
       state = frames.find { |frame| frame[:state][:ship] }[:state]
       state[:rocks].each do |rock|
@@ -834,23 +848,28 @@ describe PWN::Banner do
     end
 
     it 'keeps every frame bounded, single-column, named-color, deterministic and side-effect free' do
+      colors = %i[black red green yellow blue magenta cyan white]
+      glyphs = /\A[ PWN█▀▄▌▐░▒·●▘▝▖▗▞▛▚▜▙▟ᗧᗤᗢᗣ│•✹═≈▰▱\u2800-\u28ff]\z/
+      # Exercise cache initialization and replay construction under the guards, even when run last.
+      described_class.instance_variable_set(:@mini_replays, nil)
       expect(Random).not_to receive(:rand)
       expect(Time).not_to receive(:now)
       expect(Process).not_to receive(:clock_gettime)
       expect(Thread).not_to receive(:new)
       expect(described_class).not_to receive(:sleep)
       expect do
-        described_class.mini_names.each do |name|
+        described_class.mini_names.reverse_each do |name|
           (5..16).each do |size|
             args = { name: name, width: size, height: size }
             frames = Array.new(60) { |frame| described_class.mini_cells(**args, frame: frame) }
             expect(frames.uniq.length).to be >= 4
             expect(frames.map(&:length)).to all(eq(size))
             expect(frames.flatten(1).map(&:length)).to all(eq(size))
-            frames.flatten(2).each do |cell|
-              expect(cell.keys).to contain_exactly(:glyph, :foreground, :background)
-              expect(cell[:glyph]).to match(/\A[ PWN█▀▄▌▐░▒·●▘▝▖▗▞▛▚▜▙▟ᗧᗤᗢᗣ│•✹═≈▰▱\u2800-\u28ff]\z/)
-              expect(%i[black red green yellow blue magenta cyan white]).to include(cell[:foreground], cell[:background])
+            frames.each_with_index do |board, frame|
+              board.each_with_index do |row, y|
+                x = row.index { |cell| !valid_mini_cell?(cell, glyphs, colors) }
+                raise "Invalid #{name} cell (size #{size}, frame #{frame}, x #{x}, y #{y}): #{row[x].inspect}" if x
+              end
             end
             expect(described_class.mini_cells(**args, frame: described_class::MINI_FRAME_COUNT)).to eq(frames.first)
             expect(described_class.mini_cells(**args, frame: -1)).to eq(described_class.mini_cells(**args, frame: described_class::MINI_FRAME_COUNT - 1))
@@ -866,22 +885,29 @@ describe PWN::Banner do
       expect { described_class.mini_cells(name: :unknown) }.to raise_error(ArgumentError, /Unknown mini-banner/)
     end
 
+    def valid_mini_cell?(cell, glyphs, colors)
+      cell.is_a?(Hash) && cell.size == 3 && cell.key?(:glyph) && cell.key?(:foreground) && cell.key?(:background) &&
+        cell[:glyph].is_a?(String) && glyphs.match?(cell[:glyph]) && colors.include?(cell[:foreground]) && colors.include?(cell[:background])
+    end
+
     def replay(name, size, seed = 73)
       described_class.send(:mini_replay, name: name, width: size, height: size, seed: seed)
     end
 
-    def logical_ink(frame, full: false)
+    def logical_ink(frame, row_cache, full: false)
       width = frame[:rows].first.length
       height = frame[:rows].length - 1
       height *= 2 if full
+      halves = row_cache[[width, full]] ||= [{}, {}]
       Array.new(height) do |y|
-        Array.new(width) do |x|
+        py = y + (full ? 0 : height / 2)
+        row = frame[:rows][1 + (py / 2)]
+        halves[py % 2][row] ||= Array.new(width) do |x|
           px = full ? x * 2 : x + (width / 2)
-          py = y + (full ? 0 : height / 2)
-          pixel = frame[:rows][1 + (py / 2)][px / 2]
+          pixel = row[px / 2]
           mask = pixel == ' ' ? 0 : (pixel.ord - 256) % 16
           mask[(py % 2 * 2) + (px % 2)] == 1 ? '*' : ' '
-        end.join
+        end.join.freeze
       end
     end
 
@@ -900,22 +926,23 @@ describe PWN::Banner do
     end
 
     it 'stacks all seven four-cell tetrominoes with legal gravity, rotations and line collapse' do
-      (5..16).each do |size|
+      # Start with the larger, more expensive boards which may still be in the production cache.
+      (5..16).reverse_each do |size|
         frames = replay(:falling_blocks, size)
+        row_cache = {}
         active = frames.select { |frame| frame[:state][:active] }
         expect(active.map { |frame| frame[:state][:type] }.uniq.length).to eq(7)
         expect(frames.map { |frame| frame[:event] }).to include(:lock, :clear, :collapse)
         active.each do |frame|
           points, stack = frame[:state].values_at(:active, :stack)
           expect(points.uniq.length).to eq(4)
-          points.each do |x, y|
-            expect(x).to be_between(0, size - 1)
-            expect(y).to be_between(0, ((size - 1) * 2) - 1)
-            expect(stack[y][x]).to eq(' ')
+          blocked = points.find do |x, y|
+            !x.between?(0, size - 1) || !y.between?(0, ((size - 1) * 2) - 1) || stack[y][x] != ' '
           end
+          expect(blocked).to be_nil, -> { "Active piece outside the board or overlapping the stack: #{blocked.inspect} at size #{size}" }
           expected = stack.map { |row| row.gsub(/[^ ]/, '*') }
           points.each { |x, y| expected[y][x] = '*' }
-          expect(logical_ink(frame, full: true)).to eq(expected)
+          expect(logical_ink(frame, row_cache, full: true)).to eq(expected)
         end
         frames.each_cons(2) do |before, after|
           a = before[:state][:active]
@@ -930,9 +957,10 @@ describe PWN::Banner do
             expect(after[:rows]).to eq(before[:rows])
           elsif before[:event] == :clear && after[:event] == :collapse
             lines = before[:state][:lines]
-            expect(lines.map { |y| logical_ink(before, full: true)[y] }).to all(eq('*' * size))
-            survivors = logical_ink(before, full: true).each_with_index.filter_map { |row, y| row unless lines.include?(y) }
-            expect(logical_ink(after, full: true)).to eq(Array.new(lines.length, ' ' * size) + survivors)
+            ink = logical_ink(before, row_cache, full: true)
+            expect(lines.map { |y| ink[y] }).to all(eq('*' * size))
+            survivors = ink.each_with_index.filter_map { |row, y| row unless lines.include?(y) }
+            expect(logical_ink(after, row_cache, full: true)).to eq(Array.new(lines.length, ' ' * size) + survivors)
           end
         end
       end
@@ -941,16 +969,16 @@ describe PWN::Banner do
     it 'moves a contiguous non-overlapping snake toward real food and grows only on pickup' do
       (5..16).each do |size|
         frames = replay(:snake, size)
+        row_cache = {}
         states = frames.filter_map { |frame| frame[:state] if frame[:state][:body] }
         expect(states.map { |state| state[:body].length }.max).to be > 6
         states.each do |state|
           body, food = state.values_at(:body, :food)
           expect(body.uniq.length).to eq(body.length)
-          body.each do |x, y|
-            expect(x).to be_between(0, size - 1)
-            expect(y).to be_between(0, size - 2)
-          end
-          body.each_cons(2) { |a, b| expect(a.zip(b).sum { |x, y| (x - y).abs }).to eq(1) }
+          outside = body.find { |x, y| !x.between?(0, size - 1) || !y.between?(0, size - 2) }
+          expect(outside).to be_nil, -> { "Snake outside #{size}x#{size - 1} board: #{outside.inspect}" }
+          gap = body.each_cons(2).find { |a, b| a.zip(b).sum { |x, y| (x - y).abs } != 1 }
+          expect(gap).to be_nil, -> { "Disconnected snake segments at size #{size}: #{gap.inspect}" }
           expect(body).not_to include(food) if food
         end
         frames.each do |frame|
@@ -959,7 +987,7 @@ describe PWN::Banner do
 
           expected = Array.new(size - 1) { ' ' * size }
           (body + [food].compact).each { |x, y| expected[y][x] = '*' }
-          expect(logical_ink(frame)).to eq(expected)
+          expect(logical_ink(frame, row_cache)).to eq(expected)
         end
         frames.each_cons(2) do |before, after|
           a = before[:state]
@@ -1059,11 +1087,12 @@ describe PWN::Banner do
       described_class.mini_names.each do |name|
         (5..16).each do |size|
           args = { name: name, width: size, height: size }
-          frames = Array.new(described_class::MINI_FRAME_COUNT) { |frame| described_class.mini_frame(**args, frame: frame) }
+          frames = Array.new(described_class::MINI_ASCII_FRAME_COUNT) { |frame| described_class.mini_frame(**args, frame: frame) }
           expect(frames.uniq.length).to be >= 4
           expect(frames.flatten).to all(match(/\A[ -~]{#{size}}\z/))
           expect(frames.map(&:length)).to all(eq(size))
           expect(frames.map(&:first)).to all(include('PWN'))
+          expect(described_class.mini_frame(**args, frame: 60)).to eq(frames.first)
           expect(described_class.mini_frame(**args, frame: described_class::MINI_FRAME_COUNT)).to eq(frames.first)
           expect(described_class.mini_frame(**args, name: name.to_s, frame: -1)).to eq(frames.last)
           expect(described_class.mini_frame(**args, frame: 3)).to eq(frames[3])

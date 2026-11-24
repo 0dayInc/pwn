@@ -62,7 +62,8 @@ module HarnessCLIFaults
         prompt = 'Create result.txt after the operation completes and read it back.'
         write = tool("printf 'uncertain-write\\n' >> effects.log; sleep 3; printf done > result.txt", 'uncertain', 1)
         fixture[:responses] = [write, { fault: name == 'checkpoint-restart' ? 'crash' : 'resource_cap' }]
-        fixture.merge!(wall_seconds: 4, await_cap_ready: true) if name == 'resource-cap-restart'
+        # The provider has already signaled readiness and is blocked; keep the separate startup deadline intact.
+        fixture.merge!(wall_seconds: 0.5, await_cap_ready: true) if name == 'resource-cap-restart'
       end
       result = invoke(root, fixture, prompt, options)
       first = result.dup

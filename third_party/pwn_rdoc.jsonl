@@ -99,6 +99,8 @@
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Dispatch.parse_string_args Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Dispatch.parse_string_args`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Dispatch.prepare_budget Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Dispatch.prepare_budget`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Dispatch.repair_name Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Dispatch.repair_name`: Supported Method Parameters\n\nfixed = PWN::AI::Agent::Dispatch.repair_name(\n\nname: 'required - possibly-wrong tool name emitted by the model'\n\n)\n\nReturns the closest registered tool name by Levenshtein distance (max distance = 1/3 of the emitted name, min 3) or nil when nothing is close enough. Every successful repair is fingerprinted into Mistakes so the negative-feedback loop trains the model’s output format via its own system prompt.\n"}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Dispatch.review_memory_save Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Dispatch.review_memory_save`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Dispatch.save_reviewed_memory Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Dispatch.save_reviewed_memory`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Dispatch.scheduling Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Dispatch.scheduling`: Supported Method Parameters\n\nmetadata = PWN::AI::Agent::Dispatch.scheduling(\n\ntool_call: 'required - tool call whose audited read resources are resolved'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Dispatch.schema_denial Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Dispatch.schema_denial`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Dispatch.symbolize Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Dispatch.symbolize`: "}]}
@@ -605,9 +607,11 @@
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Mission.write_row Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Mission.write_row`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::MissionNamespace.authors Usage"},{"role":"assistant","content":"`PWN::AI::Agent::MissionNamespace.authors`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::MissionNamespace.checked Usage"},{"role":"assistant","content":"`PWN::AI::Agent::MissionNamespace.checked`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::MissionNamespace.control_socket_pair Usage"},{"role":"assistant","content":"`PWN::AI::Agent::MissionNamespace.control_socket_pair`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::MissionNamespace.decode Usage"},{"role":"assistant","content":"`PWN::AI::Agent::MissionNamespace.decode`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::MissionNamespace.encode Usage"},{"role":"assistant","content":"`PWN::AI::Agent::MissionNamespace.encode`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::MissionNamespace.execute Usage"},{"role":"assistant","content":"`PWN::AI::Agent::MissionNamespace.execute`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::MissionNamespace.fork_mission Usage"},{"role":"assistant","content":"`PWN::AI::Agent::MissionNamespace.fork_mission`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::MissionNamespace.help Usage"},{"role":"assistant","content":"`PWN::AI::Agent::MissionNamespace.help`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::MissionNamespace.io Usage"},{"role":"assistant","content":"`PWN::AI::Agent::MissionNamespace.io`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::MissionNamespace.native Usage"},{"role":"assistant","content":"`PWN::AI::Agent::MissionNamespace.native`: "}]}
@@ -3617,6 +3621,7 @@
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Console.clear_view Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Console.clear_view`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Console.complete Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Console.complete`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Console.completion_layout Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Console.completion_layout`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Console.decide_memory Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Console.decide_memory`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Console.disable_shift_enter Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Console.disable_shift_enter`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Console.drain Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Console.drain`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Console.draw Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Console.draw`: "}]}
@@ -3680,6 +3685,7 @@
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Console.page_completion Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Console.page_completion`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Console.playable_banner Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Console.playable_banner`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Console.prepare_swarm_mission Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Console.prepare_swarm_mission`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Console.present_memory_review Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Console.present_memory_review`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Console.put Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Console.put`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Console.put_spans Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Console.put_spans`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Console.queue_title_update Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Console.queue_title_update`: "}]}
@@ -3746,7 +3752,13 @@
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Keyboard.call Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Keyboard.call`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Keyboard.cursor_key Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Keyboard.cursor_key`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Keyboard.decode_character Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Keyboard.decode_character`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::MemoryReview.new Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::MemoryReview.new`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::MemoryReview.call Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::MemoryReview.call`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::MemoryReview.close Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::MemoryReview.close`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::MemoryReview.decide Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::MemoryReview.decide`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::MissionControl.new Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::MissionControl.new`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::MissionControl.close Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::MissionControl.close`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::MissionControl.memory_decision Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::MissionControl.memory_decision`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::MissionControl.phase Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::MissionControl.phase`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::MissionControl.stop Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::MissionControl.stop`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::MissionControl.submit Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::MissionControl.submit`: "}]}

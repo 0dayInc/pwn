@@ -3181,7 +3181,7 @@ module PWN
 
         private_class_method def self.engine_failure_text(opts = {})
           attempts = opts[:runtime]&.last_provider_attempts || opts[:attempts]
-          "[pwn-ai] engine hop failed after #{attempts} tries: #{opts[:error].message.to_s[0, 240]}"
+          "[pwn-ai] engine hop failed after #{attempts} tries: #{opts[:error].message}"
         end
 
         private_class_method def self.engine_retry_exhausted?(opts = {})
@@ -3305,7 +3305,7 @@ module PWN
           final_chars = 0
           start_debug_session(opts)
           loud_debug_tui!(debug: opts[:debug])
-          debug_progress(msg: "Loop.run start request=#{request[0, 240]}", debug: opts[:debug])
+          debug_progress(msg: "Loop.run start request=#{request}", debug: opts[:debug])
           ToolGuard.reset_timeout_budget! if defined?(ToolGuard) && ToolGuard.respond_to?(:reset_timeout_budget!)
           nested = opts[:nested] == true || Thread.current[:pwn_swarm_depth].to_i.positive? || (defined?(TurnFinalizer) && TurnFinalizer.user_path?)
           TurnFinalizer.enter_user_path! if defined?(TurnFinalizer)
@@ -3560,7 +3560,7 @@ module PWN
             rescue StandardError => e
               if engine_transient?(error: e)
                 engine_blips += 1
-                debug_progress(msg: "engine hop failed #{e.class}: #{e.message.to_s[0, 240]} blip=#{engine_blips}")
+                debug_progress(msg: "engine hop failed #{e.class}: #{e.message} blip=#{engine_blips}")
                 if engine_retry_exhausted?(runtime: runtime, attempts: engine_blips)
                   txt = engine_failure_text(runtime: runtime, attempts: engine_blips, error: e)
                   debug_final_text!(text: txt)

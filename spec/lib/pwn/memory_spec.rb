@@ -5,6 +5,52 @@ require 'tmpdir'
 require 'fileutils'
 
 RSpec.describe PWN::Memory do
+  describe 'atomic publication' do
+    include_context 'pwn tmp sandbox'
+
+    let(:path) { described_class::MEMORY_FILE }
+
+    it 'commits the reviewed entry without consuming an existing temporary file' do
+      old_tmp = File.join(@tmp, ".memory.json.#{Process.pid}.tmp")
+      File.write(old_tmp, 'unrelated contents')
+      File.write(path, '{"before":{"value":"original"}}')
+
+      described_class.remember(key: :reviewed, value: 'approved')
+
+      expect(described_class.load.transform_values { |entry| entry[:value] }).to eq(before: 'original', reviewed: 'approved')
+      expect(File).to exist(old_tmp)
+      expect(File.read(old_tmp)).to eq('unrelated contents')
+      expect(Dir.children(@tmp)).to contain_exactly('memory.json', 'memory.json.write.lock', File.basename(old_tmp))
+    end
+
+    it 'leaves an occupied candidate and the current store untouched if exclusive creation fails' do
+      allow(SecureRandom).to receive(:hex).and_return('reserved')
+      candidate = File.join(@tmp, '.memory.json.reserved.tmp')
+      File.write(candidate, 'reserved contents')
+      original = '{"before":{"value":"original"}}'
+      File.write(path, original)
+
+      expect { described_class.remember(key: :reviewed, value: 'approved') }.to raise_error(Errno::EEXIST)
+      expect(File.read(candidate)).to eq('reserved contents')
+      expect(File.read(path)).to eq(original)
+    end
+
+    it 'discards the private temporary file and leaves the original intact when rename fails' do
+      original = '{"before":{"value":"original"}}'
+      File.write(path, original)
+      allow(File).to receive(:rename).with(anything, path) do |tmp, _path|
+        expect(File.dirname(tmp)).to eq(File.dirname(path))
+        expect(File.stat(tmp).mode & 0o077).to eq(0)
+        expect(JSON.parse(File.read(tmp)).dig('reviewed', 'value')).to eq('approved')
+        raise Errno::EIO
+      end
+
+      expect { described_class.remember(key: :reviewed, value: 'approved') }.to raise_error(Errno::EIO)
+      expect(File.read(path)).to eq(original)
+      expect(Dir.children(@tmp)).to contain_exactly('memory.json', 'memory.json.write.lock')
+    end
+  end
+
   describe 'store transactions' do
     include_context 'pwn tmp sandbox'
 

@@ -101,9 +101,10 @@ RSpec.describe PwnSpecNamespaceControllerFixture do
   it 'keeps the ten-second payload deadline when the constructor returns without readiness' do
     Dir.mktmpdir('mission-no-marker-') do |root|
       allow(PWN::AI::Agent::MissionNamespace).to receive(:new).and_return(nil)
-      expect(Timeout).to receive(:timeout).with(10).and_call_original
       owner = described_class.new(descriptor: {})
       pid = owner.pid
+      # Verify the requested deadline, but exercise expiry without waiting ten seconds.
+      expect(Timeout).to(receive(:timeout).with(10).and_wrap_original { |timeout, _, &wait| timeout.call(0.1, &wait) })
       expect { owner.wait_ready(File.join(root, 'never-ready')) }.to raise_error(Timeout::Error)
       owner.close
       expect(owner.status.termsig).to eq(Signal.list.fetch('KILL'))

@@ -10,11 +10,11 @@ PWN::AI::Agent::Registry.register(
   toolset: 'memory',
   schema: {
     name: 'memory_remember',
-    description: 'Save a durable fact, preference, or lesson to persistent ' \
-                 'memory (~/.pwn/memory.json). Re-injected into the system ' \
-                 'prompt of every future pwn-ai session.',
+    description: 'Propose a durable fact, preference, or lesson for future sessions. ' \
+                 'The interactive operator reviews the exact entry before it is saved. Never include credentials.',
     parameters: {
       type: 'object',
+      additionalProperties: false,
       properties: {
         key: { type: 'string', description: 'Short unique identifier for this memory.' },
         value: { type: 'string', description: 'The fact / preference / lesson to remember.' },
@@ -24,14 +24,9 @@ PWN::AI::Agent::Registry.register(
     }
   },
   check: -> { defined?(PWN::Memory) },
-  handler: lambda { |args|
-    PWN::Memory.remember(
-      key: args[:key].to_s.to_sym,
-      value: args[:value],
-      category: (args[:category] || 'fact').to_sym
-    )
-    { saved: true, key: args[:key], total: PWN::Memory.load.keys.length }
-  }
+  # Dispatch owns the reviewed transaction. Never grant an isolated registry
+  # handler direct access to the cross-session prompt store.
+  handler: ->(_args) { { success: false, saved: false, execution_state: 'not_started', error: 'Memory save requires operator review.' } }
 )
 
 PWN::AI::Agent::Registry.register(

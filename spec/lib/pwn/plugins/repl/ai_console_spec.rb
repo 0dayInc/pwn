@@ -50,6 +50,273 @@ describe 'buffered mission event delivery' do
   end
 end
 
+describe 'exact memory review in an interactive mission' do
+  include_context 'pwn tmp sandbox'
+
+  let(:pry) { Pry.new }
+  let(:proposal) { { key: 'fixture.key', value: "  note\n\t\"界\"\u007f\u202e  ", category: 'preference' }.freeze }
+
+  before do
+    @input, @sender = IO.pipe
+    @console = PWN::Plugins::REPL::AIConsole::Console.new(pry: pry, input: @input, curses: nil, getch: nil)
+    @history = []
+    allow(Pry).to receive(:history).and_return(@history)
+    allow(PWN::Sessions).to receive_messages(provisional_title: nil, refresh_title: nil)
+    @console.instance_variable_set(:@verbose, false)
+  end
+
+  after do
+    @console.stop_worker
+    [@input, @sender, @console.instance_variable_get(:@tool_input)].compact.each { |io| io.close unless io.closed? }
+  end
+
+  def timeline
+    @console.instance_variable_get(:@timeline).map { |row| row[1] }
+  end
+
+  def await_ticket(except: nil)
+    ticket = nil
+    Timeout.timeout(5) do
+      loop do
+        @console.drain
+        ticket = timeline.filter_map { |text| text[%r{/memory approve ([0-9a-f]+)}, 1] }.last
+        break if (ticket && ticket != except) || !@console.busy?
+
+        sleep 0.01
+      end
+    end
+    expect(ticket).not_to be_nil, "no memory review prompt: #{timeline.inspect}"
+    expect(ticket).not_to eq(except)
+    ticket
+  end
+
+  def enter(line)
+    @console.instance_variable_get(:@editor).replace(line)
+    @console.handle("\n")
+  end
+
+  def finish
+    Timeout.timeout(5) do
+      while @console.busy?
+        @console.drain
+        sleep 0.01
+      end
+    end
+  end
+
+  it 'keeps tool input and JSON-looking steering separate from ticketed decisions' do
+    fields = proposal
+    allow(PWN::AI::Agent::Loop).to receive(:run) do |opts|
+      approved = Thread.current[:pwn_review_memory].call(fields)
+      begin
+        opts[:steering].checkpoint(messages: [])
+      rescue PWN::AI::Agent::Loop::Steering::Restart => e
+        "#{approved.inspect} | #{e.instructions.join} | #{$stdin.gets.chomp}"
+      end
+    end
+    Dir.chdir(@tmp) do
+      @console.start_request('wait for an operator')
+      ticket = await_ticket
+      generation = @console.instance_variable_get(:@mission_generation)
+      control = @console.instance_variable_get(:@control)
+      frame = { type: 'memory_decision', generation: generation, ticket: ticket, decision: 'approve' }
+      enter("/input /memory approve #{ticket}")
+      enter("/steer #{JSON.generate(frame)}")
+      control.memory_decision('prior mission', ticket, 'approve')
+      control.memory_decision(generation, ticket, 'unknown')
+      events = @console.instance_variable_get(:@events)
+      events << [:memory_review_closed, ticket, 'prior mission']
+      events << [:notice, JSON.generate(frame), generation]
+      @console.drain
+      enter("/memory decline #{ticket}")
+      finish
+      expect(timeline).to include("false | #{JSON.generate(frame)} | /memory approve #{ticket}")
+    end
+  end
+
+  def only_child(pid)
+    children = File.read("/proc/#{pid}/task/#{pid}/children").split
+    expect(children.size).to eq(1)
+    Integer(children.first)
+  end
+
+  def fd_targets(pid)
+    dir = "/proc/#{pid}/fd"
+    Dir.children(dir).filter_map do |fd|
+      File.readlink("#{dir}/#{fd}")
+    rescue Errno::ENOENT # a transient descriptor (e.g. Dir.children itself)
+      nil
+    end
+  end
+
+  it 'keeps the decision writer out of prepared supervisors, init, workers and sibling missions' do
+    namespace = PWN::AI::Agent::MissionNamespace
+    fields = proposal
+    reader_inode = PWNTestPipeQueue.new
+    allow(PWN::AI::Agent::Loop).to receive(:run) do
+      reader_inode << namespace.io(6).stat.ino
+      worker = fork { exit!($stdin.gets ? 0 : 1) }
+      decision = Thread.current[:pwn_review_memory].call(fields)
+      Process.wait(worker)
+      "decision: #{decision}"
+    end
+    Dir.chdir(@tmp) do
+      @console.start_request('check descriptor ownership')
+      ticket = await_ticket
+      reader = "socket:[#{Timeout.timeout(5) { reader_inode.pop }}]"
+      control = @console.instance_variable_get(:@control).instance_variable_get(:@io)
+      writer = "socket:[#{control.stat.ino}]"
+      supervisor = @console.instance_variable_get(:@mission).instance_variable_get(:@pid)
+      init = only_child(supervisor)
+      sibling = namespace.new { sleep }
+      sibling_pid = sibling.instance_variable_get(:@pid)
+
+      expect(fd_targets(Process.pid)).to include(writer)
+      expect(fd_targets(Process.pid)).not_to include(reader)
+      expect(fd_targets(init)).to include(reader)
+      [supervisor, init, only_child(init), sibling_pid, only_child(sibling_pid)].each do |pid|
+        expect(fd_targets(pid)).not_to include(writer)
+      end
+      enter('/input done')
+      enter("/memory decline #{ticket}")
+      finish
+      expect(timeline).to include('decision: false')
+    ensure
+      sibling&.close
+    end
+  end
+
+  it 'also drops the writer before an owned-namespace closure runs' do
+    namespace = PWN::AI::Agent::MissionNamespace
+    allow(namespace).to receive(:owned).and_return(true)
+    reader, writer = namespace.control_socket_pair
+    target = "socket:[#{writer.stat.ino}]"
+    mission = namespace.new(inherit_namespace: true) { exit!(!fd_targets(Process.pid).include?(target)) }
+    mission.wait
+    expect(mission.status).to be_success
+    expect(writer).not_to be_closed
+  ensure
+    mission&.close
+    [reader, writer].compact.each(&:close)
+  end
+
+  it 'declines on command EOF and does not wait for a later proposal on the closed channel' do
+    fields = proposal
+    allow(PWN::AI::Agent::Loop).to receive(:run) do
+      review = Thread.current[:pwn_review_memory]
+      "after EOF: #{review.call(fields).inspect}, #{review.call(fields).inspect}"
+    end
+    Dir.chdir(@tmp) do
+      @console.start_request('wait for control channel EOF')
+      await_ticket
+      @console.instance_variable_get(:@control).close
+      finish
+      expect(timeline).to include('after EOF: false, false')
+      expect(timeline.grep(%r{/memory approve }).length).to eq(1)
+    end
+  end
+
+  it 'expires a lost review without treating silence as approval' do
+    stub_const('PWN::Plugins::REPL::AIConsole::MemoryReview::WAIT_SECONDS', 0.05)
+    fields = proposal
+    allow(PWN::AI::Agent::Loop).to receive(:run) { "expired: #{Thread.current[:pwn_review_memory].call(fields).inspect}" }
+    Dir.chdir(@tmp) do
+      @console.start_request('wait without deciding')
+      finish
+      expect(timeline).to include('Memory review closed without a decision.', 'expired: false')
+    end
+  end
+
+  it 'invalidates a pending ticket on cancellation before another mission starts' do
+    fields = proposal
+    allow(PWN::AI::Agent::Loop).to receive(:run) { "decision: #{Thread.current[:pwn_review_memory].call(fields).inspect}" }
+    Dir.chdir(@tmp) do
+      @console.start_request('cancel this review')
+      old = await_ticket
+      generation = @console.instance_variable_get(:@mission_generation)
+      @console.handle("\u0003")
+      expect(@console).not_to be_busy
+      @console.start_request('different mission')
+      current = await_ticket(except: old)
+      @console.instance_variable_get(:@events) << [:memory_review_closed, current, generation]
+      @console.drain
+      enter("/memory approve #{old}")
+      enter("/memory decline #{current}")
+      finish
+      expect(timeline.grep(/\Adecision:/)).to eq(['decision: false'])
+    end
+  end
+
+  it 'does not block the UI or leave an ambiguous decision on a full command channel' do
+    peer, writer = UNIXSocket.pair
+    control = PWN::Plugins::REPL::AIConsole::MissionControl.new(writer)
+    block = 'x' * 4096
+    loop { break if writer.write_nonblock(block, exception: false) == :wait_writable }
+    Timeout.timeout(1) { expect { control.memory_decision('mission', 'a' * 16, 'approve') }.to raise_error(IOError) }
+    expect(writer).to be_closed
+  ensure
+    [peer, writer].compact.each { |io| io.close unless io.closed? }
+  end
+
+  it 'never offers a redaction-altered proposal and restores the prior reviewer after Loop.run' do
+    fields = proposal.merge(value: 'password=fixture-only')
+    allow(PWN::Sessions).to receive(:provisional_title) do
+      Thread.current[:pwn_review_memory] = :previous_reviewer
+      nil
+    end
+    allow(PWN::AI::Agent::Loop).to receive(:run) { "sensitive: #{Thread.current[:pwn_review_memory].call(fields).inspect}" }
+    allow(PWN::Sessions).to receive(:refresh_title) do
+      puts "restored: #{Thread.current[:pwn_review_memory] == :previous_reviewer}"
+      nil
+    end
+    Dir.chdir(@tmp) do
+      @console.start_request('refuse fields that cannot be shown exactly')
+      finish
+      expect(timeline).to include('sensitive: false', "restored: true\n")
+      expect(timeline.join).not_to include('fixture-only', '/memory approve ', '[REDACTED')
+    end
+  end
+
+  it 'does not arm a review that redaction at the display boundary would change' do
+    fields = proposal
+    allow(PWN::AI::Agent::Loop).to receive(:run) { "altered: #{Thread.current[:pwn_review_memory].call(fields).inspect}" }
+    allow(PWN::Redaction).to receive(:redact).and_wrap_original do |original, value:|
+      clean = original.call(value: value)
+      clean.is_a?(String) && clean.include?('Review this one memory_remember write') ? clean.sub('fixture.key', '[REDACTED]') : clean
+    end
+    Dir.chdir(@tmp) do
+      @console.start_request('refuse a changed review display')
+      finish
+      expect(timeline).to include('altered: false')
+      expect(timeline.join).not_to include('/memory approve ', '[REDACTED]')
+    end
+  end
+
+  it 'shows every escaped field in compact view and consumes one decision per proposal' do
+    fields = proposal
+    allow(PWN::AI::Agent::Loop).to receive(:run) do
+      review = Thread.current[:pwn_review_memory]
+      "decisions: #{review&.call(fields).inspect}, #{review&.call(fields).inspect}"
+    end
+    Dir.chdir(@tmp) do
+      @console.start_request('two proposed writes')
+      first = await_ticket
+      visible = @console.timeline_rows(50).map { |row| row.last.delete_prefix('  ') }.join
+      expect(visible).to include('"key": "fixture.key"', '"category": "preference"', '"value": "  note\\n\\t\\"\\u754c\\"\\u007f\\u202e  "', "/memory decline #{first}")
+      enter("/memory approve #{first}")
+      second = await_ticket(except: first)
+      enter("/memory approve #{first}") # replay cannot approve the second proposal
+      enter("/memory decline #{second}")
+      finish
+      expect(timeline).to include('decisions: true, false')
+      enter("/memory approve #{second}") # not a slash command for an idle agent
+      expect(@history).to be_empty
+      @console.handle(:up)
+      expect(@console.instance_variable_get(:@editor).text).to be_empty
+    end
+  end
+end
+
 describe 'tool input admission' do
   it 'rejects an oversized line without delivering any prefix to the tool' do
     reader, writer = IO.pipe
@@ -1065,6 +1332,36 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
     expect(role.text).to eq("αβ\n新\nlast")
   end
 
+  it 'approves the exact proposed memory_remember fields through the public curses launch' do
+    @agent_cfg[:plan_first] = false
+    allow(PWN::Sessions).to receive(:refresh_title).and_return(nil)
+    fields = { key: ' Display.units ', value: "  °C\t\"literal\\n\"\n#{'界' * 600}\u007f END  ", category: 'preference' }
+    call = { id: 'fixture-save', type: 'function', function: { name: 'memory_remember', arguments: JSON.generate(fields) } }
+    allow(PWN::AI::Agent::Loop).to receive(:call_engine).and_return(
+      { role: 'assistant', tool_calls: [call] }, { role: 'assistant', content: 'Review finished.', tool_calls: [] }
+    )
+    keys = "Remember my display units.\n".chars
+    approved = false
+    launch(keys) do
+      ticket = @rendered.filter_map { |_y, _x, text| text[%r{/memory approve ([0-9a-f]{16})}, 1] }.first
+      if !approved && ticket
+        expect(File).not_to exist(PWN::Memory::MEMORY_FILE)
+        rows = @console.timeline_rows(50).map { |row| row.last.delete_prefix('  ') }.join
+        escaped = JSON.generate(fields[:value], ascii_only: true).gsub("\x7f", '\\u007f')
+        expect(rows).to include('"key": " Display.units "', '"category": "preference"', "\"value\": #{escaped}")
+        approved = true
+        keys.concat("/memory approve #{ticket}\n".chars)
+        nil
+      elsif !@console.busy?
+        "\u0004"
+      end
+    end
+    expect(approved).to be(true), "no review prompt: #{@console.instance_variable_get(:@timeline).map { |type, text| [type, text[0, 240]] }.inspect}"
+    stored = JSON.parse(File.read(PWN::Memory::MEMORY_FILE))
+    expect(stored.keys).to eq([fields[:key]])
+    expect(stored.fetch(fields[:key]).values_at('value', 'category')).to eq(fields.values_at(:value, :category))
+  end
+
   it 'runs the real Loop from the public launch, steering a blocked model without a second input reader' do
     loop_module = PWN::AI::Agent::Loop
     entered = PWNTestPipeQueue.new
@@ -1534,11 +1831,14 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
     console.instance_variable_set(:@banner_activated, true)
     allow(console).to receive(:put)
     allow(console).to receive(:box)
-    allow(PWN::Banner).to receive(:mini_cells).and_call_original
+    # Exercise layout and painting at the requested dimensions, not replay generation.
+    cell = { glyph: '▀', foreground: :cyan, background: :black }.freeze
+    allow(PWN::Banner).to receive(:mini_cells) { |opts| Array.new(opts.fetch(:height)) { Array.new(opts.fetch(:width), cell) } }
     height = console.draw_header('ollama', 'fixture')
     expect(height).to be > 10
     expect(console).to have_received(:box).with(0, 0, height, height, '')
     expect(PWN::Banner).to have_received(:mini_cells).with(hash_including(width: height - 2, height: height - 2))
+    expect(console).to have_received(:put).with(height - 2, height - 2, '▀', nil)
     expect(console.instance_variable_get(:@header_spans).length + 3).to be <= height
     expect(console.header_lines('ollama', 'fixture', console.instance_variable_get(:@header_text_width)).join).to include('REASONING EFFORT: high')
   end

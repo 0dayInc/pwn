@@ -14,8 +14,9 @@ RSpec.describe PWN::Plugins::Android do
       @exit = File.join(root, 'exit')
       File.write(@output, '')
       File.write(@exit, '0')
+      # Run this argv recorder without loading the parent test bundle in every child.
       File.write(@adb, <<~RUBY)
-        #!#{RbConfig.ruby}
+        #!#{RbConfig.ruby} --disable=gems,rubyopt
         require 'json'
         File.open(#{@calls.inspect}, 'a') { |f| f.puts(JSON.generate(ARGV)) }
         print File.binread(#{@output.inspect})

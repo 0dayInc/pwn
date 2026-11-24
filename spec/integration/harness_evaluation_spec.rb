@@ -4,7 +4,6 @@ require 'spec_helper'
 require 'tmpdir'
 require_relative '../support/harness/evaluate'
 require_relative '../support/harness/experiments'
-require_relative '../support/harness/cli_faults'
 
 RSpec.describe 'offline harness evaluation' do
   it 'refuses unknown or unequal comparison identities before launching anything' do
@@ -50,7 +49,7 @@ RSpec.describe 'offline harness evaluation' do
     end
   end
 
-  it 'runs real CLI/Loop/tool effects and independently rejects a lying artifact claim' do
+  it 'runs real CLI/Loop/tool effects and independently rejects a lying artifact claim', :aggregate_failures do
     Dir.mktmpdir('pwn-harness-spec-', '/tmp') do |root|
       report = JSON.parse(JSON.generate(HarnessEvaluation.run(output: root)))
       results = report.fetch('results').to_h { |row| [row.fetch('task'), row] }
@@ -72,9 +71,8 @@ RSpec.describe 'offline harness evaluation' do
         expect(row).to include('outcome' => row.fetch('expected_outcome'), 'false_success' => false, 'repeated_effects' => 0)
       end
       expect(report.fetch('runtime_fault_process')).to include('exit_status' => 0, 'resource_cap' => false)
-      expect(report.fetch('experiments')).to include('snapshot_unchanged' => true, 'input_manifests_unchanged' => true)
-      expect(report.fetch('experiments').fetch('results')).to all(include('outcome' => 'PASS', 'inputs_unchanged' => true, 'false_success' => false, 'repeated_effects' => 0))
-      expect(report.fetch('cli_faults').fetch('results')).to all(include('outcome' => 'PASS'))
+      expect_frozen_experiments(report.fetch('experiments'))
+      expect_cli_faults(report.fetch('cli_faults'))
       expect(report.fetch('runtime_faults').fetch('results').map { |row| row.fetch('outcome') }).to eq(%w[PASS PASS PASS PASS])
       expect(results.values).to all(include('tokens' => nil, 'cost' => nil))
     ensure
@@ -101,27 +99,21 @@ RSpec.describe 'offline harness evaluation' do
     end
   end
 
-  it 'executes fault stimuli through the actual CLI, Loop, persisted runtime and shell' do
-    Dir.mktmpdir('pwn-cli-faults-', '/tmp') do |root|
-      report = JSON.parse(JSON.generate(HarnessCLIFaults.run(output: root)))
-      expect(report.fetch('results').map { |row| row.fetch('id') }).to eq(%w[compaction-steering provider-retry cancel-during-provider checkpoint-restart resource-cap-restart])
-      expect(report.fetch('results')).to all(include('outcome' => 'PASS', 'tokens' => nil, 'cost' => nil))
-      expect(report.fetch('model_quality')).to eq('NOT_RUN')
-    end
+  def expect_cli_faults(report)
+    rows = report.fetch('results')
+    expect(rows.map { |row| row.fetch('id') }).to eq(%w[compaction-steering provider-retry cancel-during-provider checkpoint-restart resource-cap-restart])
+    expect(rows).to all(include('outcome' => 'PASS', 'tokens' => nil, 'cost' => nil))
+    expect(report.fetch('model_quality')).to eq('NOT_RUN')
   end
 
-  it 'runs independently frozen split tasks through real single, swarm and learning snapshot paths' do
-    Dir.mktmpdir('pwn-heldout-', '/tmp') do |root|
-      report = JSON.parse(JSON.generate(HarnessExperiments.run(output: root)))
-      expect(report.fetch('model_quality')).to eq('NOT_RUN')
-      expect(report.fetch('results').length).to eq(8)
-      expect(report.fetch('results')).to all(include('outcome' => 'PASS', 'inputs_unchanged' => true, 'tokens' => nil, 'cost' => nil))
-      expect(report.fetch('results').select { |row| row['arm'] == 'swarm-snapshot' }).to all(include('nested_provider_calls' => 3))
-      expect(report.fetch('snapshot_unchanged')).to be(true)
-      expect(report.fetch('results').select { |row| row['arm'] == 'single-policy' }.map { |row| row['policy_episodes'] }).to all(be > 0)
-    ensure
-      Dir.glob(File.join(root, '**', '*'), File::FNM_DOTMATCH).each { |path| File.chmod(0o700, path) if File.directory?(path) }
-    end
+  def expect_frozen_experiments(report)
+    expect(report).to include('model_quality' => 'NOT_RUN', 'snapshot_unchanged' => true, 'input_manifests_unchanged' => true)
+    rows = report.fetch('results')
+    expect(rows.length).to eq(8)
+    expect(rows).to all(include('outcome' => 'PASS', 'inputs_unchanged' => true, 'false_success' => false, 'repeated_effects' => 0, 'tokens' => nil, 'cost' => nil))
+    arms = rows.group_by { |row| row.fetch('arm') }
+    expect(arms.fetch('swarm-snapshot')).to all(include('nested_provider_calls' => 3))
+    expect(arms.fetch('single-policy').map { |row| row.fetch('policy_episodes') }).to all(be > 0)
   end
 
   it 'requires explicit live approval before importing the reference agent or reading credentials' do

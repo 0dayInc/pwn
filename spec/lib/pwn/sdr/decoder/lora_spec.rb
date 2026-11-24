@@ -27,11 +27,17 @@ describe PWN::SDR::Decoder::LoRa do
     expect(frames).to contain_exactly(include(payload_hex: vector[:payload_hex], decoded: true, crc_valid: true))
   end
 
-  def lora_vectors
+  # Select metadata first. Unused waveforms need not be inflated into arrays of floats.
+  def lora_vectors(manifest = 'vectors.json')
     root = File.expand_path('../../../../fixtures/sdr/lora', __dir__)
-    JSON.parse(File.read("#{root}/vectors.json"), symbolize_names: true).map do |vector|
-      [vector, File.binread("#{root}/#{vector[:file]}").unpack('e*')]
-    end
+    JSON.parse(File.read(File.join(root, manifest)), symbolize_names: true)
+  end
+
+  def lora_iq(vector)
+    require 'zlib'
+    path = File.expand_path("../../../../fixtures/sdr/lora/#{vector.fetch(:file)}", __dir__)
+    bytes = path.end_with?('.gz') ? Zlib::GzipReader.open(path, &:read) : File.binread(path)
+    bytes.unpack('e*')
   end
 
   def lora_receive(signal, spreading: 7, chunk: 194)
@@ -57,7 +63,8 @@ describe PWN::SDR::Decoder::LoRa do
   end
 
   it 'runs the public payload path from an explicit offline source' do
-    vector, iq = lora_vectors.first
+    vector = lora_vectors.first
+    iq = lora_iq(vector)
     frames = []
     described_class.decode(source: StringIO.new(iq.map { |v| (v * 16_000).round }.pack('s<*')), iq_format: :cs16, sample_rate: 125_000,
                            sf: 7, bw: 125_000, freq_obj: { freq: 915_000_000 },
@@ -67,7 +74,8 @@ describe PWN::SDR::Decoder::LoRa do
   end
 
   it 'emits a validated packet while its pipe source remains open' do
-    vector, iq = lora_vectors.first
+    vector = lora_vectors.first
+    iq = lora_iq(vector)
     reader, writer = IO.pipe
     frames = Queue.new
     worker = Thread.new do
@@ -87,7 +95,8 @@ describe PWN::SDR::Decoder::LoRa do
   end
 
   it 'uses identical normalized chirps at each supported bandwidth' do
-    vector, iq = lora_vectors.first
+    vector = lora_vectors.first
+    iq = lora_iq(vector)
     [125_000, 250_000, 500_000].each do |bandwidth|
       demod = described_class::PayloadIQ.new(rate: bandwidth, bw: bandwidth, sf: 7)
       frames = []
@@ -105,8 +114,8 @@ describe PWN::SDR::Decoder::LoRa do
   end
 
   it 'matches every independent waveform and its symbol-derived synthetic waveform' do
-    lora_vectors.each do |vector, iq|
-      [iq, lora_synthetic(vector[:symbols], spreading: vector[:sf])].each do |signal|
+    lora_vectors.each do |vector|
+      [lora_iq(vector), lora_synthetic(vector[:symbols], spreading: vector[:sf])].each do |signal|
         [1, 194, signal.length].each do |chunk|
           expect(lora_receive(signal, spreading: vector[:sf], chunk: chunk)).to contain_exactly(
             include(payload_hex: vector[:payload_hex], crc_valid: true)
@@ -117,7 +126,8 @@ describe PWN::SDR::Decoder::LoRa do
   end
 
   it 'acquires off-grid packets with integer CFO and does not deduplicate identical packets' do
-    vector, iq = lora_vectors.first
+    vector = lora_vectors.first
+    iq = lora_iq(vector)
     [1, 31, 63, 95, 127].each do |offset|
       shifted = Array.new(offset * 2, 0.0) + iq
       shifted = shifted.each_slice(2).with_index.flat_map do |(i, q), k|
@@ -150,7 +160,7 @@ describe PWN::SDR::Decoder::LoRa do
   end
 
   it 'corrects a single Hamming bit but rejects double-bit errors' do
-    vector = lora_vectors.first.first
+    vector = lora_vectors.first
     fixed = lora_flip_codeword(vector[:symbols], 1)
     expect(lora_receive(lora_synthetic(fixed))).to contain_exactly(include(payload_hex: vector[:payload_hex]))
     broken = lora_flip_codeword(vector[:symbols], 3)
@@ -158,7 +168,7 @@ describe PWN::SDR::Decoder::LoRa do
   end
 
   it 'rejects valid FEC with wrong payload CRC and wrong header checksum' do
-    vector = lora_vectors.first.first
+    vector = lora_vectors.first
     # 0xD1 is the LoRa extended-Hamming codeword of nibble 1.
     # XOR preserves FEC validity but changes the protected data.
     crc_bad = lora_flip_codeword(vector[:symbols], 0xD1)
@@ -168,7 +178,8 @@ describe PWN::SDR::Decoder::LoRa do
   end
 
   it 'rejects truncation, silence, noise and a missing SFD' do
-    vector, iq = lora_vectors.first
+    vector = lora_vectors.first
+    iq = lora_iq(vector)
     expect(lora_receive(iq.first(4000))).to be_empty
     expect(lora_receive(Array.new(10_000, 0.0))).to be_empty
     random = Random.new(123)
@@ -178,16 +189,9 @@ describe PWN::SDR::Decoder::LoRa do
     expect(lora_receive(missing)).to be_empty
   end
 
-  def lora_modes
-    require 'zlib'
-    root = File.expand_path('../../../../fixtures/sdr/lora', __dir__)
-    JSON.parse(File.read("#{root}/modes.json"), symbolize_names: true).map do |vector|
-      [vector, Zlib::GzipReader.open("#{root}/#{vector[:file]}", &:read).unpack('e*')]
-    end
-  end
-
   it 'decodes independent SF9-12, LDRO, implicit, CRC-off and inverted waveforms' do
-    lora_modes.select { |v, _| v[:sample_rate] == v[:bw] }.each do |v, iq|
+    lora_vectors('modes.json').select { |v| v[:sample_rate] == v[:bw] }.each do |v|
+      iq = lora_iq(v)
       [1, 8192, iq.length].each do |size|
         frames = []
         options = v.slice(:sf, :bw, :implicit_header, :payload_length, :cr, :crc, :ldro, :invert_iq)
@@ -200,7 +204,8 @@ describe PWN::SDR::Decoder::LoRa do
   end
 
   it 'forwards every new mode through the public offline decode path' do
-    lora_modes.each do |v, iq|
+    lora_vectors('modes.json').each do |v|
+      iq = lora_iq(v)
       frames = []
       options = v.slice(:sf, :sample_rate, :bw, :implicit_header, :payload_length, :cr, :crc, :ldro, :invert_iq)
       described_class.decode(**options, source: StringIO.new(iq.map { |x| (x * 12_000).round }.pack('s<*')),
@@ -212,7 +217,8 @@ describe PWN::SDR::Decoder::LoRa do
   end
 
   it 'resamples independent noninteger-rate IQ with identical scalar and bulk chunk results' do
-    v, iq = lora_modes.last
+    v = lora_vectors('modes.json').last
+    iq = lora_iq(v)
     [1, 194, iq.length].each do |size|
       frames = []
       demod = described_class::PayloadIQ.new(rate: v[:sample_rate], bw: v[:bw], sf: v[:sf])
@@ -222,7 +228,8 @@ describe PWN::SDR::Decoder::LoRa do
   end
 
   it 'does not complete truncated packets in any new mode' do
-    lora_modes.each do |v, iq|
+    lora_vectors('modes.json').each do |v|
+      iq = lora_iq(v)
       options = v.slice(:sf, :bw, :implicit_header, :payload_length, :cr, :crc, :ldro, :invert_iq)
       demod = described_class::PayloadIQ.new(**options, rate: v[:sample_rate])
       frames = []
@@ -232,7 +239,8 @@ describe PWN::SDR::Decoder::LoRa do
   end
 
   it 'automatically enables LDRO for long symbols but honors an explicit false override' do
-    lora_modes.select { |v, _| !v[:implicit_header] && v[:sf] >= 11 }.each do |v, iq|
+    lora_vectors('modes.json').select { |v| !v[:implicit_header] && v[:sf] >= 11 }.each do |v|
+      iq = lora_iq(v)
       options = v.slice(:sf, :bw)
       options[:ldro] = false unless v[:ldro]
       demod = described_class::PayloadIQ.new(**options, rate: v[:sample_rate])
@@ -246,7 +254,8 @@ describe PWN::SDR::Decoder::LoRa do
     dsp = PWN::SDR::Decoder::DSP
     volk = PWN::FFI::Volk
     expect(volk).to receive(:volk_32f_x2_dot_prod_32f).at_least(:once).and_call_original if volk.available?
-    v, iq = lora_modes.last
+    v = lora_vectors('modes.json').last
+    iq = lora_iq(v)
     signals = [false, true].map do |native|
       allow(dsp).to receive(:native).and_return(native)
       demod = described_class::PayloadIQ.new(rate: v[:sample_rate], bw: v[:bw], sf: v[:sf])
