@@ -7,6 +7,7 @@ require 'fcntl'
 require 'digest'
 require 'fileutils'
 require 'json'
+require 'socket'
 require 'tmpdir'
 require 'tempfile'
 require 'yaml'
@@ -19,6 +20,8 @@ module PWN
     module REPL
       # Single-owner fullscreen console: wrapped completion and private /vault edit; Ctrl+S saves encrypted, Esc cancels.
       module AIConsole
+        MEMORY_DECISION = %r{\A[[:space:]]*/memory[[:space:]]+(?:approve|decline)\b}
+
         public_class_method def self.run(opts = {})
           input = opts[:input] || $stdin
           output = opts[:output] || $stdout
@@ -386,7 +389,7 @@ module PWN
 
           def preload(lines)
             Array(lines).each do |line|
-              next if line.to_s.strip.empty? || line.match?(%r{\A\s*/input(?:\s|\z)}) || @history.last == line
+              next if line.to_s.strip.empty? || line.match?(%r{\A\s*/input(?:\s|\z)}) || line.match?(MEMORY_DECISION) || @history.last == line
 
               @history << line.dup
             end
@@ -457,7 +460,7 @@ module PWN
 
           def submit
             line = @text.dup
-            @history << line.dup unless line.strip.empty? || @history.last == line || line.match?(%r{\A\s*/input(?:\s|\z)})
+            @history << line.dup unless line.strip.empty? || @history.last == line || line.match?(%r{\A\s*/input(?:\s|\z)}) || line.match?(MEMORY_DECISION)
             @index = @history.length
             replace('')
             line
@@ -481,7 +484,62 @@ module PWN
           end
         end
 
-        # Parent-side steering endpoint; cancellation belongs to the process owner.
+        # Child-side rendezvous for one exact memory_remember call, never tool stdin.
+        class MemoryReview
+          WAIT_SECONDS = 180
+
+          def initialize(events, generation)
+            @events = events
+            @generation = generation
+            @lock = Mutex.new
+          end
+
+          def call(fields)
+            return false unless fields.is_a?(Hash) && fields.size == 3 && %i[key value category].all? { |key| fields[key].is_a?(String) }
+            return false unless PWN::Redaction.redact(value: fields) == fields
+
+            # No indentation: wrap_command must not insert spaces into a continued value.
+            display = JSON.pretty_generate(fields, ascii_only: true, indent: '').gsub("\x7f", '\\u007f')
+            return false unless PWN::Redaction.redact(value: display) == display
+
+            ticket = SecureRandom.hex(8)
+            reply = Queue.new
+            @lock.synchronize do
+              return false if @closed || @reply
+
+              @ticket = ticket
+              @reply = reply
+            end
+            begin
+              @events << [:memory_review, { ticket: ticket, display: display }]
+              approved = reply.pop(timeout: WAIT_SECONDS) == true
+              @events << [:memory_review_closed, ticket]
+              approved
+            ensure
+              @lock.synchronize { @reply = @ticket = nil }
+            end
+          rescue IOError, SystemCallError, JSON::GeneratorError, ArgumentError
+            false
+          end
+
+          def decide(frame)
+            @lock.synchronize do
+              return unless @reply && !@reply.closed? && frame[:type] == 'memory_decision' && frame[:generation] == @generation && frame[:ticket] == @ticket && %w[approve decline].include?(frame[:decision])
+
+              @reply << (frame[:decision] == 'approve')
+              @reply.close
+            end
+          end
+
+          def close
+            @lock.synchronize do
+              @closed = true
+              @reply&.close
+            end
+          end
+        end
+
+        # Parent-side control endpoint; cancellation belongs to the process owner.
         class MissionControl
           def initialize(io)
             @io = io
@@ -490,6 +548,20 @@ module PWN
           def submit(text)
             @io.puts(JSON.generate(text.to_s))
             @io.flush
+          end
+
+          def memory_decision(generation, ticket, decision)
+            frame = "#{JSON.generate(type: 'memory_decision', generation: generation, ticket: ticket, decision: decision)}\n"
+            return if @io.write_nonblock(frame, exception: false) == frame.bytesize
+
+            close
+            raise IOError, 'Incomplete memory decision'
+          end
+
+          def close
+            @io.shutdown(Socket::SHUT_WR) unless @io.closed?
+          ensure
+            @io.close unless @io.closed?
           end
 
           def phase
@@ -657,6 +729,15 @@ module PWN
               next if generation && generation != @mission_generation && generation != @swarm_generation
 
               case type
+              when :memory_review, :memory_review_closed
+                next unless generation && generation == @mission_generation && @running && !@command && !@cancelling && !@leaving
+
+                if type == :memory_review
+                  present_memory_review(text, generation)
+                elsif @memory_review == [generation, text]
+                  @memory_review = nil
+                  add(:command_notice, 'Memory review closed without a decision.')
+                end
               when :command_state
                 if text[:ai].is_a?(Hash)
                   text[:ai][:active] = text[:ai][:active].to_sym if PWN::Env.dig(:ai, :active).is_a?(Symbol) && text[:ai][:active].is_a?(String)
@@ -671,9 +752,10 @@ module PWN
                 @worker.join
                 finish_request_metrics
                 @running = false
+                @memory_review = nil
+                @control&.close
                 @control = nil
                 @mission = nil
-                @mission_commands&.close unless @mission_commands&.closed?
               when :operator_loaded
                 generation, data = text
                 if @operator_view && @operator_view[:generation] == generation
@@ -729,11 +811,12 @@ module PWN
             @title_worker.report_on_exception = false
           end
 
-          def add(type, text)
+          def add(type, text, exact: false)
             command_notice = type == :command_notice
             type = :notice if command_notice
             clean = PWN::Redaction.redact(value: text.to_s)
             clean = clean.gsub(/\e\][^\a]*(?:\a|\e\\)/, '').gsub(%r{\e\[[0-?]*[ -/]*[@-~]}, '').gsub(/[\x00-\x08\x0b-\x1f\x7f]/, '')
+            return false if exact && clean != text
             return if clean.strip.empty?
 
             @event_count += 1
@@ -749,6 +832,7 @@ module PWN
               @scroll = [@scroll - removed[3].fetch(:rows, []).length, 0].max if @scroll
             end
             PWN::Plugins::Log.mirror_tui!(msg: "#{type.to_s.upcase}\n#{clean}") if @pry.config.pwn_ai_debug && type != :notice
+            true
           end
 
           private_class_method def self.mission_entry(opts = {})
@@ -793,8 +877,20 @@ module PWN
             control = Control.new(input: @input, output: output)
             Thread.current[:pwn_steering_input] = control
             Thread.current[:pwn_usage_observer] = ->(usage) { events << [:usage, usage] }
-            Thread.new do
-              commands.each_line { |line| control.submit(JSON.parse(line)) }
+            review = MemoryReview.new(events, generation)
+            command_reader = Thread.new do
+              commands.each_line do |line|
+                break unless line.end_with?("\n")
+
+                frame = JSON.parse(line, symbolize_names: true)
+                control.submit(frame) if frame.is_a?(String)
+                review.decide(frame) if frame.is_a?(Hash)
+              end
+            rescue IOError, SystemCallError, JSON::ParserError
+              # A lost or invalid command channel cannot grant approval.
+              nil
+            ensure
+              review.close
             end
             begin
               workspace = File.realpath(Dir.pwd)
@@ -812,10 +908,14 @@ module PWN
                   end
                 end
                 final = with_stream_preview(events) do
+                  previous = Thread.current[:pwn_review_memory]
+                  Thread.current[:pwn_review_memory] = review.method(:call)
                   PWN::AI::Agent::Loop.run(request: request, session_id: session_id,
                                            enabled_toolsets: PWN::Env.dig(:ai, :agent, :toolsets),
                                            on_tool: on_tool, steering: control, debug: @pry.config.pwn_ai_debug,
                                            trace: @pry.config.pwn_ai_trace, debug_tee: output)
+                ensure
+                  Thread.current[:pwn_review_memory] = previous
                 end
                 promoted = Thread.current[:pwn_thinking_promoted] && final.to_s.strip == Thread.current[:pwn_last_thinking].to_s.strip
                 events << [:assistant, final.to_s] unless promoted
@@ -835,6 +935,8 @@ module PWN
               end
               events << [:warning, warning]
             ensure
+              review.close
+              command_reader.kill.join
               output.flush
               writer.close
             end
@@ -887,20 +989,22 @@ module PWN
             begin_request_metrics
             add(:operator, request)
             reader, writer = IO.pipe
-            commands, @mission_commands = IO.pipe
+            commands, sender = PWN::AI::Agent::MissionNamespace.control_socket_pair
+            commands.shutdown(Socket::SHUT_WR)
+            @control = MissionControl.new(sender)
             @mission = PWN::Plugins::AISandbox::MissionProcess.new(
               descriptor: { operation: :console, request: request, generation: generation, session_id: session_id, title_config: title_config, config: mission_config },
               fds: { 4 => writer, 5 => @input, 6 => commands }
             )
             writer.close
             commands.close
-            @control = MissionControl.new(@mission_commands)
+
             @running = true
             mission = @mission
             @worker = Thread.new do
               reader.each_line do |line|
                 tag, type, text = JSON.parse(line, symbolize_names: true)
-                next unless tag == generation && %w[task thinking tool result assistant notice warning session_title usage].include?(type)
+                next unless tag == generation && %w[task thinking tool result assistant notice warning session_title usage memory_review memory_review_closed].include?(type)
 
                 @events << [type.to_sym, text, tag]
               end
@@ -913,9 +1017,9 @@ module PWN
             end
             @worker.report_on_exception = false
           rescue StandardError => e
-            [reader, writer, commands, @mission_commands].compact.each { |io| io.close unless io.closed? }
+            [reader, writer, commands, sender].compact.each { |io| io.close unless io.closed? }
             @mission&.close
-            @mission = nil
+            @mission = @control = nil
             @running = false
             add(:warning, "Mission not started: #{e.message}")
           end
@@ -925,9 +1029,10 @@ module PWN
             # reaps namespace PID 1, including all provider and tool descendants.
             @cancelling = true
             @mission_generation = nil
+            @memory_review = nil
             @mission.close
             @worker&.join
-            @mission_commands&.close unless @mission_commands&.closed?
+            @control&.close
             @tool_input&.close unless @tool_input&.closed?
             @mission = @control = nil
             @running = false
@@ -1029,6 +1134,7 @@ module PWN
             # Preserve normal request text and the exact internal title bytes.
             line = line.gsub(/\A[[:space:]]+|[[:space:]]+\z/, '') if line.match?(%r{\A[[:space:]]*/})
             return if line.strip.empty?
+            return decide_memory(line) if line.match?(MEMORY_DECISION)
 
             # Pry owns the existing pwn_history format, append and deduplication.
             # Curses bypasses Pry's input evaluator, so record once here, not on recall.
@@ -1085,6 +1191,35 @@ module PWN
             end
           rescue StandardError => e
             add(:warning, "#{e.class}: #{e.message}")
+          end
+
+          def present_memory_review(event, generation)
+            return if @memory_review || !event.is_a?(Hash)
+
+            ticket = event[:ticket]
+            return unless ticket.is_a?(String) && ticket.match?(/\A[0-9a-f]{16}\z/)
+
+            display = event[:display]
+            prompt = "Review this one memory_remember write (escaped JSON):\n#{display}\nType /memory approve #{ticket} or /memory decline #{ticket}."
+            if display.is_a?(String) && display.match?(/\A[\x20-\x7e\n]+\z/) && add(:command_notice, prompt, exact: true)
+              @memory_review = [generation, ticket]
+            else
+              @control.memory_decision(generation, ticket, 'decline')
+              add(:command_notice, 'Memory write declined: the exact proposal could not be displayed.')
+            end
+          rescue IOError, SystemCallError
+            add(:warning, 'Memory review closed: mission control channel disconnected.')
+          end
+
+          def decide_memory(line)
+            decision, ticket = line.match(%r{\A/memory +(approve|decline) +([0-9a-f]{16})\z})&.captures
+            return add(:command_notice, 'No matching pending memory review.') unless ticket && @running && @memory_review == [@mission_generation, ticket]
+
+            @memory_review = nil
+            @control.memory_decision(@mission_generation, ticket, decision)
+            add(:command_notice, 'Memory decision sent.')
+          rescue IOError, SystemCallError
+            add(:warning, 'Memory decision not delivered: mission control channel closed.')
           end
 
           def busy_command(line)

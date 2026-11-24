@@ -23,8 +23,30 @@ module PWN
                           pwn_reflect_depth pwn_request_intent pwn_loop_budget_s pwn_loop_mutations pwn_loop_tokens].freeze
         attr_reader :status
 
+        @fork_lock = Mutex.new
+        @control_writers = ObjectSpace::WeakMap.new
+
         class << self
           attr_accessor :owned, :bootstrap_requires, :force_exec
+
+          # Register the parent endpoint atomically with respect to all mission
+          # forks, including sibling missions started by another console thread.
+          def control_socket_pair
+            @fork_lock.synchronize do
+              UNIXSocket.pair.tap { |_reader, writer| @control_writers[writer] = true }
+            end
+          end
+
+          def fork_mission
+            @fork_lock.synchronize do
+              writers = @control_writers.keys # Pin live endpoints across fork, not for the console's lifetime.
+              fork do
+                @fork_lock = Mutex.new # Nested missions must not use the parent's held lock.
+                writers.each(&:close) # Close the copies, never shutdown the shared socket.
+                yield
+              end
+            end
+          end
 
           def prepared?
             rows = File.readlines('/proc/self/uid_map').map { |line| line.split.map(&:to_i) }
@@ -92,7 +114,7 @@ module PWN
             checked(native('unshare', [Fiddle::TYPE_INT]).call(0x20000000), 'unshare PID namespace') if pid_namespace
             reader, writer = IO.pipe
             armed, arm = IO.pipe
-            init = fork do
+            init = fork_mission do
               armed.close
               checked(native('prctl', [Fiddle::TYPE_INT, Fiddle::TYPE_LONG, Fiddle::TYPE_LONG, Fiddle::TYPE_LONG, Fiddle::TYPE_LONG]).call(1, Signal.list.fetch('KILL'), 0, 0, 0), 'PR_SET_PDEATHSIG')
               arm.write('1')
@@ -192,7 +214,7 @@ module PWN
           if operation
             raise Unavailable, 'host closures cannot cross an exec boundary; use a mission descriptor or explicitly bootstrap under unshare --user --map-current-user --keep-caps' unless self.class.owned
 
-            @pid = fork do
+            @pid = self.class.fork_mission do
               Thread.handle_interrupt(Exception => :immediate) { operation.call }
             ensure
               exit!
@@ -320,7 +342,7 @@ module PWN
           ready, announce = IO.pipe
           release, gate = IO.pipe
           owner = Process.pid
-          @pid = fork do
+          @pid = self.class.fork_mission do
             ready.close
             gate.close
             begin
@@ -328,7 +350,7 @@ module PWN
               exit! unless Process.ppid == owner
               self.class.checked(self.class.native('unshare', [Fiddle::TYPE_INT]).call(0x20000000), 'unshare PID namespace')
               armed, arm = IO.pipe
-              init = fork do
+              init = self.class.fork_mission do
                 armed.close
                 announce.close
                 self.class.checked(self.class.native('prctl', [Fiddle::TYPE_INT, Fiddle::TYPE_LONG, Fiddle::TYPE_LONG, Fiddle::TYPE_LONG, Fiddle::TYPE_LONG]).call(1, Signal.list.fetch('KILL'), 0, 0, 0), 'PR_SET_PDEATHSIG')

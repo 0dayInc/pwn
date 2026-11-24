@@ -4,6 +4,86 @@ require 'spec_helper'
 require 'json'
 
 describe PWN::AI::Agent::Dispatch do
+  describe 'reviewed cross-session memory saves' do
+    include_context 'pwn tmp sandbox'
+
+    let(:proposal) { { key: 'display_units', value: 'Use °C', category: 'preference' } }
+    let(:runtime_options) { { request: 'Remember my display preference', session_id: 'review', request_id: 'memory', artifact_root: File.join(@tmp, 'requests'), trace: false } }
+    let(:runtime) { PWN::AI::Agent::RequestRuntime.new(runtime_options) }
+
+    around do |example|
+      previous = [Thread.current[:pwn_review_memory], Thread.current[:pwn_request_runtime]]
+      Thread.current[:pwn_review_memory] = nil
+      example.run
+    ensure
+      Thread.current[:pwn_review_memory], Thread.current[:pwn_request_runtime] = previous
+    end
+
+    before do
+      allow(Dir).to receive(:home).and_return(@tmp)
+      PWN::AI::Agent::Registry.discover
+      Thread.current[:pwn_request_runtime] = runtime
+      expect(PWN::Plugins::Vault).not_to receive(:expand)
+      expect(PWN::Plugins::Vault).not_to receive(:redact)
+    end
+
+    def save_memory(fields)
+      call = { id: 'save-preference', function: { name: 'memory_remember', arguments: fields } }
+      JSON.parse(described_class.call(tool_call: call), symbolize_names: true)
+    end
+
+    it 'saves only the reviewed fields, with a durable completion and independent file readback' do
+      seen = []
+      Thread.current[:pwn_review_memory] = lambda do |fields|
+        seen << fields
+        expect(fields).to be_frozen
+        expect(fields.values).to all(be_frozen)
+        expect(File).not_to exist(PWN::Memory::MEMORY_FILE)
+        true
+      end
+      expect(save_memory(proposal)).to eq(success: true, effect: 'store', result: { saved: true })
+      expect(seen).to eq([proposal])
+      expect(JSON.parse(File.read(PWN::Memory::MEMORY_FILE)).fetch('display_units')).to include('value' => 'Use °C', 'category' => 'preference')
+      expect(runtime.events.last).to include(phase: 'end', state: 'completed', action_id: 'save-preference')
+      expect(runtime.blocker).to be_nil
+    end
+
+    it 'does not start a write on missing review, decline, or a self-approved tool payload' do
+      expect(save_memory(proposal)).to include(success: false, result: include(execution_state: 'not_started'))
+      Thread.current[:pwn_review_memory] = ->(_fields) { false }
+      expect(save_memory(proposal)).to include(success: false, result: include(execution_state: 'not_started'))
+      reviewer = double('operator review')
+      expect(reviewer).not_to receive(:call)
+      Thread.current[:pwn_review_memory] = reviewer
+      expect(save_memory(proposal.merge(operator_ack: true))).to include(success: false)
+      expect(save_memory(proposal.merge(value: '{{vault:fixture}}'))).to include(success: false)
+      expect(File).not_to exist(PWN::Memory::MEMORY_FILE)
+      expect(runtime.events).to be_empty
+    end
+
+    it 'distinguishes lock denial before mutation from a lost receipt after a write and never replays the latter' do
+      Thread.current[:pwn_review_memory] = ->(_fields) { true }
+      allow(File).to receive(:open).and_call_original
+      allow(File).to receive(:open).with("#{PWN::Memory::MEMORY_FILE}.write.lock", anything, anything).and_raise(Errno::EACCES)
+      expect(save_memory(proposal)).to include(success: false, result: include(execution_state: 'not_started'))
+      expect(runtime.blocker).to be_nil
+      expect(File).not_to exist(PWN::Memory::MEMORY_FILE)
+
+      allow(File).to receive(:open).with("#{PWN::Memory::MEMORY_FILE}.write.lock", anything, anything).and_call_original
+      allow(PWN::Memory).to receive(:remember).and_wrap_original do |writer, **options|
+        writer.call(**options)
+        raise Errno::EACCES, 'after write'
+      end
+      expect(save_memory(proposal)).to include(success: false)
+      expect(PWN::Memory.load.fetch(:display_units)).to include(value: 'Use °C')
+      restored = PWN::AI::Agent::RequestRuntime.new(runtime_options.merge(resume: true))
+      Thread.current[:pwn_request_runtime] = restored
+      expect(restored.blocker).to include('Uncertain side effect: memory_remember')
+      expect(save_memory(proposal)).to include(success: false, result: include(error: 'uncertain_side_effect'))
+      expect(PWN::Memory).to have_received(:remember).once
+    end
+  end
+
   it 'does not replay a timed-out real shell mutation after restoring its request checkpoint' do
     Dir.mktmpdir do |root|
       work = File.join(root, 'work')

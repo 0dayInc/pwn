@@ -2,6 +2,7 @@
 
 require 'json'
 require 'fileutils'
+require 'securerandom'
 require 'time'
 
 module PWN
@@ -93,17 +94,21 @@ module PWN
     private_class_method def self.atomic_write(opts = {})
       path = opts[:path]
       body = opts[:body]
-      tmp = File.join(File.dirname(path), ".#{File.basename(path)}.#{Process.pid}.tmp")
-      File.open(tmp, File::WRONLY | File::CREAT | File::TRUNC, 0o644) do |f|
+      dir = File.dirname(path)
+      tmp = File.join(dir, ".#{File.basename(path)}.#{SecureRandom.hex(16)}.tmp")
+      owned_tmp = nil # Never remove a candidate that we failed to create.
+      File.open(tmp, File::WRONLY | File::CREAT | File::EXCL | File::NOFOLLOW, 0o600) do |f|
+        owned_tmp = tmp
         f.flock(File::LOCK_EX)
         f.write(body)
         f.flush
         f.fsync
       end
       File.rename(tmp, path)
-      File.open(File.dirname(path), File::RDONLY, &:fsync)
+      owned_tmp = nil
+      File.open(dir, File::RDONLY, &:fsync)
     ensure
-      FileUtils.rm_f(tmp) if defined?(tmp) && tmp && File.exist?(tmp)
+      FileUtils.rm_f(owned_tmp) if owned_tmp
     end
 
     # Best-effort re-read used by the empty-overwrite guard (no raise).

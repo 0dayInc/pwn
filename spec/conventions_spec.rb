@@ -153,9 +153,10 @@ module PWNConventions
 
   def method_body_excerpt(lines, idx)
     indent = lines[idx][/^[ \t]*/]
+    terminator = /^#{Regexp.escape(indent)}end\b/
     buf = []
     ((idx + 1)...lines.length).each do |i|
-      break if lines[i].match?(/^#{Regexp.escape(indent)}end\b/)
+      break if lines[i].match?(terminator)
 
       buf << lines[i]
       break if buf.length >= 120
@@ -235,9 +236,10 @@ module PWNConventions
     return '' unless idx
 
     indent = lines[idx][/^[ \t]*/]
+    terminator = /^#{Regexp.escape(indent)}end\b/
     buf = []
     ((idx + 1)...lines.length).each do |i|
-      break if lines[i].match?(/^#{Regexp.escape(indent)}end\b/)
+      break if lines[i].match?(terminator)
 
       buf << lines[i]
     end
@@ -262,7 +264,8 @@ module PWNConventions
 
   def purpose_above?(help, name)
     lines = help.to_s.lines
-    idx = lines.find_index { |l| l.match?(/\#\{self\}(?:::[A-Z]\w*)*\.#{Regexp.escape(name)}(?!\w)/) }
+    signature = /\#\{self\}(?:::[A-Z]\w*)*\.#{Regexp.escape(name)}(?!\w)/
+    idx = lines.find_index { |l| l.match?(signature) }
     return false unless idx
 
     prev = nil
@@ -357,15 +360,14 @@ describe 'PWN module conventions' do
   # ---------------------------------------------------------------- 6 --
   it '6) every public class method is documented in help with required/optional options (Google.help shape)' do
     misses = []
+    methods_by_file = c::ALL_METHODS.group_by { |m| m[:file] }
     c::MODULE_FILES.each do |path|
       next if c::NAMESPACE_INDEX_FILES.include?(c.rel(path))
 
       help = c.help_text(path)
       misses << "#{c.rel(path)}  missing method authors in help" unless help.match?(/\.authors(?!\w)/)
-      pubs = c::ALL_METHODS.select do |m|
-        m[:file] == path &&
-          m[:decorator] == 'public_class_method' &&
-          !c::HELP_SKIP.include?(m[:name])
+      pubs = methods_by_file.fetch(path, []).select do |m|
+        m[:decorator] == 'public_class_method' && !c::HELP_SKIP.include?(m[:name])
       end
       pubs.each do |meth|
         name = meth[:name]

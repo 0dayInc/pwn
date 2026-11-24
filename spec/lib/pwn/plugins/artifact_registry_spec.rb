@@ -38,13 +38,17 @@ describe PWN::Plugins::ArtifactRegistry do
       stored = described_class.spill(bytes: bytes, session_id: 'large')
       expected = Digest::SHA256.hexdigest(bytes)
       digest = Digest::SHA256.new
+      metadata = [stored[:handle], bytes.bytesize, 'base64', 'base64']
       offset = 0
       pages = 0
       loop do
         page = described_class.read_page(handle: stored[:handle], offset: offset, length: 1_000_000)
-        expect(page[:bytes]).to be <= 2048
-        expect(page).to include(handle: stored[:handle], total_bytes: bytes.bytesize, encoding: 'base64', mode: 'base64')
+        raise "Invalid page metadata at byte #{offset}" unless page.values_at(:handle, :total_bytes, :encoding, :mode) == metadata
+
         decoded = Base64.strict_decode64(page[:body])
+        valid_size = (1..2048).cover?(page[:bytes]) && decoded.bytesize == page[:bytes]
+        raise "Invalid page bounds at byte #{offset}" unless valid_size && page[:next_offset] == offset + page[:bytes]
+
         digest.update(decoded)
         offset = page[:next_offset]
         pages += 1
@@ -52,7 +56,7 @@ describe PWN::Plugins::ArtifactRegistry do
       end
       expect(offset).to eq(bytes.bytesize)
       expect(digest.hexdigest).to eq(expected)
-      puts "artifact paging verified: bytes=#{offset} pages=#{pages} sha256=#{digest.hexdigest}"
+      expect(pages).to be >= (bytes.bytesize / 2048)
     end
 
     it 'preserves split UTF-8 bytes, explicit encodings, refs and EOF metadata' do

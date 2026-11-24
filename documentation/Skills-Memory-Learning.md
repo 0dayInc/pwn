@@ -169,6 +169,13 @@ when deciding which side of the loop to exercise.
 
 ### Memory (`memory_remember`, `memory_recall`, `memory_forget`, `memory_clear`)
 
+In the interactive pwn-ai console, `memory_remember` shows the proposed key,
+category, and value. Use the approval or decline command shown with that entry.
+Approval applies to one save, not the session. pwn-ai reports success only after
+reading the saved entry back. Without interactive review, the tool does not
+write; an operator can use `/memory remember KEY VALUE` directly. An older
+save with an unknown outcome is not automatically retried.
+
 - "Remember that our preferred AI engine for long recon chains is `grok`."
 - "What do we already know about OpenSSH 8.2p1 from prior sessions?"
 - "Forget the stale fact about the old HackRF serial - it was replaced."

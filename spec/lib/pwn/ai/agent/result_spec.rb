@@ -101,11 +101,13 @@ describe PWN::AI::Agent::Result do
     PWN::AI::Agent::Registry.discover
     allow(PWN::Env).to receive(:dig).and_call_original
     allow(PWN::Env).to receive(:dig).with(:ai, :agent, :artifact_max_tokens).and_return(1024)
-    raw = ("\x00\xff".b * 4096) + "needle-at-end\n".b
+    raw = ("\x00\xff".b * 512) + "needle-at-end\n".b
+    expect(raw.bytesize).to be > described_class.token_limit
     summary = JSON.parse(described_class.condition(content: raw, session_id: 'roundtrip'))
     handle = summary.fetch('artifact').fetch('handle')
     reconstructed = +''.b
     offset = 0
+    compacted = false
     messages = [{ role: 'system', content: 'Read the saved bytes.' }, { role: 'user', content: 'Inspect the dump.' }]
     loop do
       tc = { id: "page-#{offset}", function: { name: 'artifact_read', arguments: { handle: handle, offset: offset, length: 50_000_000 } } }
@@ -117,13 +119,16 @@ describe PWN::AI::Agent::Result do
       reconstructed << Base64.strict_decode64(page.fetch('body'))
       messages << { role: 'assistant', content: '', tool_calls: [tc] }
       messages << { role: 'tool', tool_call_id: tc[:id], content: safe }
+      prior_length = messages.length
       PWN::AI::Agent::Loop.send(:compact_history!, messages: messages)
+      compacted ||= messages.length < prior_length
       expect(messages.length).to be <= 14
       break if page.fetch('eof')
 
       expect(page.fetch('next_offset')).to be > offset
       offset = page.fetch('next_offset')
     end
+    expect(compacted).to be(true)
     expect(reconstructed).to eq(raw)
     response = PWN::AI::Agent::Dispatch.call(
       tool_call: { function: { name: 'artifact_grep', arguments: { handle: handle, regex: 'needle-at-end' } } },

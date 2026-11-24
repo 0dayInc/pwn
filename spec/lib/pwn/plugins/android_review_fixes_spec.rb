@@ -7,13 +7,22 @@ require 'rbconfig'
 require 'timeout'
 
 RSpec.describe PWN::Plugins::Android do
+  def write_fixture_adb(script)
+    # These standalone children need no test bundle; leave the runner's RUBYOPT alone.
+    File.write(@adb, "#!#{RbConfig.ruby} --disable=gems,rubyopt\n#{script}")
+    File.chmod(0o700, @adb)
+  end
+
   around do |example|
     Dir.mktmpdir('android-review-') do |root|
       @root = root
       @adb = File.join(root, 'adb literal ; executable')
       @calls = File.join(root, 'calls.jsonl')
-      File.write(@adb, "#!#{RbConfig.ruby}\nrequire 'json'\nFile.open(#{@calls.inspect}, 'a') { |f| f.puts(JSON.generate(ARGV)) }\nputs 'synthetic'\n")
-      File.chmod(0o700, @adb)
+      write_fixture_adb(<<~RUBY)
+        require 'json'
+        File.open(#{@calls.inspect}, 'a') { |f| f.puts(JSON.generate(ARGV)) }
+        puts 'synthetic'
+      RUBY
       example.run
     end
   end
@@ -21,8 +30,7 @@ RSpec.describe PWN::Plugins::Android do
   it 'cancels and reaps only its owned process group, including TERM-resistant descendants' do
     pidfile = File.join(@root, 'pids')
     release = File.join(@root, 'release')
-    File.write(@adb, <<~RUBY)
-      #!#{RbConfig.ruby}
+    write_fixture_adb(<<~RUBY)
       child = fork do
         trap('TERM') {}
         File.write(#{"#{pidfile}.ready".inspect}, '')
@@ -76,7 +84,7 @@ RSpec.describe PWN::Plugins::Android do
   end
 
   it 'bounds an owned child that closes stdout but never exits, without exposing its output' do
-    File.write(@adb, "#!#{RbConfig.ruby}\nSTDOUT.close\nsleep 20\n")
+    write_fixture_adb("STDOUT.close\nsleep 20\n")
     stub_const('PWN::Plugins::Android::COMMAND_TIMEOUT', 1)
     owned = nil
     allow(Process).to receive(:spawn).and_wrap_original do |original, *args, **kwargs|
@@ -89,7 +97,7 @@ RSpec.describe PWN::Plugins::Android do
   end
 
   it 'bounds capture output and suppresses private child stderr on failure' do
-    File.write(@adb, "#!#{RbConfig.ruby}\nSTDERR.puts 'synthetic-private'\nprint 'x' * 2048\n")
+    write_fixture_adb("STDERR.puts 'synthetic-private'\nprint 'x' * 2048\n")
     stub_const('PWN::Plugins::Android::MAX_OUTPUT_BYTES', 1024)
     spawn_options = nil
     allow(Process).to receive(:spawn).and_wrap_original do |original, *args, **kwargs|
