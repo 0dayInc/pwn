@@ -19,6 +19,7 @@ module PWN
     autoload :OpenWebUI, 'pwn/ai/open_web_ui'
     autoload :RedTeam, 'pwn/ai/red_team'
     autoload :Router, 'pwn/ai/router'
+    autoload :Sandbox, 'pwn/ai/sandbox'
     autoload :ServerTools, 'pwn/ai/server_tools'
 
     # Ollama and Open WebUI share a wire format. A binary-tagged non-ASCII reply

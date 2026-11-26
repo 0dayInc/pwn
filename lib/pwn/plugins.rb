@@ -7,7 +7,6 @@ module PWN
   module Plugins
     autoload :Android, 'pwn/plugins/android'
     autoload :AFLplusplus, 'pwn/plugins/aflplusplus'
-    autoload :AISandbox, 'pwn/plugins/ai_sandbox'
     autoload :ArtifactRegistry, 'pwn/plugins/artifact_registry'
     autoload :Assembly, 'pwn/plugins/assembly'
     autoload :BinaryParser, 'pwn/plugins/binary_parser'

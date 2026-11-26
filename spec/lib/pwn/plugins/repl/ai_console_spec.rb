@@ -855,7 +855,7 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
 
   after { Dir.chdir(@launch_pwd) if @launch_pwd && Dir.exist?(@launch_pwd) }
 
-  def launch(keys, startup_delay: 0, render_delay: 0, screen_rows: 30, &tick)
+  def launch(keys, startup_delay: 0, render_delay: 0, screen_rows: 30, trace: false, &tick)
     require 'pty'
     require 'timeout'
     master, input = PTY.open
@@ -890,6 +890,7 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
     @pry = Pry.new
     @pry.config.pwn_ai_session_id = PWN::Sessions.create(title: 'console')[:id]
     @pry.config.pwn_ai = true
+    @pry.config.pwn_ai_debug = @pry.config.pwn_ai_trace = true if trace
     @screen = screen
     output = double('terminal', tty?: true)
     previous = [$stdin, $stdout, $stderr]
@@ -921,6 +922,138 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
     input&.close
   end
 
+  it 'reserves one submission before spawn and acknowledges the answer only after adding it to the parent timeline' do
+    @agent_cfg[:plan_first] = false
+    submissions = PWN::AI::Agent::Submission
+    answer = 'Fixture yellow.'
+    reservations = []
+    acknowledgments = []
+    generation = nil
+    owner = Thread.current
+    allow(PWN::AI::Agent::Loop).to receive(:call_engine).and_return(role: 'assistant', content: answer, tool_calls: [])
+    allow(PWN::AI::Sandbox::MissionProcess).to receive(:new).and_wrap_original do |spawn, opts|
+      generation = opts.dig(:descriptor, :generation)
+      reservations << [opts.dig(:descriptor, :submission_id), submissions.stats[:by_status]]
+      spawn.call(opts)
+    end
+    allow(submissions).to receive(:delivery!).and_wrap_original do |write, **fields|
+      acknowledgments << [fields, @console.instance_variable_get(:@timeline).last.take(2), Thread.current == owner]
+      write.call(**fields)
+    end
+    late = 'Late terminal frame from a finished generation.'
+    injected = false
+    launch("What color is a lemon?\n".chars) do
+      next if @console.busy?
+      next "\u0004" if injected
+
+      injected = true
+      @console.instance_variable_get(:@events) << [:terminal_warning, late, generation]
+      nil
+    end
+    expect(reservations).to contain_exactly([a_string_matching(/\A[0-9a-f]{32}\z/), { 'pending' => 1 }])
+    expect(acknowledgments).to eq([[{ submission_id: reservations.first.first, delivery: :displayed }, [:assistant, answer], true]])
+    expect(@paint).to include(a_string_including(answer))
+    expect(@console.instance_variable_get(:@timeline).map { |row| row[1] }).not_to include(late)
+    expect(submissions.stats).to include(total: 1, by_delivery: { 'displayed' => 1 })
+    receipt = File.read(File.join(PWN::Sessions.sessions_dir(read_only: true), 'support', 'submissions', reservations.first.first))
+    expect(receipt).not_to include('What color is a lemon?', answer, late)
+  end
+
+  it 'records the visible admission failure when a mission cannot start' do
+    allow(PWN::AI::Sandbox::MissionProcess).to receive(:new).and_raise(IOError, 'fixture worker unavailable')
+    launch("What color is a lemon?\n".chars) { "\u0004" unless @console.busy? }
+    expect(@console.instance_variable_get(:@timeline).map { |row| row.take(2) }).to include([:warning, 'Mission not started: fixture worker unavailable'])
+    expect(PWN::AI::Agent::Submission.stats).to include(total: 1, by_status: { 'incomplete' => 1 }, by_stage: { 'admission' => 1 }, by_delivery: { 'displayed' => 1 })
+  end
+
+  it 'closes a reaped child without a terminal event as undelivered despite its visible diagnostics' do
+    @agent_cfg[:plan_first] = false
+    allow(PWN::AI::Agent::Loop).to receive(:run).and_wrap_original do |run, opts|
+      opts.fetch(:on_notice).call('Fixture diagnostic, not a final warning.')
+      run.call(opts)
+    end
+    allow(PWN::AI::Agent::Loop).to receive(:call_engine) { exit!(23) }
+    launch("What color is a lemon?\n".chars) { "\u0004" unless @console.busy? }
+    timeline = @console.instance_variable_get(:@timeline).map { |row| row.take(2) }
+    expect(timeline).to include([:warning, 'Fixture diagnostic, not a final warning.'])
+    expect(timeline.map(&:first)).not_to include(:assistant)
+    expect(PWN::AI::Agent::Submission.stats).to include(total: 1, by_status: { 'incomplete' => 1 }, by_stage: { 'controller' => 1 }, by_delivery: { 'not_displayed' => 1 })
+  end
+
+  it 'does not count title warnings in place of a terminal reply rejected by the timeline' do
+    allow(PWN::AI::Agent::Loop).to receive(:run).and_return("\e[0m")
+    allow(PWN::Sessions).to receive(:refresh_title) do |opts|
+      opts.fetch(:on_error).call('TitleFixture')
+      raise IOError, 'title fixture unavailable'
+    end
+    launch("What color is a lemon?\n".chars) { "\u0004" unless @console.busy? }
+    timeline = @console.instance_variable_get(:@timeline).map { |row| row.take(2) }
+    expect(timeline).to include([:warning, 'Session title refresh unavailable (TitleFixture); previous title retained.'], [:warning, 'IOError: title fixture unavailable'])
+    expect(timeline.map(&:first)).not_to include(:assistant)
+    expect(PWN::AI::Agent::Submission.stats).to include(total: 1, by_delivery: { 'not_displayed' => 1 })
+  end
+
+  it 'delivers a non-denial TurnNotice as a warning without starting a title refresh' do
+    text = "The work was not verified.\n\nChat draft: fixture text."
+    allow(PWN::AI::Agent::Loop).to receive(:run).and_return(PWN::AI::Agent::Loop::TurnNotice.new(text))
+    title = File.join(@tmp, 'title-refresh-attempted')
+    allow(PWN::Sessions).to receive(:refresh_title) { File.write(title, 'called') }
+    launch("Check the fixture note.\n".chars) { "\u0004" unless @console.busy? }
+    terminal = @console.instance_variable_get(:@timeline).filter_map { |type, msg, *| [type, msg] if %i[assistant warning].include?(type) }
+    expect(terminal).to eq([[:warning, text]])
+    expect(File).not_to exist(title)
+    expect(PWN::AI::Agent::Submission.stats).to include(total: 1, by_delivery: { 'displayed' => 1 })
+  end
+
+  it 'preserves an already delivered result when Ctrl+C interrupts only the title refresh' do
+    @agent_cfg[:plan_first] = false
+    answer = 'Fixture yellow.'
+    entered = PWNTestPipeQueue.new
+    allow(PWN::AI::Agent::Loop).to receive(:call_engine).and_return(role: 'assistant', content: answer, tool_calls: [])
+    allow(PWN::Sessions).to receive(:refresh_title) do
+      entered << true
+      Queue.new.pop
+    end
+    before_cancel = nil
+    launch("What color is a lemon?\n".chars) do
+      if !before_cancel && !entered.empty? && @paint.any? { |line| line.include?(answer) }
+        before_cancel = PWN::AI::Agent::Submission.stats
+        "\u0003"
+      elsif before_cancel && !@console.busy?
+        "\u0004"
+      end
+    end
+    expect(before_cancel).to include(total: 1, by_status: { 'complete' => 1 }, by_delivery: { 'displayed' => 1 })
+    expect(PWN::AI::Agent::Submission.stats).to eq(before_cancel)
+  end
+
+  it 'counts an ordinary Enter rejected while busy without counting commands or consuming the active submission' do
+    @agent_cfg[:plan_first] = false
+    entered = PWNTestPipeQueue.new
+    allow(PWN::AI::Agent::Loop).to receive(:call_engine) do
+      entered << true
+      Queue.new.pop
+    end
+    keys = "What color is a lemon?\n".chars
+    phase = :waiting
+    before_cancel = nil
+    launch(keys) do
+      if phase == :waiting && !entered.empty?
+        phase = :submitted
+        keys.concat("/unused-command\nAnother ordinary request.\n".chars)
+        nil
+      elsif phase == :submitted
+        before_cancel = PWN::AI::Agent::Submission.stats
+        phase = :closing
+        "\u0003"
+      elsif phase == :closing && !@console.busy?
+        "\u0004"
+      end
+    end
+    expect(before_cancel).to include(total: 2, by_status: { 'pending' => 1, 'blocked' => 1 }, by_delivery: { 'unknown' => 1, 'displayed' => 1 })
+    expect(PWN::AI::Agent::Submission.stats).to include(total: 2, by_stage: { 'admission' => 1, 'cancellation' => 1 }, by_delivery: { 'displayed' => 1, 'not_displayed' => 1 })
+  end
+
   it 'rejects an ordinary request while the shared mission workspace lease is held' do
     workspace = Dir.mktmpdir('pwn-lease-')
     Dir.chdir(workspace) do
@@ -933,6 +1066,7 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
         end
       end
       expect(@paint.join).to include('Workspace busy:')
+      expect(PWN::AI::Agent::Submission.stats).to include(total: 1, by_status: { 'blocked' => 1 }, by_stage: { 'admission' => 1 }, by_delivery: { 'displayed' => 1 })
     end
   ensure
     FileUtils.rm_rf(workspace) if workspace
@@ -1448,6 +1582,7 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
       end
     end
     expect(foreign).to be_alive
+    expect(PWN::AI::Agent::Submission.stats).to include(total: 1, by_status: { 'cancelled' => 1 }, by_stage: { 'cancellation' => 1 }, by_delivery: { 'not_displayed' => 1 })
   ensure
     foreign&.kill
     foreign&.join
@@ -1494,6 +1629,7 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
   end
 
   it 'forwards tool input, preserves completed evidence before steering, and locks settings while running' do
+    @agent_cfg[:plan_first] = false # The fixture supplies the model's interactive tool request.
     entered = PWNTestPipeQueue.new
     calls = 0
     observed = PWNTestPipeQueue.new
@@ -1512,7 +1648,7 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
       JSON.generate(success: true, result: { stdout: answer, exitstatus: 0 })
     end
     expect(PWN::Plugins::REPL).not_to receive(:pwn_ai_run_model)
-    keys = "what color is a passion fruit?\n".chars
+    keys = "What color is noted in the fixture file?\n".chars
     sent = false
     launch(keys) do
       if !sent && !entered.empty?
@@ -1533,6 +1669,7 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
   end
 
   it 'closes the tool prompt pipe on busy exit and joins rather than orphaning the active request' do
+    @agent_cfg[:plan_first] = false
     entered = PWNTestPipeQueue.new
     finished = PWNTestPipeQueue.new
     allow(PWN::AI::Agent::Loop).to receive(:call_engine).and_return(
@@ -1544,7 +1681,7 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
       finished << answer
       JSON.generate(success: true, result: { stdout: 'prompt completed', exitstatus: 0 })
     end
-    keys = "what color is a lemon?\n".chars
+    keys = "What color is noted in the fixture file?\n".chars
     launch(keys) { entered.empty? ? nil : "\u0004" }
     expect(finished).to be_empty # Hard cancellation does not resume the tool to finish its writes.
   end
@@ -3098,7 +3235,26 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
     expect(@paint.join).to include('Effort accepted.')
   end
 
-  it 'stops after a forbidden planning request and displays one access warning' do
+  it 'displays the Grok effort denial once when the main reply is forbidden' do
+    require 'rest-client'
+    PWN::Env[:ai] = { active: :grok, grok: { model: 'grok-4.7', reasoning_effort: 'high', key: 'fixture-only' }, agent: { plan_first: false } }
+    calls = File.join(@tmp, 'efforts')
+    body = JSON.generate(error: { message: 'Reasoning effort high is not supported by your subscription. Private fixture detail.' })
+    response = Struct.new(:code, :body, :headers).new(403, body, {})
+    allow(RestClient::Request).to receive(:execute) do |call|
+      File.open(calls, 'a') { |f| f.puts(JSON.parse(call.fetch(:payload)).fetch('reasoning_effort')) }
+      raise RestClient::Forbidden, response
+    end
+    launch("Draft a thank-you note.\n".chars) { "\u0004" unless @console.busy? }
+    expect(File.readlines(calls, chomp: true)).to eq(['high'])
+    events = @console.instance_variable_get(:@timeline)
+    expect(events.filter_map { |type, text, *| text if type == :warning }).to contain_exactly(a_string_including('HTTP 403', 'Your current Grok subscription does not include the "high" reasoning effort.'))
+    expect(events.map(&:first)).not_to include(:assistant, :tool)
+    expect(events.to_s).not_to include('Private fixture detail')
+    expect(PWN::AI::Agent::Submission.stats).to include(by_status: { 'blocked' => 1 }, by_stage: { 'provider' => 1 })
+  end
+
+  def denied_planning_events
     require 'rest-client'
     PWN::Env[:ai] = { active: :openai, openai: { model: 'fixture-model' }, agent: { plan_first: true } }
     calls = File.join(@tmp, 'provider-calls')
@@ -3109,9 +3265,43 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
     end
     launch("List the files in this directory\n".chars) { "\u0004" unless @console.send(:busy?) }
     expect(File.readlines(calls, chomp: true)).to eq(['planning'])
-    events = @console.instance_variable_get(:@timeline)
+    @console.instance_variable_get(:@timeline)
+  end
+
+  it 'stops after a forbidden planning request and displays one access warning' do
+    events = denied_planning_events
     expect(events.filter_map { |type, text, *| text if type == :warning }).to contain_exactly(a_string_matching(/HTTP 403.*model/i))
     expect(events.map { |_, text, *| text }.join).not_to match(/plan_first swallowed|private fixture response/)
+    warning = events.find { |type, *| type == :warning }[1]
+    expect(warning).to match(/planning request.*HTTP 403.*no answer/i)
+    expect(events.none? { |type, *| type == :assistant }).to be(true)
+    expect(PWN::Sessions.load(session_id: @pry.config.pwn_ai_session_id)).to include(hash_including(role: 'notice', content: warning))
+    expect(PWN::AI::Agent::Submission.stats).to include(total: 1, by_status: { 'blocked' => 1 }, by_stage: { 'planning' => 1 }, by_delivery: { 'displayed' => 1 })
+  end
+
+  [%i[open!], %i[close! delivery! abandon!]].each do |unavailable|
+    it "does not stop or mask a denied turn when receipt writes (#{unavailable.join(', ')}) fail" do
+      unavailable.each { |operation| allow(PWN::AI::Agent::Submission).to receive(operation).and_raise(IOError, 'private receipt error') }
+      events = denied_planning_events
+      expect(events.filter_map { |type, text, *| text if type == :warning }).to contain_exactly(a_string_matching(/planning request.*HTTP 403.*no answer/i))
+      expect(events.to_s).not_to include('private receipt error', 'private fixture response')
+    end
+  end
+
+  it 'retries a failed display acknowledgment at reap without replacing the decision or showing the error' do
+    submissions = PWN::AI::Agent::Submission
+    attempts = []
+    allow(submissions).to receive(:delivery!).and_wrap_original do |write, **fields|
+      attempts << fields
+      raise IOError, 'private receipt error' if attempts.one?
+
+      write.call(**fields)
+    end
+    events = denied_planning_events
+    expect(events.to_s).not_to include('private receipt error')
+    expect(attempts).to eq([attempts.first, attempts.first])
+    expect(attempts.first).to include(delivery: :displayed)
+    expect(submissions.stats).to include(total: 1, by_status: { 'blocked' => 1 }, by_delivery: { 'displayed' => 1 })
   end
 
   it 'identifies the source line of a request-aborting encoding error without dumping request data' do
@@ -3122,6 +3312,7 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
     expect(warnings).to contain_exactly(a_string_matching(/Encoding::CompatibilityError:.*ai_console_spec\.rb:\d+/m))
     expect(warnings.join).not_to include(__dir__, 'fixture-private', 'block in')
     expect(events.none? { |type, *| type == :assistant }).to be(true)
+    expect(PWN::AI::Agent::Submission.stats).to include(total: 1, by_delivery: { 'displayed' => 1 })
   end
 
   def check_split_stream_preview(engine, adapter, label)
@@ -3167,42 +3358,62 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
     check_split_stream_preview(:ollama, PWN::AI::Ollama, 'Ollama')
   end
 
-  it 'states that instructions in preview text were not run even without structured actions' do
-    console = PWN::Plugins::REPL::AIConsole::Console.new(pry: Pry.new, input: StringIO.new, curses: nil, getch: nil)
-    events = []
-    text = 'Please highlight the word café.'
-    wire = JSON.generate(message: { role: 'assistant', content: text }, done: true).b
-    expect do
-      console.send(:with_stream_preview, events) do
-        PWN::AI::OpenWebUI.send(:assemble_openwebui_stream, body: wire, rest_call: 'ollama/api/chat')
-      end
-    end.to raise_error(PWN::Plugins::REPL::AIConsole::Control::PreviewShown, /No actions from this reply were processed/)
-    expect(events).to eq([[:assistant, text]])
+  it 'does not publish a planner stream as the main reply' do
+    PWN::Env[:ai] = { active: :openwebui, openwebui: { model: 'fixture' }, agent: { plan_first: true } }
+    calls = File.join(@tmp, 'stream-windows')
+    allow(PWN::AI::OpenWebUI).to receive(:chat_with_tools) do |opts|
+      planning = Array(opts[:tools]).empty?
+      File.open(calls, 'a') { |file| file.puts(planning ? 'planner' : 'main') }
+      text = planning ? 'private planner café' : '未確認。'
+      wire = JSON.generate(message: { role: 'assistant', content: text, thinking: 'private reasoning' }, done: true).b
+      PWN::AI::OpenWebUI.send(:assemble_openwebui_stream, body: wire, rest_call: 'ollama/api/chat')
+    end
+    launch("List the files in this directory\n".chars) { "\u0004" unless @console.send(:busy?) }
+    events = @console.instance_variable_get(:@timeline)
+    expect(events.to_s).not_to match(/private planner|private reasoning/)
+    expect(events.filter_map { |type, text, *| text if type == :assistant }).to eq(['未確認。'])
+    expect(File.readlines(calls, chomp: true)).to eq(%w[planner main])
   end
 
-  it 'delivers and saves a split UTF-8 text reply in a session with debugging off' do
-    require 'rest-client'
-    PWN::Env[:ai] = { active: :ollama, ollama: { model: 'fixture', base_uri: 'https://example.invalid' }, agent: { toolsets: [], plan_first: false } }
-    allow(PWN::AI::Router).to receive(:summarize).and_return('{"title":"Lemon colour","summary":"A short answer."}')
-    allow(PWN::Plugins::TransparentBrowser).to receive(:open).and_return(browser: RestClient)
-    answer = 'Yellow — jaune citron.'
-    bytes = JSON.generate(message: { role: 'assistant', content: answer }, done: true).b
-    split = bytes.index('—'.b) + 1
-    allow(RestClient::Request).to receive(:execute) do |args|
-      next '{}' if args.fetch(:url).end_with?('/show')
+  [[:ollama, 'Ollama', []], [:ollama, 'Ollama', nil], [:openwebui, 'Open WebUI', nil]].each do |engine, label, toolsets|
+    it "delivers and saves a split UTF-8 #{label} answer with #{toolsets.nil? ? 'default tools offered' : 'tools disabled'}" do
+      require 'rest-client'
+      PWN::Env[:ai] = { active: engine, engine => { model: 'fixture', base_uri: 'https://example.invalid', key: 'fixture-key' }, agent: { toolsets: toolsets, plan_first: false } }
+      allow(PWN::AI::Router).to receive(:summarize).and_return('{"title":"Lemon colour","summary":"A short answer."}')
+      allow(PWN::Plugins::TransparentBrowser).to receive(:open).and_return(browser: RestClient)
+      answer = '檸檬黃。'
+      allow(PWN::AI::Agent::Loop).to receive(:may_finalize?).and_call_original
+      allow(PWN::Plugins::Log).to receive(:debug_dir).and_return(@tmp)
+      message = { role: 'assistant', content: answer }
+      message[:thinking] = 'private-reasoning' if toolsets.nil?
+      bytes = JSON.generate(message: message, model: 'private-wire-marker', done: true).b
+      split = bytes.index(answer.b) + 1
+      allow(RestClient::Request).to receive(:execute) do |args|
+        next '{}' if args.fetch(:url).end_with?('/show')
 
-      payload = JSON.parse(args.fetch(:payload))
-      raise 'Expected a text-only request' if payload.key?('tools')
+        payload = JSON.parse(args.fetch(:payload))
+        raise 'Unexpected offered tools' unless Array(payload['tools']).any? == toolsets.nil?
 
-      response = double('text response', code: '200')
-      allow(response).to receive(:read_body).and_yield(bytes.byteslice(0, split)).and_yield(bytes.byteslice(split..))
-      args.fetch(:block_response).call(response)
+        response = double('text response', code: '200')
+        allow(response).to receive(:read_body).and_yield(bytes.byteslice(0, split)).and_yield(bytes.byteslice(split..))
+        args.fetch(:block_response).call(response)
+      end
+      request = toolsets.nil? ? 'What color is a lemon? You may consult the fixture file.' : 'What color is a lemon?'
+      launch("#{request}\n".chars, trace: toolsets.nil?) { "\u0004" unless @console.send(:busy?) }
+      events = @console.instance_variable_get(:@timeline)
+      warnings = events.filter_map { |type, text, *| text if type == :warning }
+      expect(warnings).to eq(toolsets.nil? ? ["#{label}: No actions from this reply were processed."] : [])
+      expect(events.filter_map { |type, text, *| text if type == :assistant }).to contain_exactly(answer)
+      expect(@paint.join).to include(answer)
+      session = PWN::Sessions.load(session_id: @pry.config.pwn_ai_session_id)
+      expect(session.filter_map { |row| row[:content] if row[:role] == 'assistant' }).to eq([answer])
+      expect([events, session].to_s).not_to match(/private-reasoning|private-wire-marker/)
+      if toolsets.nil?
+        log = File.read(Dir.glob(File.join(@tmp, 'pwn-ai-DEBUG-*-R1.log')).fetch(0))
+        expect(log).to include("final_chars=#{answer.length}", 'pending_action=false')
+        expect(log).not_to match(/private-reasoning|private-wire-marker/)
+      end
     end
-    launch("what color is a lemon?\n".chars) { "\u0004" unless @console.send(:busy?) }
-    events = @console.instance_variable_get(:@timeline)
-    expect(events.filter_map { |type, text, *| text if type == :warning }).to be_empty
-    expect(events.filter_map { |type, text, *| text if type == :assistant }).to include(answer)
-    expect(PWN::Sessions.load(session_id: @pry.config.pwn_ai_session_id)).to include(hash_including(role: 'assistant', content: answer))
   end
 
   it 'honors locally selected model and resumed session in the actual provider call' do

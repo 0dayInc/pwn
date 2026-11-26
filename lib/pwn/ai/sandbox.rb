@@ -9,13 +9,18 @@ require 'ffi'
 require 'find'
 require 'tmpdir'
 require 'socket'
+require 'pwn/ai/agent/mission_namespace'
 
 module PWN
-  module Plugins
+  module AI
     # Forked worker for model-authored shell/Ruby with Landlock/seccomp profiles.
-    module AISandbox
+    module Sandbox
       ALIAS_MUTEX = Mutex.new
       ALIAS_CACHE = {} # rubocop:disable Style/MutableConstant -- host-only inode fingerprint cache
+
+      # WRITE_FILE, REMOVE_DIR/FILE, MAKE_DIR/REG and TRUNCATE. In particular
+      # do not allow symlinks, special files, or links/renames from another dir.
+      SKILL_DATA_RIGHTS = [1, 4, 5, 7, 8, 14].sum { |bit| 1 << bit }
 
       NotStarted = PWN::AI::Agent::MissionNamespace::Unavailable
 
@@ -126,6 +131,9 @@ module PWN
       # The block runs only in a child; cwd and restrictions never affect the UI.
       public_class_method def self.protect_call(opts = {})
         return yield if Thread.current[:pwn_repository_worker]
+
+        # A delegated prompt is not an operator grant to persistent skill data.
+        opts = opts.merge(no_skill_grant: true) if Thread.current[:pwn_loop_nested] || Thread.current[:pwn_solve_tools] || Thread.current[:pwn_curriculum] || Thread.current[:pwn_swarm_depth].to_i.positive?
         return protect_descriptor(opts) unless PWN::AI::Agent::MissionNamespace.owned || (PWN::AI::Agent::MissionNamespace.prepared? && !PWN::AI::Agent::MissionNamespace.force_exec)
 
         roots = Array(opts[:roots] || protected_roots).map { |path| File.realpath(path) }.uniq
@@ -145,14 +153,7 @@ module PWN
           controller_root = File.dirname(opts[:runtime].checkpoint_path, 2)
           roots += [File.realpath(controller_root), File.realpath(PWN::AI::Agent::Swarm::SWARM_ROOT), File.realpath(PWN::AI::Agent::Swarm::AGENTS_FILE)]
         end
-        roots.concat(controller_state_roots)
-        explicit = prepare_write_roots(paths: opts[:write_roots])
-        pinned = pin_named_files(paths: opts[:write_roots], protected: roots)
-        writable = [scratch, '/dev/null', '/dev/zero', '/dev/random', '/dev/urandom'] + explicit + pinned
-        writable += prepare_write_roots(paths: state_write_roots) unless opts.dig(:handler, :name).to_s == 'shell'
-        writable = writable.filter_map { |path| File.realpath(path) if File.exist?(path) && !File.symlink?(path) }.uniq
-        writable.reject! { |path| %w[/ /proc /sys /dev].include?(path) }
-        aliases, identities = repository_aliases(roots: roots, writable: writable)
+        grants = repository_grants(opts.merge(roots: roots, scratch: scratch))
 
         reader, writer = IO.pipe
         controller, client = UNIXSocket.pair
@@ -164,8 +165,8 @@ module PWN
             Thread.current[:pwn_swarm_controller] = client if opts[:runtime]
             Signal.trap('TERM') { raise Interrupt, 'runtime worker cancelled' }
             begin
-              repository_restrict!(roots: roots + aliases, writable: writable, explicit: explicit, protected: roots)
-              repository_metadata_restrict!(roots: roots + aliases, identities: identities)
+              repository_restrict!(grants)
+              repository_metadata_restrict!(grants)
               Dir.chdir(task_dir)
               ENV['TMPDIR'] = scratch
               Thread.current[:pwn_repository_worker] = true
@@ -377,18 +378,22 @@ module PWN
           next unless protected.any? { |root| root.start_with?("#{parent}/") }
           next if protected_path?(path: parent, roots: protected) || File.symlink?(parent)
 
-          create_pinned_file(parent: parent, name: File.basename(path))
-          path
+          path if create_pinned_file(parent: parent, name: File.basename(path))
         end
       end
 
       private_class_method def self.create_pinned_file(opts = {})
-        flags = File::WRONLY | File::CREAT | File::NOFOLLOW
+        flags = File::WRONLY | File::CREAT | File::EXCL | File::NOFOLLOW | File::NONBLOCK
         control_directory(path: opts[:parent]) do |directory|
-          fd = IO.sysopen(File.join(directory, opts[:name]), flags, 0o600)
-          IO.new(fd).close
+          leaf = File.join(directory, opts[:name])
+          begin
+            IO.new(IO.sysopen(leaf, flags, 0o600)).close
+          rescue Errno::EEXIST
+            # Inspect the existing inode without opening a link, FIFO or device.
+          end
+          stat = File.lstat(leaf)
+          :pinned if stat.file? && stat.nlink == 1
         end
-        :created
       end
 
       # Detect both the conventional checkout and the loaded package source.
@@ -401,9 +406,75 @@ module PWN
         opts.fetch(:roots).any? { |root| path == root || path.start_with?("#{root}/") }
       end
 
+      private_class_method def self.repository_grants(opts = {})
+        library = PWN::Config.pwn_skills_path
+        protected = opts.fetch(:roots) | controller_state_roots(library: library)
+        # An ordinary grant (including an explicitly named ancestor) must never
+        # supply normal filesystem rights to the library or its canonical alias.
+        roots = protected | store_locations(paths: [library])
+        documents, ordinary = Array(opts[:write_roots]).map { |p| File.expand_path(p.to_s) }.partition { |p| protected_path?(path: p, roots: [library]) }
+        ordinary.reject! { |p| store_locations(paths: [p]).any? { |path| protected_path?(path: path, roots: roots) } }
+        destinations = opts[:runtime]&.contract&.fetch(:skill_destinations, {}) || {}
+        data = opts[:no_skill_grant] ? {} : skill_data_grants(destinations: destinations.slice(*documents), library: library, protected: protected)
+        explicit = prepare_write_roots(paths: ordinary)
+        writable = [opts.fetch(:scratch), '/dev/null', '/dev/zero', '/dev/random', '/dev/urandom'] + explicit
+        writable += prepare_write_roots(paths: state_write_roots(protected: roots)) unless opts.dig(:handler, :name).to_s == 'shell'
+        writable = writable.filter_map { |p| File.realpath(p) if File.exist?(p) && !File.symlink?(p) }.uniq - %w[/ /proc /sys /dev]
+        aliases, identities = repository_aliases(roots: roots, writable: writable)
+        protected = roots | aliases.reject { |p| File.directory?(p) }
+        # Pin after alias discovery: an unrelated protected hardlink rules out
+        # granting its directory, but does not rule out the named output file.
+        writable |= pin_named_files(paths: ordinary, protected: protected)
+        { roots: roots | aliases, protected: protected, writable: writable, explicit: explicit, data: data, identities: identities }
+      end
+
+      # Only paths from the host's original write contract can reach here. Do
+      # not inherit a write grant on .pwn when the library does not yet exist.
+      private_class_method def self.skill_data_grants(opts = {})
+        destinations = opts.fetch(:destinations)
+        return {} if destinations.empty?
+
+        library = opts.fetch(:library)
+        # lstat alone cannot distinguish a bind mount of other state from an
+        # ordinary directory or file on the same device. mountinfo escapes names.
+        mounts = File.readlines('/proc/self/mountinfo').filter_map do |line|
+          mount = line.split(' ', 6).fetch(4).gsub(/\\([0-7]{3})/) { Regexp.last_match(1).to_i(8).chr }
+          mount if protected_path?(path: mount, roots: [library])
+        end
+        protected = opts.fetch(:protected) | mounts
+        destinations.filter_map do |path, kind|
+          next if File.symlink?(path) || protected_path?(path: path, roots: protected) || protected.any? { |root| root.start_with?("#{path}/") }
+
+          case kind
+          when :directory
+            control_directory(path: path) { |_fd| nil }
+            next unless plain_data_directory?(path: path)
+          when :file
+            next unless create_pinned_file(parent: File.dirname(path), name: File.basename(path))
+          else
+            next
+          end
+          stat = File.lstat(path)
+          next unless kind == :directory ? stat.directory? : stat.file? && stat.nlink == 1
+
+          [path, [stat.dev, stat.ino, stat.ftype]]
+        rescue Errno::EACCES, Errno::ELOOP, Errno::ENOTDIR, Errno::ENOENT
+          nil
+        end.to_h
+      end
+
+      # A directory rule is inherited by every descendant. Refuse the grant if
+      # an existing entry isn't private ordinary data; never follow an alias.
+      private_class_method def self.plain_data_directory?(opts = {})
+        Find.find(opts.fetch(:path), ignore_error: false).all? do |path|
+          stat = File.lstat(path)
+          stat.directory? || (stat.file? && stat.nlink == 1)
+        end
+      end
+
       # Plugin records, not the default scratch tree. Shell does not receive these.
-      private_class_method def self.state_write_roots
-        denied = controller_state_roots
+      private_class_method def self.state_write_roots(opts = {})
+        denied = opts.fetch(:protected)
         %w[jobs cache ghidra redb binws wordlists exports sandbox_snapshots intel].filter_map do |name|
           path = File.join(Dir.home, '.pwn', name)
           next if protected_path?(path: path, roots: denied)
@@ -415,7 +486,7 @@ module PWN
       # Keep controller persistence out of tool grants, including absent paths.
       # A missing deny still splits its ancestor grant, so tools cannot plant it
       # before the controller's first append. Honour test/custom store constants.
-      private_class_method def self.controller_state_roots
+      private_class_method def self.controller_state_roots(opts = {})
         agent = PWN::AI::Agent
         stores = [PWN::Sessions, PWN::Memory, PWN::MemoryIndex, PWN::Plugins::ArtifactRegistry,
                   agent::Learning, agent::Policy, agent::Metrics, agent::Reward, agent::Mistakes,
@@ -429,16 +500,25 @@ module PWN
             value if value.is_a?(String) && value.start_with?('/')
           end
         end
-        paths.concat(%w[artifacts logs learning metrics skills .swarm-continuations.lock pwn.yaml pwn.yaml.decryptor vault-secrets.json].map { |name| File.join(Dir.home, '.pwn', name) })
+        paths.concat(%w[artifacts logs learning metrics .swarm-continuations.lock pwn.yaml pwn.yaml.decryptor vault-secrets.json].map { |name| File.join(Dir.home, '.pwn', name) })
         paths << File.join(Dir.home, '.pwn-vault.key')
+        library = opts.fetch(:library)
+        catalogs = [PWN::Config.active_skill_root].compact
         if defined?(PWN::Env) && PWN::Env.is_a?(Hash)
-          %i[pwn_env_path pwn_dec_path pwn_skills_path].each do |key|
+          %i[pwn_env_path pwn_dec_path].each do |key|
             path = PWN::Env.dig(:driver_opts, key)
             paths << path unless path.to_s.empty?
           end
+          catalogs.concat([PWN::Env[:pwn_skills_path], PWN::Env.dig(:driver_opts, :pwn_skills_path)].reject { |path| path.to_s.empty? })
         end
-        paths.concat(PWN::Skills.values.filter_map { |meta| File.dirname(meta[:path]) if meta.is_a?(Hash) && meta[:path].is_a?(String) }) if defined?(PWN::Skills) && PWN::Skills.is_a?(Hash)
-        paths.flat_map do |path|
+        paths.concat(catalogs.reject { |path| File.expand_path(path) == library })
+        entries = defined?(PWN::Skills) && PWN::Skills.is_a?(Hash) ? PWN::Skills.values : []
+        parents = entries.filter_map { |meta| File.dirname(meta[:path]) if meta.is_a?(Hash) && meta[:path].is_a?(String) }
+        store_locations(paths: paths) | store_locations(paths: parents).reject { |path| protected_path?(path: path, roots: [library]) }
+      end
+
+      private_class_method def self.store_locations(opts = {})
+        opts.fetch(:paths).flat_map do |path|
           path = File.expand_path(path)
           ancestor = path
           ancestor = File.dirname(ancestor) until File.exist?(ancestor) || File.symlink?(ancestor)
@@ -567,6 +647,9 @@ module PWN
 
             repository_allow!(path: path, denied: denied, ancestors: ancestors, ruleset: ruleset, rights: rights, explicit: opts[:explicit], protected: opts[:protected])
           end
+          opts.fetch(:data).each do |path, identity|
+            repository_allow!(path: path, denied: {}, ancestors: {}, ruleset: ruleset, rights: SKILL_DATA_RIGHTS, identity: identity)
+          end
           prctl = RUBY_PLATFORM.start_with?('aarch64') ? 167 : 157
           syscall(prctl, 38, 1, 0, 0, 0)
           syscall(446, ruleset, 0)
@@ -589,14 +672,15 @@ module PWN
         if opts.fetch(:ancestors).key?(path) && !force
           Dir.children(path).each { |name| repository_allow!(opts.merge(path: File.join(path, name), force: false)) }
         else
-          rights = opts.fetch(:rights)
-          rights &= (1 << 1) | (1 << 14) unless File.directory?(path)
-          fd = IO.sysopen(path, 0x200000 | 0x80000) # O_PATH | O_CLOEXEC
-          begin
-            attr = ::FFI::MemoryPointer.from_string([rights, fd].pack('QL'))
+          IO.open(IO.sysopen(path, 0x200000 | 0x80000 | File::NOFOLLOW)) do |file| # O_PATH | O_CLOEXEC
+            stat = file.stat
+            return :denied if stat.symlink?
+            return :denied if opts[:identity] && (opts[:identity] != [stat.dev, stat.ino, stat.ftype] || (stat.file? && stat.nlink != 1))
+
+            rights = opts.fetch(:rights)
+            rights &= (1 << 1) | (1 << 14) unless stat.directory?
+            attr = ::FFI::MemoryPointer.from_string([rights, file.fileno].pack('QL'))
             syscall(445, opts.fetch(:ruleset), 1, attr.address, 0)
-          ensure
-            IO.new(fd).close
           end
         end
         :allowed

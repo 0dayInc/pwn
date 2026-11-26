@@ -93,7 +93,7 @@ PWN::AI::Agent::Registry.register(
     scoped = PWN::AI::Agent::ToolGuard.scope_refusal(command: cmd)
     return scoped if scoped
 
-    sandboxed = PWN::Plugins::AISandbox.wrap_shell(command: cmd, timeout: timeout)
+    sandboxed = PWN::AI::Sandbox.wrap_shell(command: cmd, timeout: timeout)
     return sandboxed unless sandboxed.nil?
 
     return PWN::Plugins::Jobs.start(command: cmd, max_runtime: args[:max_runtime], session_id: Thread.current[:pwn_session_id]).merge(routed: 'job_run') if args[:background] == true || (args[:timeout].to_i <= 0 && PWN::AI::Agent::ToolGuard.auto_job?(payload: cmd))

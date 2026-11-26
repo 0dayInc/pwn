@@ -141,7 +141,7 @@ module PWN
             runtime = Thread.current[:pwn_request_runtime]
             result = if runtime
                        runtime.execute_tool(name: entry.name, args: args, effect: effect(name: entry.name, args: args), action_id: tool_call[:id] || tool_call['id']) do
-                         PWN::Plugins::AISandbox.protect_call(handler: { name: entry.name, args: args }, runtime: runtime, workspace: runtime.contract[:cwd], write_roots: runtime.contract[:required_artifacts]) do
+                         PWN::AI::Sandbox.protect_call(handler: { name: entry.name, args: args }, runtime: runtime, workspace: runtime.contract[:cwd], write_roots: runtime.contract[:required_artifacts]) do
                            entry.handler.call(args)
                          end
                        end

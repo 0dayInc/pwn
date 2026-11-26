@@ -472,6 +472,11 @@ module PWN
         @debug_file = io
         @debug_path = path
         path
+      rescue SystemCallError, IOError
+        io&.close
+        close_debug_file!
+        @debug_path = nil
+        raise
       end
 
       public_class_method def self.quiet_tui!(opts = {})
@@ -709,18 +714,27 @@ module PWN
         tp = opts[:tp]
         klass = trace_module_name(tp: tp)
         meth = tp.method_id
+        label = "#{klass}.#{meth}"
+        # Trace reply stages by name only: even inspecting the signal can expose presentation data.
+        return label if %w[PWN::AI::Agent::Loop::DisplayReply PWN::AI::Agent::Loop::ReplyWindow].include?(klass)
+        return label if klass == 'PWN::AI::Agent::Loop' && %i[finish_display_reply empty_final_nudge].include?(meth)
+
         args = trace_arguments(tp: tp)
-        args.to_s.empty? ? "#{klass}.#{meth}" : "#{klass}.#{meth}(#{args})"
+        args.to_s.empty? ? label : "#{label}(#{args})"
       end
 
       private_class_method def self.traceable?(opts = {})
         tp = opts[:tp]
+        return false if tp&.method_id == :cancel_requested? && tp.defined_class.name == 'PWN::AI::Agent::Loop::ProviderWindow'
+
         prefixes = opts[:prefixes] || DEFAULT_TRACE_PREFIXES
         name = trace_module_name(tp: tp)
         return false if name.empty?
         return false if TRACE_SKIP_PREFIXES.any? { |p| name.start_with?(p) }
         return false unless prefixes.any? { |p| name.start_with?(p) }
         return false if TRACE_SKIP_METHODS.include?(tp.method_id)
+        # These calls inspect stored mistake rows, not failures in the current request.
+        return false if name == 'PWN::AI::Agent::Loop' && %i[mistake_ts budget_hit?].include?(tp.method_id)
 
         true
       end

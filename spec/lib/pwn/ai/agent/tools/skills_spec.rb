@@ -22,6 +22,29 @@ describe 'PWN::AI::Agent::Tools skills' do
     expect(PWN::AI::Agent::Registry.lookup(name: 'skill_migrate_legacy')).not_to be_nil
   end
 
+  describe 'saving to an operator-named library through Dispatch', :requires_landlock do
+    include_context 'pwn tmp sandbox'
+
+    %w[skill_create skills_create].each do |tool|
+      it "persists the document returned by #{tool}" do
+        previous = Thread.current[:pwn_request_runtime]
+        allow(Dir).to receive(:home).and_return(File.join(@tmp, 'home'))
+        root = PWN::Config.pwn_skills_path
+        Thread.current[:pwn_request_runtime] = PWN::AI::Agent::RequestRuntime.new(request: "Save the meeting notes skill under #{root}", session_id: 'save-notes', trace: false, retrieve: false)
+        args = { name: 'meeting-notes', content: 'Record the decisions.' }
+        args[:confirm] = true if tool == 'skills_create'
+        row = JSON.parse(PWN::AI::Agent::Dispatch.call(tool_call: { function: { name: tool, arguments: JSON.generate(args) } }))
+        path = File.join(root, 'meeting-notes', 'SKILL.md')
+        expect(row).to include('success' => true, 'result' => include('saved' => true, 'path' => path))
+        doc = PWN::Config.parse_skill_frontmatter(content: File.binread(path))
+        expect(doc[:frontmatter]['name']).to eq('meeting-notes')
+        expect(doc[:body].strip).to eq('Record the decisions.')
+      ensure
+        Thread.current[:pwn_request_runtime] = previous
+      end
+    end
+  end
+
   describe 'agentskills.io conformance' do
     before do
       @prev = defined?(PWN::Skills) ? PWN::Skills : nil

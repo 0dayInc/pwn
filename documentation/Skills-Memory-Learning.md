@@ -15,7 +15,7 @@ of general improvement. See [Operability](Operability.md).
 | Store | File | Write tool | Read tool | Injected as |
 |---|---|---|---|---|
 | **Memory** | `memory.json` (+ `memory.idx`) | `memory_remember` | `memory_recall` · `PWN::MemoryIndex.recall_semantic` | `MEMORY` block - durable facts / prefs / lessons / env. **Relevance-ranked** for the current request via a local embedding index when `ai.ollama.embed_model` is available; falls back to newest-first otherwise. |
-| **Skills** | `skills/<name>/SKILL.md` | `skill_create` · `skill_migrate_legacy` · `learning_distill_skill` | `skill_list` · `skill_view` | `SKILLS` list - reusable procedures + `references:` (CWE/CVE/ATT&CK/NIST/URL) |
+| **Skills** | `skills/<name>/SKILL.md` | `skill_create` · `skill_migrate_legacy` · `learning_distill_skill` | `skill_list` · `skill_view` · `skills_recall` | Catalog counts and bundled groups; local skill bodies and references are read on demand, not inserted as system instructions. |
 | **Policy** | `policy.json` + `policy_traj.jsonl` | Loop `begin_episode` / `observe_step` / `finish` | `policy_stats` · `policy_evaluate` · `policy_recommend` | `POLICY` block - live tabular Q / REINFORCE. Advisory rank only. Disable with `ai.agent.policy: false`. |
 | **Learning** | `learning.jsonl` | `learning_note_outcome` · `learning_reflect` | `learning_outcomes` · `learning_stats` · `Learning.exemplars_for` | `LEARNING` block - recent outcomes + success_rate. Prior *successful* traces are also spliced in as **few-shot exemplars** for local models. |
 | **Mistakes** | `mistakes.json` | `mistakes_record` · `mistakes_resolve` · *auto on failure* | `mistakes_list` | `KNOWN MISTAKES` + `KNOWN FIXES` blocks - do-NOT-repeat + do-THIS-instead |
@@ -83,6 +83,13 @@ Each skill lives in its own directory as `~/.pwn/skills/<name>/SKILL.md`.
 The name is sanitised to `[a-z0-9-]{1,64}`. Front-matter **must** carry
 `name` + `description`; `metadata.references` and `allowed-tools` are
 optional.
+
+To save a skill and its supporting files with the sandboxed shell, name the
+destination in the request: `Save the meeting notes skill under ~/.pwn/skills`.
+The library holds data, not startup code. Legacy `.rb` files remain available
+as source; Ruby under `scripts/` is not automatically run on load, reload or
+worker startup. Keep trusted application code outside the writable library.
+See [Runtime source protection](Runtime-Source-Protection.md#writing-skills-and-references).
 
 ```markdown
 ---

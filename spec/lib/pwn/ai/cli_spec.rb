@@ -291,6 +291,23 @@ RSpec.describe 'PWN::AI::CLI' do
     FileUtils.remove_entry(home) if home && Dir.exist?(home)
   end
 
+  context 'a denied one-shot Grok reply' do
+    include_context 'pwn tmp sandbox'
+
+    it 'prints the provider-confirmed effort restriction and exits nonzero' do
+      require 'rest-client'
+      allow(PWN::Config).to receive(:refresh_env)
+      PWN::Env[:ai] = { active: :grok, grok: { model: 'grok-4.7', reasoning_effort: 'high', key: 'fixture-only' }, agent: { plan_first: false } }
+      body = JSON.generate(error: 'Reasoning effort high is unavailable on this plan. Private fixture detail.')
+      response = Struct.new(:code, :body, :headers).new(403, body, {})
+      allow(RestClient::Request).to receive(:execute).and_raise(RestClient::Forbidden.new(response))
+      out = StringIO.new
+      expect(PWN::AI::CLI.run(argv: ['--ai', 'Draft a thank-you note.'], output: out)).to eq(1)
+      expect(out.string.lines).to contain_exactly(a_string_including('HTTP 403', 'Your current Grok subscription does not include the "high" reasoning effort.'))
+      expect(out.string).not_to include('Private fixture detail')
+    end
+  end
+
   it 'prints executable help without reading or creating a vault' do
     Dir.mktmpdir do |home|
       output, status = Open3.capture2e({ 'HOME' => home }, 'ruby', '-Ilib', 'bin/pwn-ai', '--help')

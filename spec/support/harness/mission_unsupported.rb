@@ -16,8 +16,8 @@ PWN::AI::Agent::MissionNamespace.define_singleton_method(:native) do |name, argu
 end
 marker = File.join(ARGV.fetch(0), 'must-not-run')
 begin
-  PWN::Plugins::AISandbox::MissionProcess.new { File.write(marker, 'unsafe') }
-rescue PWN::Plugins::AISandbox::NotStarted => e
+  PWN::AI::Sandbox::MissionProcess.new { File.write(marker, 'unsafe') }
+rescue PWN::AI::Sandbox::NotStarted => e
   error = e.message
 end
 begin

@@ -20,13 +20,19 @@ RSpec.describe 'controller spill boundary through actual Dispatch' do
         row = JSON.parse(stdout)
         expect(row['changed']).to be(false), row.inspect
         expect(row['dispatch_success']).to be(false)
-        expect(row['dispatch_error']).to include('Permission denied')
+        if (reason = PwnSpecLandlock.unavailable_reason)
+          expect(JSON.parse(row.fetch('dispatch_error')).fetch('result')).to include(
+            'execution_state' => 'not_started', 'error' => "repository protection: #{reason}"
+          )
+        else
+          expect(row['dispatch_error']).to include('Permission denied')
+        end
       end
     end
   end
 
   %w[ordinary aliased].each do |mode|
-    it "denies the #{mode} controller-state inventory while preserving workspace output" do
+    it "denies the #{mode} controller-state inventory while preserving workspace output", :requires_landlock do
       Dir.mktmpdir('controller-inventory-') do |root|
         source = File.join(root, 'source')
         home = File.join(root, 'home')

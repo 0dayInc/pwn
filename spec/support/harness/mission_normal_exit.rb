@@ -9,7 +9,7 @@ ready = File.join(root, 'detached-ready')
 late = File.join(root, 'detached-late')
 unrelated = Process.spawn(RbConfig.ruby, '-e', 'sleep 30', out: File::NULL, err: File::NULL)
 begin
-  mission = PWN::Plugins::AISandbox::MissionProcess.new do
+  mission = PWN::AI::Sandbox::MissionProcess.new do
     fork do
       Process.setsid
       fork do

@@ -105,6 +105,9 @@ RSpec.shared_context 'pwn tmp sandbox' do
     end
 
     ENV['PWN_CRON_DIR'] = File.join(@tmp, 'cron')
+    # Ordinary Loop calls preserve caller-owned episodes. A direct metrics
+    # fixture can also start one; it must not become the next example's caller.
+    @previous_policy_episode = PWN::AI::Agent::Policy.detach_episode!
     Thread.current[:pwn_pending_pref] = nil
     Thread.current[:pwn_curriculum]   = nil
     Thread.current[:pwn_swarm_depth]  = nil
@@ -112,6 +115,7 @@ RSpec.shared_context 'pwn tmp sandbox' do
 
   after do
     ENV.delete('PWN_CRON_DIR')
+    PWN::AI::Agent::Policy.attach_episode!(episode: @previous_policy_episode)
     PWN::Env[:ai] = @env_prev
     Thread.current[:pwn_pending_pref] = nil
     Thread.current[:pwn_curriculum]   = nil

@@ -336,7 +336,9 @@ module PWN
             end
           end
 
-          tasks = normalize_task_list(tasks: tasks, goal: goal)
+          # The operator already supplied a list. Do not shorten it to a how-to
+          # or pad it with a reporting step from the generated-plan template.
+          tasks = source == :enumerated ? tasks.first(MAX_PLAN_TASKS) : normalize_task_list(tasks: tasks, goal: goal)
           if opts[:state].is_a?(Hash)
             opts[:state][:plan] = tasks
             opts[:state][:original_request] = goal if opts[:state][:original_request].to_s.empty?
@@ -458,18 +460,50 @@ module PWN
             end
           end
           if chunks.length < MIN_PLAN_TASKS
-            # Inline: "1. do X 2. do Y 3. do Z"
-            inline = goal.scan(/(?:^|\s)\d+[.):]\s+([^\d]+?)(?=(?:\s+\d+[.):]\s+)|$)/)
-            chunks = inline.flatten.map(&:strip) if inline.length >= MIN_PLAN_TASKS
-          end
-          if chunks.length < MIN_PLAN_TASKS
-            # Numbered improvement list like "1. the task ... 2. once a request"
-            inline = goal.split(/(?=(?:^|\s)\d+\.\s+)/).map(&:strip).reject(&:empty?)
-            chunks = inline.map { |c| c.sub(/\A\d+\.\s+/, '') }.reject(&:empty?) if inline.length >= MIN_PLAN_TASKS
+            inline = inline_numbered_steps(text: goal, keep_lead: true)
+            chunks = inline if inline.length >= MIN_PLAN_TASKS
           end
           reject_scaffold_tasks(tasks: chunks)
         rescue StandardError
           []
+        end
+
+        # Split at successive list markers, not at digits in the operands.
+        # A lead before 1 is context; a lead followed by 2, 3 is the missing
+        # first item. Keep its words rather than inventing a corrected step.
+        private_class_method def self.inline_numbered_steps(opts = {})
+          text = opts.fetch(:text)
+          markers = []
+          previous_start = 0
+          last_clear = false
+          text.scan(/(?<!\S)(\d+)([.):])(?=[ \t]+\S)/) do |number, separator|
+            mark = Regexp.last_match
+            before = text[previous_start...mark.begin(0)]
+            at_start = previous_start.zero? && before.strip.empty?
+            previous_start = mark.begin(0)
+            clear = at_start || separator != '.' || before.match?(/[.!?;:]\s*\z|\n[ \t]*\z/)
+            last = markers.last
+            if last.nil?
+              next unless at_start || (clear && %w[1 2].include?(number))
+            elsif number == last[1]
+              # A sentence-ending operand can resemble the next ordinal. If
+              # the actual marker follows it, leave the operand in its item.
+              next if last_clear || !clear
+
+              markers.pop
+            elsif number != last[1].succ
+              next
+            end
+            markers << mark
+            last_clear = clear
+          end
+          return [] if markers.empty?
+
+          steps = markers.each_cons(2).map { |a, b| text[a.end(0)...b.begin(0)].strip }
+          steps << text[markers.last.end(0)..].strip
+          lead = text[0...markers.first.begin(0)].strip
+          steps.unshift(lead) if opts[:keep_lead] && markers.first[1] == '2' && !lead.empty?
+          steps
         end
 
         # ------------------------------------------------------------------
@@ -653,8 +687,8 @@ module PWN
           tasks = []
 
           # If the operator already spelled improvement bullets, surface them.
-          bullets = goal_text.scan(/(?:^|\s)(?:\d+\.|[-*])\s*([^.;]+)/).flatten.map(&:strip)
-          bullets = reject_scaffold_tasks(tasks: bullets)
+          bullets = extract_enumerated_steps(goal: goal_text)
+          bullets = reject_scaffold_tasks(tasks: goal_text.scan(/(?:^|\s)[-*]\s*([^.;]+)/).flatten) if bullets.length < MIN_PLAN_TASKS
           if bullets.length >= MIN_PLAN_TASKS
             bullets.first(8).each { |b| tasks << b.sub(/\Athe\s+/i, '').sub(/\.\s*\z/, '') }
             return tasks
@@ -1233,8 +1267,8 @@ module PWN
             tasks << item unless item.empty?
           end
           if tasks.length < MIN_PLAN_TASKS
-            inline = text.scan(/(?:^|\s)\d+[.):]\s+([^\d]+?)(?=(?:\s+\d+[.):]\s+)|$)/)
-            tasks = inline.flatten.map { |t| t.to_s.gsub(/\s+/, ' ').strip }.reject(&:empty?) if inline.length >= MIN_PLAN_TASKS
+            inline = text.lines.flat_map { |line| inline_numbered_steps(text: line.strip) }
+            tasks = inline if inline.length >= MIN_PLAN_TASKS
           end
           tasks = tasks.map { |t| t.to_s.gsub(/\s+/, ' ').strip }.reject(&:empty?).uniq
           tasks.first(MAX_PLAN_TASKS)

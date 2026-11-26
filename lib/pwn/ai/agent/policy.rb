@@ -4,7 +4,9 @@ require 'json'
 require 'fileutils'
 require 'time'
 require 'digest'
+require 'tempfile'
 require_relative '../../memory'
+require_relative 'turn_finalizer'
 
 module PWN
   module AI
@@ -194,6 +196,9 @@ module PWN
           )
           ep = {
             session_id: sid,
+            submission_scope: Thread.current[:pwn_loop_submission_scope],
+            submission_id: Thread.current[:pwn_loop_submission_scope]&.root_id,
+            request_id: opts[:request_id],
             request: opts[:request].to_s.dup,
             kind: normalize_kind(raw: opts[:kind]),
             intent: opts[:intent].to_s,
@@ -343,6 +348,9 @@ module PWN
           attribute_terminal!(episode: ep, reward: terminal, attribution: opts[:attribution])
           ep[:steps].last[:terminal] = true
           ep[:score] = opts[:score]
+          role = opts[:close_role].to_s
+          role = Thread.current[TurnFinalizer::INLINE_KEY] ? 'deferred' : 'direct' unless %w[controller steering learning deferred].include?(role)
+          ep[:close_role] = role
           ep[:verdict] = opts[:verdict]
           ep[:return] = opts[:score].nil? ? nil : discounted_return(steps: ep[:steps])
           ep[:ended_at] = Time.now.utc.iso8601
@@ -547,8 +555,11 @@ module PWN
         end
 
         public_class_method def self.attach_episode!(opts = {})
-          Thread.current[EP_KEY] = opts[:episode]
-          opts[:episode]
+          episode = opts[:episode]
+          # The dedicated reviewer may start an internal turn after it has
+          # already closed this episode. Only the opaque correlation ID survives.
+          Thread.current[:pwn_review_submission_id] ||= episode[:submission_id] if episode && Thread.current[TurnFinalizer::INLINE_KEY]
+          Thread.current[EP_KEY] = episode
         end
 
         # ----------------------------------------------------------------
@@ -714,9 +725,11 @@ module PWN
           rest = keep.reject { |_, _, g| g }.last([MAX_TRAJ - gold.length, 0].max).map { |_, line, _| line }
           out = gold + rest
           unless dry
-            tmp = "#{TRAJECTORY_FILE}.#{Process.pid}.tmp"
-            File.write(tmp, out.join)
-            File.rename(tmp, TRAJECTORY_FILE)
+            Tempfile.create(['.policy-trajectory-', '.tmp'], File.dirname(TRAJECTORY_FILE)) do |file|
+              file.write(out.join)
+              file.flush
+              File.rename(file.path, TRAJECTORY_FILE)
+            end
           end
           { removed: rows.length - out.length, remaining: out.length, dry_run: dry }
         rescue StandardError => e
@@ -796,6 +809,7 @@ module PWN
             # Episode / environment loop
             #{self}.begin_episode(
               session_id: 'optional - PWN::Sessions id (defaults to ep_)',
+              request_id: 'optional - stable request identity; only its SHA-256 enters the trajectory',
               request: 'optional - user request',
               kind: 'optional - request kind',
               intent: 'optional - Loop.request_intent',
@@ -824,6 +838,7 @@ module PWN
             # Run finish and return its result
             #{self}.finish(
               session_id: 'optional - active episode id',
+              close_role: 'optional - controller, steering, learning or deferred; records who closed this episode without affecting training',
               score: 'optional - Reward.judge 0..1 (training target)',
               verdict: 'optional - solved|partial|wrong|refused',
               proxy_ok: 'optional - Boolean fallback when no judge score',
@@ -1393,12 +1408,18 @@ module PWN
           ep = opts[:episode]
           return unless ep.is_a?(Hash)
 
-          tab = load
-          tab[:returns] = (Array(tab[:returns]) + [ep[:return].to_f]).last(200) unless ep[:score].nil?
-          save(table: tab)
-          FileUtils.mkdir_p(File.dirname(TRAJECTORY_FILE))
+          unless ep[:score].nil?
+            tab = load
+            tab[:returns] = (Array(tab[:returns]) + [ep[:return].to_f]).last(200)
+            save(table: tab)
+          end
+          FileUtils.mkdir_p(File.dirname(TRAJECTORY_FILE), mode: 0o700)
           row = {
             session_id: ep[:session_id],
+            submission_id: ep[:submission_id],
+            episode_role: ep[:submission_scope]&.role || 'standalone',
+            close_role: ep[:close_role],
+            request_key: (Digest::SHA256.hexdigest(ep[:request_id]) if ep[:request_id]),
             request_family: task_family(text: ep[:request]),
             kind: ep[:kind],
             engine: ep[:engine],
@@ -1410,7 +1431,13 @@ module PWN
             attribution: ep[:attribution],
             steps: ep[:steps]
           }
-          File.open(TRAJECTORY_FILE, 'a') { |f| f.puts(JSON.dump(row)) }
+          File.open(TRAJECTORY_FILE, File::WRONLY | File::APPEND | File::CREAT | File::NOFOLLOW | File::NONBLOCK, 0o600) do |file|
+            stat = file.stat
+            raise IOError, 'unsafe trajectory file' unless stat.file? && stat.nlink == 1 && stat.owned?
+
+            file.chmod(stat.mode & 0o600) unless stat.mode.nobits?(0o077)
+            file.puts(JSON.dump(row))
+          end
         end
       end
     end

@@ -4,8 +4,8 @@ require 'pwn'
 require 'json'
 
 source, work, mode = ARGV
-protected_source = PWN::Plugins::AISandbox.protected_roots
-PWN::Plugins::AISandbox.define_singleton_method(:protected_roots) { [source, *protected_source] }
+protected_source = PWN::AI::Sandbox.protected_roots
+PWN::AI::Sandbox.define_singleton_method(:protected_roots) { [source, *protected_source] }
 runtime = PWN::AI::Agent::RequestRuntime.new(request: 'Create a report', session_id: 'spillboundary', artifact_root: File.join(work, 'state'), trace: false, retrieve: false)
 Thread.current[:pwn_request_runtime] = runtime
 spill = if mode == 'transcript'

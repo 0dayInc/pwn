@@ -126,7 +126,7 @@ module PWN
         end
 
         private_class_method def self.payload_tier(opts = {})
-          kind = PWN::Plugins::AISandbox.classify(payload: opts[:payload].to_s)
+          kind = PWN::AI::Sandbox.classify(payload: opts[:payload].to_s)
           case kind.to_s
           when 'write' then 'destructive'
           when 'network' then 'active_scan'

@@ -175,7 +175,7 @@ module PWN
           tool = opts[:tool].to_s
           args = opts[:args] || {}
           payload = args['command'] || args[:command] || args['code'] || args[:code] || JSON.generate(args)
-          kind = PWN::Plugins::AISandbox.classify(payload: payload, side_effect: opts[:side_effect])
+          kind = PWN::AI::Sandbox.classify(payload: payload, side_effect: opts[:side_effect])
           case kind.to_s
           when 'write' then 'destructive'
           when 'network' then 'active_scan'

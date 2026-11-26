@@ -387,7 +387,8 @@ module PWN
       opts[:records].each do |row|
         raise IOError, 'Unsupported request checkpoint version' unless row['version'] == 1
 
-        keys = %w[version generation session_id request_id original_request request amendments cwd started_at observations outcome events effects evidence enabled_toolsets verification_contract]
+        keys = %w[version generation session_id request_id original_request request amendments cwd started_at observations outcome events effects evidence
+                  skill_destinations enabled_toolsets verification_contract]
         raise IOError, 'Unknown request checkpoint fields' unless (row.keys - keys).empty?
 
         sid = row['session_id']
@@ -404,6 +405,13 @@ module PWN
                 %w[observations effects].all? { |key| row[key].is_a?(Hash) } &&
                 %w[outcome verification_contract].all? { |key| row[key].nil? || row[key].is_a?(Hash) } &&
                 (row['enabled_toolsets'].nil? || row['enabled_toolsets'].is_a?(Array))
+        # Older v1 writers omitted this map. Check path spelling without looking up destinations on disk.
+        destinations = row.fetch('skill_destinations', {})
+        valid &&= destinations.is_a?(Hash) && destinations.all? do |path, kind|
+          next false if path.include?("\0") || path.include?('//')
+
+          File.absolute_path(path, '/') == path && %w[file directory].include?(kind)
+        end
         raise IOError, 'Invalid request checkpoint schema' unless valid
       end
       []

@@ -57,7 +57,7 @@ RSpec.describe 'mission cancellation through real subprocesses' do
     expect(mission_fixture('mission_console', 'command')).to include('ready' => true, 'late' => false, 'second' => true, 'fenced' => true)
   end
 
-  it 'keeps detached tool jobs alive until their enclosing mission exits' do
+  it 'keeps detached tool jobs alive until their enclosing mission exits', :requires_landlock do
     expect(mission_fixture('mission_job_lifetime')).to include('survived_tool' => true)
   end
 
@@ -73,7 +73,7 @@ RSpec.describe 'mission cancellation through real subprocesses' do
     expect(mission_fixture('mission_normal_exit')).to include('reaped' => true, 'late' => false, 'unrelated' => true)
   end
 
-  it 'stops and reaps a setsid descendant before cancellation returns' do
+  it 'stops and reaps a setsid descendant before cancellation returns', :requires_landlock do
     expect(mission_fixture('mission_dispatch')).to include('cancelled' => true, 'descendant_started' => true, 'reaped' => true, 'post_cancel_write' => false)
   end
 end

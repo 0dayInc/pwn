@@ -71,7 +71,7 @@ PWN::AI::Agent::Registry.register(
 
     timeout = PWN::AI::Agent::ToolGuard.deadline_s(timeout: args[:timeout], kind: :eval, payload: code)
     PWN::AI::Agent::ToolGuard.protect_http!
-    sandboxed = PWN::Plugins::AISandbox.wrap_ruby(code: code, timeout: timeout)
+    sandboxed = PWN::AI::Sandbox.wrap_ruby(code: code, timeout: timeout)
     return sandboxed unless sandboxed.nil?
 
     blocked = PWN::Plugins::MethodCatalog.guard_eval(code: code)

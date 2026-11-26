@@ -25,7 +25,7 @@ See [Installation](Installation.md) for every flag and the
 
 ```ruby
 PWN.help                            # top-level help
-PWN::Plugins.constants.sort         # list all 108 plugins
+PWN::Plugins.constants.sort         # list all 107 plugins
 PWN::Plugins::NmapIt.help           # per-plugin usage
 PWN::Setup.check                    # capability doctor from inside the REPL
 PWN::Migrate.status                 # ~/.pwn state-file compatibility rows

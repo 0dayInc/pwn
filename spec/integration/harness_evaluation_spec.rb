@@ -49,7 +49,7 @@ RSpec.describe 'offline harness evaluation' do
     end
   end
 
-  it 'runs real CLI/Loop/tool effects and independently rejects a lying artifact claim', :aggregate_failures do
+  it 'runs real CLI/Loop/tool effects and independently rejects a lying artifact claim', :aggregate_failures, :requires_landlock do
     Dir.mktmpdir('pwn-harness-spec-', '/tmp') do |root|
       report = JSON.parse(JSON.generate(HarnessEvaluation.run(output: root)))
       results = report.fetch('results').to_h { |row| [row.fetch('task'), row] }

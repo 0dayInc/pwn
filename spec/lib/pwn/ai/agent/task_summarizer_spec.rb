@@ -297,6 +297,35 @@ describe PWN::AI::Agent::TaskSummarizer do
       expect(tasks[1].downcase).to match(/patch|truncat/)
       expect(tasks[2].downcase).to match(/plan|submit/)
     end
+
+    it 'displays the requested steps in order, without replacing or adding a step' do
+      steps = ['Open draft-v2.1.txt.', 'Compare column 12 with column 3.', 'Copy both labels.']
+      [steps.first, "Context only. 1) #{steps.first}"].each do |lead|
+        request = "#{lead} 2) #{steps[1]} 3) #{steps[2]}"
+        state = described_class.fresh(request: request)
+        text = described_class.emit_plan!(state: state)
+        expect(state.values_at(:original_request, :plan)).to eq([request, steps])
+        expect(text.lines.grep(/^  task /).map(&:strip)).to eq(steps.map.with_index(1) { |step, i| "task #{i}/3: #{step}" })
+      end
+    end
+
+    it 'does not treat numbers at the ends of sentences as list markers' do
+      ['Read edition 2. Report results.', 'Read edition 2. Check section 3. Report results.'].each do |request|
+        state = described_class.fresh(request: request)
+        plan = described_class.plan(request: request, state: state, llm_tasks: [])
+        expect(plan.join(' ')).to include(*request.scan(/(?:edition|section) \d+\./))
+        expect(state[:plan_source]).not_to eq(:enumerated)
+      end
+      expect(described_class.parse_outline_tasks(outline: '4. Read draft v2. 5. Report results.')).to eq(['Read draft v2.', 'Report results.'])
+    end
+
+    it 'keeps a sentence ending in the next ordinal inside its numbered item' do
+      steps = ['Read edition 2. Keep its labels.', 'Copy the labels.']
+      ['.', ')'].each do |marker|
+        request = steps.map.with_index(1) { |step, i| "#{i}#{marker} #{step}" }.join(' ')
+        expect(described_class.plan(request: request, llm_tasks: [])).to eq(steps)
+      end
+    end
   end
 
   describe 'LLM-backed plan generation for any request' do

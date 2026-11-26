@@ -1,7 +1,8 @@
-# `PWN::Plugins` - All 108 Modules
+# `PWN::Plugins` - All 107 Modules
 
 Every plugin is a plain Ruby module of `public_class_method def self.x(opts = {})`
 methods with self-documenting `.help`. Source: `lib/pwn/plugins/*.rb`.
+The pwn-ai worker is [PWN::AI::Sandbox](Runtime-Source-Protection.md), separate from `PWN::Plugins::Sandbox`.
 
 ![Plugin ecosystem](diagrams/plugin-ecosystem.svg)
 
@@ -98,6 +99,6 @@ show-source PWN::Plugins::Fuzz.http
 
 ## Full alphabetical list
 
-`AFLplusplus AISandbox Android ArtifactRegistry Assembly AuthenticationHelper BareSIP BasicAuth BeEF BinaryAnalysis BinaryParser BinWorkspace BlackDuckBinaryAnalysis BurpSuite BusPirate Capability CapabilityBroker Char CredentialAttack CreditCard DAOLDAP DAOMongo DAOPostgres DAOSQLite3 Debugger DefectDojo DetectOS Detonate EIN Emulator ExploitDB ExploitDev FileFu Findings Frida Fuzz GDB GDBMI GDBMi Ghidra GhidraHeadless Git Github GoogleWorkspace HackerOne Handler Httpx Hunter IPInfo IRC Jenkins JiraDataCenter Jobs JSONPathify K8s Log MailAgent Metasploit MethodCatalog MitmProxy MonkeyPatch MSR206 NessusCloud NexposeVulnScan NmapIt Nuclei OAuth2 OCR OpenAPI OpenVAS Packet PDFParse Pony PreflightChecker ProcessTube PS PWNLogger RabbitMQ Radare2 Recon REDB REPL ROP Sandbox SBOM ScannableCodes Semgrep Serial Shodan SlackClient Sock Spider Sqlmap SSN ThreadPool Tor TransparentBrowser TTYSpinner TwitterAPI URIScheme Vault VIN Voice Volatility Vsphere XXD YubiKey Zaproxy`
+`AFLplusplus Android ArtifactRegistry Assembly AuthenticationHelper BareSIP BasicAuth BeEF BinaryAnalysis BinaryParser BinWorkspace BlackDuckBinaryAnalysis BurpSuite BusPirate Capability CapabilityBroker Char CredentialAttack CreditCard DAOLDAP DAOMongo DAOPostgres DAOSQLite3 Debugger DefectDojo DetectOS Detonate EIN Emulator ExploitDB ExploitDev FileFu Findings Frida Fuzz GDB GDBMI GDBMi Ghidra GhidraHeadless Git Github GoogleWorkspace HackerOne Handler Httpx Hunter IPInfo IRC Jenkins JiraDataCenter Jobs JSONPathify K8s Log MailAgent Metasploit MethodCatalog MitmProxy MonkeyPatch MSR206 NessusCloud NexposeVulnScan NmapIt Nuclei OAuth2 OCR OpenAPI OpenVAS Packet PDFParse Pony PreflightChecker ProcessTube PS PWNLogger RabbitMQ Radare2 Recon REDB REPL ROP Sandbox SBOM ScannableCodes Semgrep Serial Shodan SlackClient Sock Spider Sqlmap SSN ThreadPool Tor TransparentBrowser TTYSpinner TwitterAPI URIScheme Vault VIN Voice Volatility Vsphere XXD YubiKey Zaproxy`
 
 [← Home](Home.md) · [Diagrams](Diagrams.md)

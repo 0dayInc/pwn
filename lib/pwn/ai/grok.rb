@@ -12,6 +12,95 @@ module PWN
     # API documentation: https://docs.x.ai/docs
     # Obtain an API key from https://x.ai/api
     module Grok
+      # A model-request 403 is still a denial. Only publish a fixed explanation,
+      # never provider prose (it may contain request data or credentials).
+      class AccessDenied < RestClient::Forbidden
+        LEVELS = %w[low medium high xhigh].freeze
+        PARAMS = %w[reasoning_effort reasoning.effort].freeze
+        OTHER_CODES = %w[model_not_found insufficient_quota credit_balance_exhausted billing_not_active content_policy_violation].freeze
+        EFFORT = /(?:the |this )?(?:selected |requested |specified )?(?:parameter )?reasoning effort(?: level| setting| parameter)?/
+        SCOPE = /(?:your |this |the )?(?:current |selected )?(?<scope>subscription(?: tier| plan| level)?|plan(?: tier)?|tier|model)/
+        UNAVAILABLE = /(?:not (?:currently )?(?:available|supported|allowed|enabled|included|permitted)|unavailable|unsupported|disabled)/
+        DENIES = /(?:does not|doesnt|cannot|cant) (?:currently )?(?:include|support|allow|enable|use|access|have access to)/
+        EFFORT_DISABLED = /\A#{EFFORT} (?:is )?#{UNAVAILABLE} (?:on|for|in|with|by|under) #{SCOPE}\z/
+        SCOPE_DENIES = /\A#{SCOPE} #{DENIES} #{EFFORT}\z/
+        UPGRADE = /(?:requires|is only available (?:to|on|with|for)) (?:a |an )?(?:(?:higher|paid|upgraded|premium|supergrok(?: heavy)?) )?(?:subscription(?: tier)?|plan|tier|subscribers?)/
+
+        attr_reader :reason
+
+        def explain(effort:, model:)
+          label = LEVELS.include?(effort) ? "the \"#{effort}\" reasoning effort" : 'the requested reasoning effort'
+          @reason = case restriction(effort, model)
+                    when :subscription then "Your current Grok subscription does not include #{label}. Use /model grok to select a different effort."
+                    when :model then "The selected Grok model does not support #{label}. Choose a different model or reasoning setting."
+                    when :effort then "Grok rejected #{label} without specifying why. Use /model grok to select a different effort."
+                    end
+          self.message = "Grok denied the request (HTTP 403). #{@reason || 'Check access to the selected model and endpoint.'}"
+          self
+        end
+
+        private
+
+        def restriction(effort, model)
+          return unless effort.is_a?(String) && !effort.empty?
+
+          body = http_body
+          return unless body.is_a?(String) && body.bytesize <= 16_384
+
+          data = if body.lstrip.start_with?('{')
+                   JSON.parse(body, max_nesting: 16)
+                 elsif !body.lstrip.start_with?('[', '<') && http_headers&.[](:content_type).to_s.split(';', 2).first == 'text/plain'
+                   { 'message' => body }
+                 end
+          return unless data.is_a?(Hash)
+
+          error = data['error']
+          details = error.is_a?(Hash) ? error : data
+          param = details['param'] || data['param']
+          return if param && !PARAMS.include?(param)
+
+          codes = [data['code'], details['code'], details['type']].grep(String).map { |s| s.downcase.tr('-', '_') }.uniq
+          return if codes.intersect?(OTHER_CODES)
+
+          fallback = nil
+          [*codes, details['message'], error].grep(String).each do |value|
+            cause = stated_restriction(effort, model, !param.nil?) { value }
+            return cause if %i[subscription model].include?(cause)
+
+            fallback ||= cause
+          end
+          fallback
+        rescue StandardError
+          nil # An unreadable or unexpected error body cannot change the HTTP outcome.
+        end
+
+        # Match an explicit relationship in a single clause, not a bag of
+        # words such as "model denied; check subscription; effort=high".
+        def stated_restriction(effort, model, scoped)
+          text = yield.downcase.delete(%q('"`‘’“”)).gsub('reasoning.effort', 'reasoning effort')
+          text = text.gsub(/\b(?:model )?#{Regexp.escape(model)}\b/, 'model') if model.is_a?(String) && model.match?(/\Agrok-[a-z0-9.-]{1,64}\z/)
+          fallback = nil
+          text.tr('_=:-', '    ').split(/[.;!,?\n]/).each do |part|
+            clause = part.split.join(' ').sub(/\A(?:permission denied|access denied|forbidden) /, '')
+            clause = clause.gsub(/\b(low|medium|high|xhigh) reasoning effort\b|\breasoning effort (?:level |of )?(low|medium|high|xhigh)\b/) do
+              (Regexp.last_match(1) || Regexp.last_match(2)) == effort ? 'reasoning effort' : 'other effort'
+            end
+            if scoped
+              return :subscription if clause.match?(/\A(?:(?:higher |paid )?(?:subscription|plan|tier)(?: tier)? (?:is )?required|insufficient subscription tier)\z/)
+
+              clause = clause.sub(/\bthis (?:setting|parameter|value)\b/, 'reasoning effort')
+              clause = "reasoning effort #{clause}" if clause.match?(/\A(?:#{UNAVAILABLE}|requires)\b/)
+            end
+            source = clause.match(EFFORT_DISABLED) || clause.match(SCOPE_DENIES)
+            return source[:scope] == 'model' ? :model : :subscription if source
+            return :subscription if clause.match?(/\A(?:using )?#{EFFORT} #{UPGRADE}\z/)
+
+            fallback = :effort if clause.match?(/\A(?:unsupported #{EFFORT}|#{EFFORT} (?:is )?#{UNAVAILABLE})\z/)
+          end
+          fallback
+        end
+      end
+
       # Internal helper: true when +opts[:value]+ is a *real* configured value coming
       # from PWN::Config / pwn-vault (i.e. not nil, not blank, and not one of
       # the "optional - ..." / "required - ..." placeholder strings that
@@ -479,6 +568,8 @@ module PWN
           nil
         end
       rescue RestClient::ExceptionWithResponse => e
+        model_denied = e.http_code == 403 && http_method == :post && %w[chat/completions responses].include?(rest_call)
+        raise AccessDenied.new(e.response).explain(effort: http_body[:reasoning_effort], model: http_body[:model]) if model_denied
         raise e if Thread.current[:pwn_provider_attempt_owner]
 
         # Keep the HTTP type/response and actionable provider diagnostics.
@@ -542,7 +633,21 @@ module PWN
           quiet: opts[:quiet]
         )
         parsed = JSON.parse(raw.to_s, symbolize_names: true)
-        text = parsed[:output_text].to_s
+        raise 'Grok hosted response did not complete.' if parsed[:status] && parsed[:status] != 'completed'
+
+        text = parsed[:output_text]
+        unless text.is_a?(String) && !text.strip.empty?
+          # The REST API returns public text in assistant message blocks. Search
+          # calls, reasoning and other output items are not the operator's reply.
+          text = Array(parsed[:output]).grep(Hash).filter_map do |item|
+            next unless item[:type] == 'message' && item[:role] == 'assistant'
+            next if item[:status] && item[:status] != 'completed'
+
+            Array(item[:content]).grep(Hash).filter_map { |part| part[:text] if part[:type] == 'output_text' && part[:text].is_a?(String) }.join
+          end.join
+        end
+        raise 'Grok returned no public assistant text for the hosted request.' if text.strip.empty?
+
         message = { role: 'assistant', content: text }
         { choices: [{ message: message }], assistant_message: message }
       end

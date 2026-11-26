@@ -147,6 +147,8 @@ module PWN
         outcome = nil
         final = PWN::AI::Agent::Loop.run(opts.fetch(:options).merge(on_outcome: ->(row) { outcome = row }))
         writer.write(JSON.generate(final: final, outcome: outcome))
+      rescue PWN::AI::Grok::AccessDenied => e
+        writer.write(JSON.generate(final: e.message, outcome: outcome))
       rescue StandardError => e
         writer.write(JSON.generate(error: "#{e.class}: #{e.message}"))
       ensure
