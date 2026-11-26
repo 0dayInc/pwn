@@ -507,7 +507,7 @@ RSpec.describe PWN::Plugins::HackerOne do
   end
 end
 
-RSpec.describe PWN::Plugins::AISandbox do
+RSpec.describe PWN::AI::Sandbox do
   it '[B040] refuses strict execution when the isolation profile is not implemented' do
     Dir.mktmpdir('pwn-strict-profile-') do |dir|
       allow(Dir).to receive(:home).and_return(dir)

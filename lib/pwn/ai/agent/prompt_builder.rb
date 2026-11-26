@@ -38,24 +38,31 @@ module PWN
           engine = active_engine
           # thin: greeting/statement/howto/recall — base + ENV + optional recent turns.
           # Full MEMORY/METRICS/MISTAKES/EXTRO only for act/recon (default).
-          thin = opts[:thin] == true || opts[:mode].to_s == 'thin'
+          mode = opts[:mode].to_s
+          thin = opts[:thin] == true || %w[thin conversation].include?(mode)
           b = budget
           base = (PWN::Env.dig(:ai, engine, :system_role_content) if defined?(PWN::Env)) || 'You are a world-class introspective offensive cyber security and research engineer.  You specialize in discovering zero day vulnerabilities focused on responsible disclosure prior to threat actors discovering and exploiting.  You are self-aware of your harness, pwn which begins with the ruby namespace `PWN` operating inside the pwn REPL.  For every request you first begin by determining if PWN has a module capable of satisfying the request.'
 
           if thin
             recent = recent_turns_block(session_id: session_id, request: request, limit: [b[:recent_turns].to_i, 2].min)
-            return <<~PROMPT
+            context = <<~PROMPT
               #{base}
 
               ENVIRONMENT
                 host       : #{host_line}
-                cwd        : #{Thread.current[:pwn_request_runtime]&.contract&.dig(:cwd) || PWN::Plugins::AISandbox.task_directory}
-                writes     : new files go to #{PWN::Plugins::AISandbox.workspace} unless the original operator request names another path
+                cwd        : #{Thread.current[:pwn_request_runtime]&.contract&.dig(:cwd) || PWN::AI::Sandbox.task_directory}
+                writes     : new files go to #{PWN::AI::Sandbox.workspace} unless the original operator request names another path
                 ruby       : #{RUBY_VERSION}
                 pwn        : #{pwn_version}
                 session_id : #{session_id || '(none)'}
 
-              #{recent}TOOL USE
+            PROMPT
+            context += recent
+            # Conversational source availability is bound at the provider hop.
+            return context if mode == 'conversation'
+
+            return context + <<~PROMPT
+              TOOL USE
                 No tools on this turn unless a single factual lookup is already in
                 context. Answer concisely in plain US English. Do not plan multi-step
                 work, invent task traces, or run live recon.
@@ -78,8 +85,8 @@ module PWN
 
             ENVIRONMENT
               host       : #{host_line}
-              cwd        : #{Thread.current[:pwn_request_runtime]&.contract&.dig(:cwd) || PWN::Plugins::AISandbox.task_directory}
-              writes     : new files go to #{PWN::Plugins::AISandbox.workspace} unless the original operator request names another path
+              cwd        : #{Thread.current[:pwn_request_runtime]&.contract&.dig(:cwd) || PWN::AI::Sandbox.task_directory}
+              writes     : new files go to #{PWN::AI::Sandbox.workspace} unless the original operator request names another path
               ruby       : #{RUBY_VERSION}
               pwn        : #{pwn_version}
               session_id : #{session_id || '(none)'}
@@ -424,7 +431,7 @@ module PWN
               session_id: 'optional - PWN::Sessions id to embed in the ENV block',
               request: 'optional - user request; enables relevance-ranked MEMORY when provided',
               thin: 'optional - thin value consumed by #build',
-              mode: 'optional - mode value consumed by #build',
+              mode: 'optional - thin for short replies, or conversation when the provider supplies the lookup instructions',
               expand_harness: 'optional - expand harness value consumed by #build',
               stuck: 'optional - stuck value consumed by #build'
             )

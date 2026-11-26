@@ -84,11 +84,11 @@ describe PWN::AI::Agent::Dispatch do
     end
   end
 
-  it 'does not replay a timed-out real shell mutation after restoring its request checkpoint' do
+  it 'does not replay a timed-out real shell mutation after restoring its request checkpoint', :requires_landlock do
     Dir.mktmpdir do |root|
       work = File.join(root, 'work')
       FileUtils.mkdir_p(work)
-      allow(PWN::Plugins::AISandbox).to receive(:workspace).and_return(work)
+      allow(PWN::AI::Sandbox).to receive(:workspace).and_return(work)
       options = { request: 'Write counter', session_id: 'timeout', request_id: 'fixture', artifact_root: File.join(root, 'control'), trace: false }
       runtime = PWN::AI::Agent::RequestRuntime.new(options)
       Thread.current[:pwn_request_runtime] = runtime

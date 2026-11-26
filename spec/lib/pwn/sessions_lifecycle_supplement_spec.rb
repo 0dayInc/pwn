@@ -16,6 +16,56 @@ RSpec.describe PWN::Sessions, 'lifecycle audit regressions' do
     session
   end
 
+  context 'request checkpoint skill destinations' do
+    let(:id) { described_class.create[:id] }
+    let(:folder) { File.join(PWN::Config.pwn_skills_path, 'notes') }
+    let(:document) { File.join(folder, 'format.md') }
+    let(:checkpoint) do
+      request = "Write to #{document} and save notes under #{folder}/"
+      PWN::AI::Agent::RequestRuntime.new(request: request, session_id: id, request_id: 'fixture-request', trace: false).checkpoint_path
+    end
+    let(:payload) { JSON.parse(File.read(checkpoint)) }
+
+    def index_checkpoint(row)
+      File.write(checkpoint, JSON.generate(row))
+      described_class.dependency_index
+    end
+
+    it 'records a checkpoint with file and directory destinations as provenance only' do
+      expect(payload.fetch('skill_destinations')).to eq(document => 'file', folder => 'directory')
+      index = described_class.dependency_index
+      expect(index[:errors]).to be_empty
+      expect(index[:provenance]).to eq(id => [checkpoint])
+      expect(index[:dependencies]).to be_empty
+    end
+
+    it 'still indexes older version-one checkpoints without the map' do
+      index = index_checkpoint(payload.except('skill_destinations'))
+      expect(index[:errors]).to be_empty
+      expect(index[:provenance]).to eq(id => [checkpoint])
+    end
+
+    it 'keeps malformed destination maps out of provenance' do
+      invalid_maps = [
+        nil, [], { 'relative.md' => 'file' }, { "#{document}\0" => 'file' }, { document => 'other' },
+        { document => 'file', "#{document}/" => 'directory' }, { "#{folder}/./format.md" => 'file' },
+        { "#{folder}/unused/../format.md" => 'file' }, { "#{folder}//format.md" => 'file' }, { "/#{document}" => 'file' }
+      ]
+      invalid_maps.each do |invalid|
+        index = index_checkpoint(payload.merge('skill_destinations' => invalid))
+        expect(index[:errors]).to include(checkpoint)
+        expect(index[:diagnostics]).to include(hash_including(path: checkpoint, code: 'Invalid request checkpoint schema'))
+        expect(index.fetch(:provenance, {})).not_to have_key(id)
+      end
+    end
+
+    it 'still rejects unknown checkpoint fields' do
+      index = index_checkpoint(payload.merge('future_field' => true))
+      expect(index[:errors]).to include(checkpoint)
+      expect(index[:diagnostics]).to include(hash_including(path: checkpoint, code: 'Unknown request checkpoint fields'))
+    end
+  end
+
   it 'pins a cold session with an actual activity lease' do
     session = cold_session
     lease = described_class.activate(session_id: session[:id])

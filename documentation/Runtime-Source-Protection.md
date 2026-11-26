@@ -11,7 +11,7 @@
 > so a new file can be created there. Source checkouts stay read-only
 > even if named. See [Mission-Cancellation](Mission-Cancellation.md).
 
-A pwn-ai RequestRuntime dispatch executes its registered handler in an AISandbox
+A pwn-ai RequestRuntime dispatch executes its registered handler in a `PWN::AI::Sandbox`
 worker. This boundary is mandatory even when the optional `ai_sandbox` profile
 is `off`. It covers shell, Ruby evaluation, other registered handlers, nested
 Dispatch calls, and fork/exec descendants including durable Jobs supervisors.
@@ -37,6 +37,24 @@ Protected source is never granted.
 Standard null/zero/random devices are available. Other filesystem writes fail
 closed. This bounded write set permits hardlink-alias exclusion without scanning
 all mounted filesystems or changing checkout permissions.
+
+### Writing skills and references
+
+Name the destination in the request, for example: `Save the meeting notes skill
+under ~/.pwn/skills` or `Write the template to
+~/.pwn/skills/meeting-notes/references/format.md`. The sandboxed `shell` and
+skill tools write directly there. No separate home, `pwn_eval` fallback, or
+permission change on `~/.pwn` is needed. Unnamed files still use the runtime
+workspace.
+
+Naming the library grants ordinary file and directory operations inside it;
+naming a reference file grants its containing directory. Missing directories
+are created without following symlinks. The grant supports same-directory
+renames, but not creating symlinks, special files, or links across directories.
+A directory that overlaps a mount inside the library or a protected store, or
+contains a linked or special file, is not granted. A read-only request or a
+delegated prompt does not grant skill writes. The catalog is data: discovery,
+reload and worker startup do not execute Ruby from it.
 
 ## Fail-closed requirements and restrictions
 
@@ -104,7 +122,7 @@ through another otherwise writable directory.
 | Learning, Policy, Metrics, Reward, Mistakes, ToolGuard | Declared files/directories, learning and metrics subtrees; absent sibling staging paths cannot be planted |
 | Memory and MemoryIndex | Memory, archive and index files |
 | OpenGoal, Mission and TaskDAG | Goal file, missions and runs roots |
-| SkillReview and Curriculum | Ledger, curriculum/finetune roots, default/configured skill directories and loaded skill parents |
+| SkillReview and Curriculum | Ledger, curriculum/finetune roots and catalog locations outside the explicitly writable skills library |
 | Provider credential persistence and local model configuration | Default vault/decryptor and configured driver paths |
 | Session redaction's Vault persistence | Engagements tree, legacy vault file and master-key path |
 | Log and Extrospection | Default logs and declared Extrospection stores |

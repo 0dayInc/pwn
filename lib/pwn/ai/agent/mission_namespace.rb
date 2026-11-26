@@ -81,6 +81,7 @@ module PWN
             raise ArgumentError, 'mission snapshot is too deep or cyclic' if depth > 30
 
             case value
+            when PWN::Config::SkillCatalog then ['skill_catalog', encode(value.root, depth + 1), encode(value.to_h, depth)]
             when Hash then ['hash', value.map { |key, item| [encode(key, depth + 1), encode(item, depth + 1)] }]
             when Array then ['array', value.map { |item| encode(item, depth + 1) }]
             when Time then ['time', value.to_i, value.nsec, value.utc_offset, value.utc?]
@@ -96,6 +97,7 @@ module PWN
           def decode(value)
             type, body, encoding = value
             case type
+            when 'skill_catalog' then PWN::Config::SkillCatalog.new(decode(body)).replace(decode(value.fetch(2))).freeze
             when 'hash' then body.to_h { |key, item| [decode(key), decode(item)] }
             when 'array' then body.map { |item| decode(item) }
             when 'time' then value[4] ? Time.at(body, encoding, :nanosecond).utc : Time.at(body, encoding, :nanosecond).getlocal(value[3])
@@ -189,7 +191,7 @@ module PWN
               require 'pwn/ai/cli'
               PWN::AI::CLI.send(:mission_entry, descriptor)
             when :protected
-              PWN::Plugins::AISandbox.send(:mission_entry, descriptor)
+              PWN::AI::Sandbox.send(:mission_entry, descriptor)
             when :console, :slash
               PWN::Plugins::REPL::AIConsole::Console.send(:mission_entry, descriptor: descriptor)
             when :legacy, :steerable
@@ -222,15 +224,9 @@ module PWN
             @pidfd = IO.new(self.class.checked(self.class.native('pidfd_open', [Fiddle::TYPE_INT, Fiddle::TYPE_INT]).call(@pid, 0), 'pidfd_open'))
             return
           end
-          snapshot = { requires: Array(self.class.bootstrap_requires), descriptor: opts.fetch(:descriptor), env: PWN::Env, locals: CONTEXT_KEYS.to_h { |key| [key, Thread.current[key]] } }
-          if PWN.const_defined?(:Skills)
-            snapshot[:skills] = PWN::Skills
-            ruby_skills = PWN::Skills.values.select { |skill| skill[:loaded] && skill[:type] == :ruby }
-            snapshot[:requires] += ruby_skills.flat_map do |skill|
-              skill[:format] == :legacy ? [skill.fetch(:path)] : Dir.glob(File.join(skill.fetch(:dir), 'scripts', '*.rb'))
-            end
-            snapshot[:requires].uniq!
-          end
+          snapshot = { requires: trusted_bootstrap_paths, descriptor: opts.fetch(:descriptor), env: PWN::Env, locals: CONTEXT_KEYS.to_h { |key| [key, Thread.current[key]] } }
+          # The writable catalog is reference data, never a source of bootstrap requires.
+          snapshot[:skills] = PWN::Skills if PWN.const_defined?(:Skills)
           mode = opts[:containment] == :host ? :host : :namespace
           payload = JSON.generate(self.class.encode(snapshot))
           start_supervisor(payload, opts, mode)
@@ -299,6 +295,26 @@ module PWN
         end
 
         private
+
+        def trusted_bootstrap_paths
+          paths = Array(self.class.bootstrap_requires)
+          return [] if paths.empty?
+
+          library = PWN::Config.pwn_skills_path
+          roots = [library]
+          roots << File.realpath(library) if File.directory?(library)
+          paths.map do |path|
+            raise Unavailable, 'mission snapshot bootstrap requires an absolute file path' unless path.is_a?(String) && path.start_with?('/')
+
+            resolved = File.realpath(path)
+            in_catalog = [File.expand_path(path), resolved].any? { |file| roots.any? { |dir| file == dir || file.start_with?("#{dir}/") } }
+            raise Unavailable, 'mission snapshot bootstrap files must be outside the writable skills library' if in_catalog
+
+            resolved
+          end
+        rescue SystemCallError => e
+          raise Unavailable, "mission snapshot bootstrap file unavailable: #{e.message}"
+        end
 
         def start_supervisor(payload, opts, mode)
           @channel, child = UNIXSocket.pair

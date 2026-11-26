@@ -102,7 +102,7 @@ describe 'regex-ReAct mission containment' do
   end
 
   it 'fails closed before calling a provider when mission containment is unavailable' do
-    allow(PWN::Plugins::AISandbox::MissionProcess).to receive(:new).and_raise(PWN::Plugins::AISandbox::NotStarted, 'enable user/PID namespaces')
+    allow(PWN::AI::Sandbox::MissionProcess).to receive(:new).and_raise(PWN::AI::Sandbox::NotStarted, 'enable user/PID namespaces')
     expect(PWN::AI::Ollama).not_to receive(:chat)
     expect { submit }.to output(%r{enable user/PID namespaces.*no uncontained retry}).to_stderr
     expect(request).to eq('nil')
@@ -119,6 +119,21 @@ describe 'regex-ReAct mission containment' do
     expect(request).to eq('nil')
   end
 
+  it 'keeps local skill names and bodies out of the system role sent to the legacy provider' do
+    name = 'catalog-fixture-name'
+    body = 'Catalog fixture body.'
+    stub_const('PWN::Skills', { name => { content: body } })
+    base = 'Configured fixture role.'
+    PWN::Env[:ai][:ollama][:system_role_content] = base
+    expect(PWN::AI::Ollama).to receive(:chat) do |options|
+      role = options.fetch(:system_role_content)
+      expect(role).to start_with(base)
+      expect(role).not_to include(name, body)
+      { choices: [{ content: 'Offline fixture reply.' }] }
+    end
+    repl.pwn_ai_run_legacy_child(request: request, original_request: request, pry: pry)
+  end
+
   it 'does not retry a failed legacy provider in the controller or replace committed history' do
     marker = File.join(@tmp, 'provider-calls')
     allow(PWN::AI::Ollama).to receive(:chat) do
@@ -133,8 +148,8 @@ describe 'regex-ReAct mission containment' do
     expect(repl).to have_received(:ready_tty!)
   end
 
-  it 'runs the fake provider and Ruby block in a real mission and returns history to the controller' do
-    marker = File.join(PWN::Plugins::AISandbox.workspace, 'tool-owner')
+  it 'runs the fake provider and Ruby block in a real mission and returns history to the controller', :requires_landlock do
+    marker = File.join(PWN::AI::Sandbox.workspace, 'tool-owner')
     diagnostic = File.join(@tmp, 'provider-observation')
     calls = 0
     allow(PWN::AI::Ollama).to receive(:chat) do |options|
@@ -152,12 +167,12 @@ describe 'regex-ReAct mission containment' do
   end
 
   %w[ruby bash].each do |language|
-    it "denies protected source writes through the actual legacy #{language} hook" do
+    it "denies protected source writes through the actual legacy #{language} hook", :requires_landlock do
       source = File.join(@tmp, 'synthetic-source')
       FileUtils.mkdir_p(source)
       target = File.join(source, 'forbidden.txt')
-      original = PWN::Plugins::AISandbox.protected_roots
-      allow(PWN::Plugins::AISandbox).to receive(:protected_roots).and_return([source, *original])
+      original = PWN::AI::Sandbox.protected_roots
+      allow(PWN::AI::Sandbox).to receive(:protected_roots).and_return([source, *original])
       code = language == 'ruby' ? "File.write(#{target.inspect}, 'forbidden')" : "printf forbidden > #{target.shellescape}"
       calls = 0
       allow(PWN::AI::Ollama).to receive(:chat) do
@@ -170,7 +185,7 @@ describe 'regex-ReAct mission containment' do
     end
   end
 
-  it 'cancels regex-ReAct with a real PTY CTRL+C and completes the next submitted mission' do
+  it 'cancels regex-ReAct with a real PTY CTRL+C and completes the next submitted mission', :requires_landlock do
     require 'pty'
     script = File.join(@tmp, 'regex_pty.rb')
     File.write(script, <<~'RUBY')
@@ -241,9 +256,9 @@ describe 'regex-ReAct mission containment' do
   end
 
   %w[ruby bash].each do |language|
-    it "kills a detached #{language} descendant on interrupt before ready, then accepts another request" do
-      marker = File.join(PWN::Plugins::AISandbox.workspace, 'detached')
-      late = File.join(PWN::Plugins::AISandbox.workspace, 'late')
+    it "kills a detached #{language} descendant on interrupt before ready, then accepts another request", :requires_landlock do
+      marker = File.join(PWN::AI::Sandbox.workspace, 'detached')
+      late = File.join(PWN::AI::Sandbox.workspace, 'late')
       payload = "Process.setsid; File.write(#{marker.inspect}, File.read('/proc/self/status')); sleep 1; File.write(#{late.inspect}, 'escaped'); sleep 30"
       ruby_code = "Process.spawn(#{RbConfig.ruby.inspect}, '-e', #{payload.inspect}, out: File::NULL, err: File::NULL); sleep 30"
       code = language == 'ruby' ? ruby_code : [RbConfig.ruby, '-e', ruby_code].shelljoin

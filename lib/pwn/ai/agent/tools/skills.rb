@@ -4,13 +4,13 @@ require 'fileutils'
 require 'pwn/ai/agent/registry'
 
 # Thin wrappers around the PWN::Skills store so the model can list / read /
-# write reusable procedures. PromptBuilder injects the index (name +
-# description); skill_view loads the full body on demand — the two-tier
+# write reusable procedures. PromptBuilder summarizes the catalog;
+# skill_view returns the full body on demand — the two-tier
 # progressive-disclosure pattern from https://agentskills.io/specification.
 #
 # On disk (spec-conformant, written by PWN::Config.write_skill):
 #   ~/.pwn/skills/<name>/SKILL.md      ← YAML frontmatter (name, description, …)
-#   ~/.pwn/skills/<name>/scripts/      ← optional executable helpers
+#   ~/.pwn/skills/<name>/scripts/      ← optional files; not loaded as code
 #   ~/.pwn/skills/<name>/references/   ← optional supporting docs
 #
 # Legacy flat ~/.pwn/skills/<name>.md files are still LOADED (format:
@@ -200,7 +200,7 @@ PWN::AI::Agent::Registry.register(
     name: 'skill_create',
     description: 'Save a new reusable skill to ~/.pwn/skills/<name>/SKILL.md ' \
                  '(agentskills.io format: required name + description YAML ' \
-                 'frontmatter). Appears in every future pwn-ai system prompt. ' \
+                 'frontmatter). Available for lookup in future sessions. ' \
                  'Optionally attach references (URLs, CWE/CVE ids, MITRE ' \
                  'ATT&CK, NIST 800-53, docs) and an allowed-tools allowlist.',
     parameters: {
@@ -347,7 +347,7 @@ PWN::AI::Agent::Registry.register(
     description: 'Delete a skill from ~/.pwn/skills/ by name. Removes the ' \
                  'entire <name>/ directory (agentskills format) or the flat ' \
                  'file (legacy). Use to prune low-quality auto-distilled ' \
-                 'skills so they stop appearing in every future system prompt. ' \
+                 'skills from the catalog. ' \
                  'Irreversible.',
     parameters: {
       type: 'object',

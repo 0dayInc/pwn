@@ -54,9 +54,18 @@ module HarnessPackageAcceptance
     end
     raise "installed source differs from snapshot: #{installed_mismatches.inspect}" unless installed_mismatches.empty?
 
-    report = HarnessEvaluation.run(output: File.join(root, 'runs'), gem_home: gem_home,
-                                   gem_path: ([gem_home] + Gem.path).join(File::PATH_SEPARATOR),
-                                   source_root: installed, executable: File.join(gem_home, 'bin/pwn-ai'))
+    gem_path = ([gem_home] + Gem.path).join(File::PATH_SEPARATOR)
+    reason = options[:landlock_unavailable_reason]
+    if reason
+      rejection = sandbox_rejection(env.merge('GEM_PATH' => gem_path), installed, root, reason)
+      rows = [rejection]
+      components = HarnessEvaluation.runtime_faults(output: root, gem_home: gem_home, gem_path: gem_path, source_root: installed)
+      report = components.merge(behavioral_evaluation: { outcome: 'NOT_RUN', reason: reason }, sandbox_rejection: rejection)
+    else
+      report = HarnessEvaluation.run(output: File.join(root, 'runs'), gem_home: gem_home, gem_path: gem_path,
+                                     source_root: installed, executable: File.join(gem_home, 'bin/pwn-ai'))
+      rows = report[:results] + report[:cli_faults][:results] + report[:experiments][:training] + report[:experiments][:results] + report[:swarm_acceptance][:results] + report[:session_acceptance][:results]
+    end
     report[:package] = { installed_root: installed, sha256: Digest::SHA256.file(File.join(root, 'pwn.gem')).hexdigest,
                          installed_source_mismatches: installed_mismatches,
                          source_ledger: File.join(root, 'source-sha256.json'),
@@ -65,10 +74,22 @@ module HarnessPackageAcceptance
       source = File.join(HarnessEvaluation::ROOT, relative)
       File.file?(source) && Digest::SHA256.file(source).hexdigest == ledger.fetch(relative)
     end
-    rows = report[:results] + report[:cli_faults][:results] + report[:experiments][:training] + report[:experiments][:results] + report[:swarm_acceptance][:results] + report[:session_acceptance][:results]
     File.write(File.join(root, 'acceptance.json'), JSON.pretty_generate(report))
     validate_fingerprints!(rows, installed)
     report
+  end
+
+  def self.sandbox_rejection(env, installed, root, reason)
+    work = Dir.mktmpdir('sandbox-rejection-', root)
+    command = [RbConfig.ruby, File.join(installed, 'spec/support/harness/package_sandbox_rejection.rb')]
+    process = HarnessEvaluation.capture(env, command, work, 30)
+    raise "sandbox rejection fixture failed: #{process_evidence(process.merge(artifact_root: work))}" unless process[:exit_status] == 0 && !process[:resource_cap]
+
+    observation = JSON.parse(process.fetch(:stdout), symbolize_names: true)
+    error = observation.fetch(:error)
+    raise "unexpected sandbox rejection for #{reason}: #{error}" unless error == "repository protection: #{reason}"
+
+    observation.merge(id: 'sandbox-rejection', artifact_root: work)
   end
 
   def self.validate_fingerprints!(rows, installed)

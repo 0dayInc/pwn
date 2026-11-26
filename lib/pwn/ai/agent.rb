@@ -22,6 +22,7 @@ module PWN
       # ---- pwn-ai native tool-calling harness ----
       autoload :Registry, 'pwn/ai/agent/registry'
       autoload :RequestRuntime, 'pwn/ai/agent/request_runtime'
+      autoload :Submission, 'pwn/ai/agent/submission'
       autoload :Profiles, 'pwn/ai/agent/profiles'
       autoload :EngagementMemory, 'pwn/ai/agent/engagement_memory'
       autoload :Dispatch, 'pwn/ai/agent/dispatch'

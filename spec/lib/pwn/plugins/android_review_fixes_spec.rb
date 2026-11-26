@@ -57,11 +57,10 @@ RSpec.describe PWN::Plugins::Android do
     Timeout.timeout(2) do
       loop do
         begin
-          state = File.read("/proc/#{descendant}/stat").split[2]
+          break if File.read("/proc/#{descendant}/status").match?(/^State:\s+Z\b/)
         rescue Errno::ENOENT, Errno::ESRCH
           break
         end
-        break if state == 'Z'
 
         Thread.pass
       end

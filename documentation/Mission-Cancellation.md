@@ -34,8 +34,9 @@ skill metadata and routing context travel as typed JSON over inherited private
 sockets, never in argv or plaintext staging files. RequestRuntime's tool-worker
 snapshot excludes locks and caller cancellation callbacks; the enclosing owner
 provides cancellation. Replies and events remain JSON with generation fencing.
-Loaded Ruby skill scripts are required in the worker. Embedders with additional
-trusted plugin initializers can explicitly set
+The worker receives skill metadata as data; it does not require Ruby from the
+catalog. Embedders with trusted plugin initializers outside the writable skills
+library can explicitly set
 `PWN::AI::Agent::MissionNamespace.bootstrap_requires = ['/absolute/plugin/bootstrap.rb']`.
 Arbitrary monkey patches, IO objects and Proc values are not serializable.
 
@@ -61,7 +62,7 @@ namespace. They can continue after the individual tool returns, but **not**
 after mission completion, cancellation, or namespace-owner death. Normal
 mission completion also tears down remaining detached descendants. This is
 intentionally different from cross-session durable jobs. A standalone
-`AISandbox.protect_call` without an enclosing mission creates its own namespace
+`PWN::AI::Sandbox.protect_call` without an enclosing mission creates its own namespace
 and ends that lifetime when the call ends.
 
 Existing files and already-submitted remote operations are not rolled back.

@@ -163,6 +163,73 @@ describe PWN::AI::Agent::TurnFinalizer do
       expect(described_class.output_paths(request: 'Read /tmp/source.md and explain it.')).to eq([])
       expect(described_class.output_paths(request: 'Output: result.txt')).to eq([File.expand_path('result.txt')])
     end
+
+    it 'does not grant write access to a comparison operand before an explicit destination' do
+      request = 'Compare ./left.txt to ./right.txt and save the differences to ./result.txt.'
+      expect(described_class.output_paths(request: request)).to eq([File.expand_path('./result.txt')])
+      expect(described_class.output_paths(request: 'Generate a summary from ./left.txt into ./result.txt.')).to eq([File.expand_path('./result.txt')])
+    end
+
+    it 'retains an explicit destination for a document transformation' do
+      expect(described_class.output_paths(request: 'Summarize ./input.txt into ./output.txt.')).to eq([File.expand_path('./output.txt')])
+      expect(described_class.output_paths(request: 'Append the answer to ./output.txt.')).to eq([File.expand_path('./output.txt')])
+    end
+
+    it 'treats an extraction source as input and only its named destination as output' do
+      expect(described_class.output_paths(request: 'Extract names from ./records.json.')).to be_empty
+      expect(described_class.output_paths(request: 'Extract names from ./records.json into ./names.txt.')).to eq([File.expand_path('./names.txt')])
+    end
+  end
+
+  it 'accepts an observed one-byte output, but not an empty or unobserved output' do
+    Dir.mktmpdir do |dir|
+      path = File.join(dir, 'flag.txt')
+      request = "Write #{path}"
+      before = described_class.artifact_snapshot(paths: [path])
+      File.write(path, '')
+      observe = lambda do
+        observed = described_class.observe_artifacts(paths: [path], before: before, effect: :write, success: true)
+        described_class.arbitrate(request: request, messages: [{ role: 'tool', artifact_observations: observed }])
+      end
+      expect(observe.call[:complete]).to be(false)
+      File.write(path, 'Y')
+      expect(described_class.arbitrate(request: request, messages: [])[:complete]).to be(false)
+      expect(observe.call[:complete]).to be(true)
+    end
+  end
+
+  describe 'local document reads' do
+    let(:reader) { described_class::InputPages }
+
+    it 'binds local file operands without treating URLs or additional actions as plain reads' do
+      Dir.mktmpdir do |dir|
+        expect(reader.for_request(request: 'Read the file notes.txt.', cwd: dir)&.unmet).to eq(["input_unread:#{dir}/notes.txt (next byte 0)"])
+        expect(reader.for_request(request: 'Read "https://example.invalid/notes.txt".', cwd: dir)).to be_nil
+        expect(reader.for_request(request: 'Read ./notes.txt and save a copy.', cwd: dir)).to be_nil
+      end
+    end
+
+    it 'requires complete observed pages of the named inputs, not a preview, a missing page, or another file' do
+      Dir.mktmpdir do |dir|
+        path = File.join(dir, 'input.txt')
+        other = File.join(dir, 'other.txt')
+        File.write(path, 'abcd')
+        File.write(other, 'else')
+        pages = reader.for_request(request: 'Read ./input.txt.', cwd: dir)
+        observe = lambda do |**args|
+          page = PWN::Plugins::ArtifactRegistry.read_page(**args)
+          pages.observe('artifact_read', JSON.generate(success: true, effect: 'read', result: page))
+        end
+        observe.call(path: other)
+        observe.call(path: path, grep: 'abcd')
+        observe.call(path: path, offset: 2, length: 2)
+        expect(pages.unmet).to eq(["input_unread:#{path} (next byte 0)"])
+        observe.call(path: path, offset: 0, length: 1)
+        expect(pages.unmet).to eq(["input_unread:#{path} (next byte 1)"])
+        observe.call(path: path, offset: 1, length: 1)
+        expect(pages.unmet).to be_empty
+      end
+    end
   end
 
   it 'rejects host observations from an earlier turn even when stat and digest still match' do
@@ -224,7 +291,7 @@ describe PWN::AI::Agent::TurnFinalizer do
     expect(source).to include('run_turn(options)')
     run = source[source.index('private_class_method def self.run_turn(opts = {})')..]
     expect(run.index('commit_artifacts!')).to be < run.index('cheap =')
-    expect(run).to include('allow_text_only = steering.nil? && required_artifacts.empty?', 'cheap = allow_text_only', 'declared_paths = required_artifacts')
+    expect(run).to include('allow_text_only = steering.nil? && required_artifacts.empty?', 'cheap = allow_text_only')
     expect(run).to include('Thread.current[:pwn_artifact_contract] = prior_artifact_contract')
   end
 
@@ -278,5 +345,321 @@ describe PWN::AI::Agent::TurnFinalizer do
       expect(nag[:complete]).to eq(false)
       expect(nag[:unmet].map { |u| u[:criterion] }).to include('readback_missing')
     end
+  end
+end
+
+describe PWN::AI::Agent::TurnFinalizer, 'host artifact readback' do
+  around do |example|
+    previous = Thread.current[:pwn_artifact_contract]
+    Thread.current[:pwn_artifact_contract] = nil
+    Dir.mktmpdir do |dir|
+      @dir = dir
+      example.run
+    end
+  ensure
+    Thread.current[:pwn_artifact_contract] = previous
+  end
+
+  it 'never opens a FIFO or symlink for content, even alongside a declared regular file' do
+    fifo, link, file = %w[stream alias actual.txt].map { |name| File.join(@dir, name) }
+    File.mkfifo(fifo)
+    File.write(file, 'verified')
+    File.symlink(file, link)
+    described_class.commit_artifacts!(request: "Write #{fifo} and #{link} and #{file}")
+    allow(File).to receive(:open).and_call_original
+    expect(File).not_to receive(:open).with(fifo, any_args)
+    expect(File).not_to receive(:open).with(link, any_args)
+    snapshot = described_class.artifact_snapshot(paths: [fifo, link, file])
+    expect(snapshot.keys).to eq([file])
+    expect(snapshot.fetch(file)).to include(sha256: Digest::SHA256.hexdigest('verified'))
+  end
+
+  it 'keeps a denied baseline distinct from a missing file without losing evidence for other outputs' do
+    denied, output = %w[denied.txt output.txt].map { |name| File.join(@dir, name) }
+    File.write(denied, 'unchanged')
+    request = "Write #{denied} and #{output}"
+    paths = described_class.commit_artifacts!(request: request).fetch(:required_artifacts)
+    allow(File).to receive(:open).and_call_original
+    allow(File).to receive(:open).with(denied, any_args).and_raise(Errno::EACCES)
+    before = described_class.artifact_snapshot(paths: paths)
+    expect(before).to eq(output => nil)
+
+    allow(File).to receive(:open).with(denied, any_args).and_call_original
+    File.write(output, 'delivered')
+    observed = described_class.observe_artifacts(paths: paths, before: before, success: true, effect: :write)
+    expect(observed.keys).to eq([output])
+    verdict = described_class.arbitrate(request: request, messages: [{ role: 'tool', artifact_observations: observed }])
+    expect(verdict[:unmet]).to include(criterion: 'readback_missing', detail: denied)
+  end
+
+  it 'does not sample or recheck paths outside the active output contract' do
+    unrelated = File.join(@dir, 'notes.txt')
+    File.write(unrelated, 'not a deliverable')
+    contract = described_class.commit_artifacts!(request: 'List the document names.')
+    expect(contract[:required_artifacts]).to be_empty
+    expect(File).not_to receive(:open).with(unrelated, any_args)
+    expect(described_class.artifact_snapshot(paths: [unrelated])).to be_empty
+    prior = { unrelated => { artifact_turn_id: contract[:id] } }
+    expect(described_class.evidence_ledger(messages: [{ role: 'tool', artifact_observations: prior }])).to be_empty
+  end
+
+  it 'does not reopen a receipt for a different file when checking an output outside an active turn' do
+    prior, expected = %w[old.txt new.txt].map { |name| File.join(@dir, name) }
+    File.write(prior, 'earlier output')
+    receipt = described_class.artifact_snapshot(paths: [prior])
+    allow(File).to receive(:open).and_call_original
+    verdict = described_class.arbitrate(request: "Write #{expected}", messages: [{ role: 'tool', artifact_observations: receipt }])
+    expect(File).not_to have_received(:open).with(prior, any_args)
+    expect(verdict[:ledger]).to be_empty
+    expect(verdict[:unmet]).to include(criterion: 'artifact_missing', detail: expected)
+  end
+end
+
+describe PWN::AI::Agent::TurnFinalizer, 'default skill directory evidence' do
+  include_context 'pwn tmp sandbox'
+
+  around do |example|
+    previous_home = Dir.home if ENV.key?('HOME')
+    previous_runtime = Thread.current[:pwn_request_runtime]
+    previous_contract = Thread.current[:pwn_artifact_contract]
+    example.run
+  ensure
+    ENV['HOME'] = previous_home
+    Thread.current[:pwn_request_runtime] = previous_runtime
+    Thread.current[:pwn_artifact_contract] = previous_contract
+  end
+
+  before { ENV['HOME'] = @tmp }
+
+  let(:library) { File.join(@tmp, '.pwn', 'skills') }
+  let(:skill) { File.join(library, 'meeting-notes') }
+  let(:entry) { File.join(skill, 'SKILL.md') }
+  let(:request) { 'Save the meeting notes skill under ~/.pwn/skills' }
+
+  def bind_turn(text = request)
+    runtime = PWN::AI::Agent::RequestRuntime.new(request: text, session_id: 'local-skill', artifact_root: @tmp, trace: false, retrieve: false)
+    Thread.current[:pwn_request_runtime] = runtime
+    Thread.current[:pwn_artifact_contract] = runtime.contract
+    runtime
+  end
+
+  # Exercise the real controller's successful/failed action boundaries. The
+  # external shell is not invoked; its harmless file operation is native Ruby.
+  def action(runtime, id = 'save-notes', status: 0)
+    runtime.execute_tool(name: 'shell', args: { fixture: id }, effect: :write, action_id: id) do
+      yield
+      { exit: status }
+    end
+  end
+
+  it 'verifies a new nonempty document inside the named library without publishing its contents' do
+    runtime = bind_turn
+    action(runtime) do
+      FileUtils.mkdir_p(skill)
+      File.write(entry, 'private meeting procedure')
+    end
+    result = described_class.arbitrate(request: request)
+    expect(result[:unmet]).to be_empty
+    expect(result[:complete]).to be(true)
+    expect(runtime.observations.fetch(library)[:action_id]).to eq('save-notes')
+    expect(result[:ledger].to_json).not_to include('private meeting procedure')
+  end
+
+  it 'does not sample unrequested paths from tool arguments on a directory delivery' do
+    bind_turn
+    FileUtils.mkdir_p(skill)
+    unrelated = File.join(@tmp, 'private.txt')
+    File.write(unrelated, 'unrequested contents')
+    File.symlink(unrelated, entry)
+    snapshot = described_class.artifact_snapshot(paths: [library, entry, unrelated])
+    expect(snapshot.values_at(entry, unrelated)).to eq([nil, nil])
+  end
+
+  it 'does not certify a directory, empty entry, scripts, unchanged document or timestamp-only change' do
+    runtime = bind_turn
+    action(runtime, 'mkdir') { FileUtils.mkdir_p(File.join(skill, 'scripts')) }
+    action(runtime, 'empty') { File.write(entry, '') }
+    action(runtime, 'script') { File.write(File.join(skill, 'scripts', 'SKILL.md'), 'not an entry') }
+    File.write(entry, 'already present outside the action')
+    action(runtime, 'unchanged') { File.stat(entry) }
+    action(runtime, 'touch') { File.utime(Time.at(100), Time.at(100), entry) }
+    expect(runtime.observations).to be_empty
+    expect(described_class.arbitrate(request: request)[:complete]).to be(false)
+  end
+
+  it 'checks every changed document of one skill without opening other catalog bodies' do
+    runtime = bind_turn
+    refs = File.join(skill, 'references')
+    FileUtils.mkdir_p(refs)
+    File.write(File.join(refs, 'untouched.md'), 'unrelated meeting records')
+    allow(File).to receive(:open).and_call_original
+    expect(File).not_to receive(:open).with(a_string_ending_with('/untouched.md'), any_args)
+    reference = File.join(refs, 'format.md')
+    action(runtime) do
+      File.write(entry, '# Meeting notes')
+      File.write(reference, 'List decisions and owners.')
+    end
+    result = described_class.arbitrate(request: request)
+    expect(result[:complete]).to be(true)
+    documents = result[:ledger].fetch(library).fetch(:evidence).fetch(:skill_documents)
+    expect(documents.map { |doc| doc[:path] }).to contain_exactly('meeting-notes/SKILL.md', 'meeting-notes/references/format.md')
+    expect(documents.last[:sha256]).to eq(Digest::SHA256.file(reference).hexdigest)
+    File.write(reference, 'different')
+    expect(described_class.arbitrate(request: request)[:complete]).to be(false)
+  end
+
+  it 'verifies a size-changing edit in an operator-named references directory' do
+    refs = File.join(skill, 'references')
+    FileUtils.mkdir_p(refs)
+    reference = File.join(refs, 'format.txt')
+    File.write(reference, 'rough')
+    runtime = bind_turn('Save the reference under ~/.pwn/skills/meeting-notes/references')
+    action(runtime) { File.write(reference, 'Write down decisions and owners.') }
+    expect(described_class.arbitrate(request: runtime.request)).to include(complete: true, unmet: [])
+    expect(runtime.observations.fetch(refs)[:skill_documents].first[:path]).to eq('format.txt')
+  end
+
+  it 'does not credit a failed write to a later successful no-op' do
+    runtime = bind_turn
+    stale = nil
+    action(runtime, 'failed', status: 1) do
+      stale = described_class.artifact_snapshot(paths: [library])
+      FileUtils.mkdir_p(skill)
+      File.write(entry, 'partial output')
+    end
+    action(runtime, 'later') do
+      replay = described_class.observe_artifacts(paths: [library], before: stale, effect: :write, success: true, action_id: 'later', tool: 'shell')
+      expect(replay).to be_empty
+    end
+    claim = { role: 'tool', content: { success: true, effect: 'write', path: entry }.to_json }
+    expect(described_class.arbitrate(request: request, messages: [claim])[:complete]).to be(false)
+    expect(runtime.observations).to be_empty
+  end
+
+  it 'rejects a prior receipt and tool-supplied receipt fields even if restamped for this turn' do
+    old = bind_turn
+    action(old) do
+      FileUtils.mkdir_p(skill)
+      File.write(entry, '# Notes')
+    end
+    receipt = old.observations.fetch(library)
+    current = bind_turn
+    action(current) { File.stat(entry) }
+    [receipt, receipt.merge(artifact_turn_id: current.contract[:id])].each do |row|
+      message = { role: 'tool', artifact_observations: { library => row }, content: row.to_json }
+      expect(described_class.arbitrate(request: request, messages: [message])[:complete]).to be(false)
+    end
+  end
+
+  it 'does not transfer a directory receipt to a nested caller or a different request' do
+    previous = Thread.current[:pwn_loop_nested]
+    runtime = bind_turn
+    action(runtime) do
+      FileUtils.mkdir_p(skill)
+      File.write(entry, '# Notes')
+    end
+    expect(described_class.arbitrate(request: request)[:complete]).to be(true)
+    expect(described_class.arbitrate(request: 'Save the other skill under ~/.pwn/skills')[:complete]).to be(false)
+    Thread.current[:pwn_loop_nested] = true
+    expect(described_class.arbitrate(request: request)[:complete]).to be(false)
+  ensure
+    Thread.current[:pwn_loop_nested] = previous
+  end
+
+  it 'refuses linked entries, linked ancestors and stale path replacements' do
+    outside = File.join(@tmp, 'elsewhere')
+    FileUtils.mkdir_p(outside)
+    other = File.join(outside, 'SKILL.md')
+    File.write(other, 'unrequested private data')
+    runtime = bind_turn
+    FileUtils.mkdir_p(skill)
+    action(runtime, 'hardlink') { File.link(other, entry) }
+    expect(runtime.observations).to be_empty
+    File.unlink(entry)
+    action(runtime, 'symlink') { File.symlink(other, entry) }
+    expect(runtime.observations).to be_empty
+    File.unlink(entry)
+    action(runtime, 'real') { File.write(entry, '# Notes') }
+    expect(described_class.arbitrate(request: request)[:complete]).to be(true)
+    File.rename(skill, "#{skill}-saved")
+    File.symlink(outside, skill)
+    expect(described_class.arbitrate(request: request)[:complete]).to be(false)
+  end
+
+  it 'does not choose between different changed skills or accept an oversized or binary document' do
+    runtime = bind_turn
+    action(runtime, 'ambiguous') do
+      [skill, File.join(library, 'other')].each do |dir|
+        FileUtils.mkdir_p(dir)
+        File.write(File.join(dir, 'SKILL.md'), '# Notes')
+      end
+    end
+    action(runtime, 'oversized') { File.truncate(entry, 2 << 20) }
+    action(runtime, 'binary') { File.binwrite(entry, "a\x00b") }
+    expect(runtime.observations).to be_empty
+    expect(described_class.arbitrate(request: request)[:complete]).to be(false)
+  end
+
+  it 'does not treat renaming a folder of unchanged documents as a new document write' do
+    previous = File.join(library, 'previous')
+    FileUtils.mkdir_p(previous)
+    File.write(File.join(previous, 'SKILL.md'), '# Old notes')
+    runtime = bind_turn
+    action(runtime) { File.rename(previous, skill) }
+    expect(described_class.arbitrate(request: request)[:complete]).to be(false)
+
+    runtime = bind_turn('Save the notes under ~/.pwn/skills/meeting-notes')
+    replacement = File.join(@tmp, 'replacement')
+    FileUtils.mkdir_p(replacement)
+    File.write(File.join(replacement, 'SKILL.md'), '# Other notes')
+    action(runtime) do
+      File.rename(skill, previous)
+      File.rename(replacement, skill)
+    end
+    expect(described_class.arbitrate(request: runtime.request)[:complete]).to be(false)
+  end
+
+  it 'does not mistake an over-budget pre-write inventory for an empty directory' do
+    stub_const('PWN::AI::Agent::TurnFinalizer::SkillDirectory::MAX_ENTRIES', 2)
+    runtime = bind_turn
+    FileUtils.mkdir_p(skill)
+    extra = %w[a b].map { |n| File.join(skill, n) }
+    extra.each { |path| File.write(path, 'existing') }
+    action(runtime) do
+      File.unlink(*extra)
+      File.write(entry, '# Notes')
+    end
+    expect(runtime.observations).to be_empty
+    expect(described_class.arbitrate(request: request)[:complete]).to be(false)
+  end
+
+  it 'preserves exact-file evidence and does not extend the rule to an ordinary directory' do
+    FileUtils.mkdir_p(skill)
+    runtime = bind_turn('Write the document to ~/.pwn/skills/meeting-notes/SKILL.md')
+    File.write(entry, 'rough')
+    action(runtime) { File.write(entry, 'final') }
+    expect(described_class.arbitrate(request: runtime.request)[:complete]).to be(true)
+    expect(runtime.observations.fetch(entry)).to include(head: 'final', tail: 'final')
+
+    other = File.join(@tmp, 'skills')
+    runtime = bind_turn("Save the meeting notes skill under #{other}")
+    action(runtime) do
+      FileUtils.mkdir_p(other)
+      File.write(File.join(other, 'SKILL.md'), '# Notes')
+    end
+    expect(described_class.arbitrate(request: runtime.request)[:unmet]).to include(criterion: 'artifact_missing', detail: other)
+  end
+
+  it 'keeps an independently named file outstanding after the directory delivery succeeds' do
+    other = File.join(@tmp, 'summary.md')
+    runtime = bind_turn("#{request} and write #{other}")
+    action(runtime) do
+      FileUtils.mkdir_p(skill)
+      File.write(entry, '# Notes')
+    end
+    result = described_class.arbitrate(request: runtime.request)
+    expect(result[:ledger].keys).to contain_exactly(library)
+    expect(result[:complete]).to be(false)
+    expect(result[:unmet]).to eq([{ criterion: 'artifact_missing', detail: other }])
   end
 end

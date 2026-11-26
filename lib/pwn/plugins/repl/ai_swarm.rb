@@ -428,7 +428,7 @@ module PWN
             @mutex.synchronize { @jobs[id] = job }
             on_event = opts[:on_event]
             on_usage = opts[:usage_observer]
-            job[:mission] = PWN::Plugins::AISandbox::MissionProcess.new(
+            job[:mission] = PWN::AI::Sandbox::MissionProcess.new(
               descriptor: { operation: :swarm, session_id: @session_id, swarm_id: @swarm_id, job: job.slice(:id, :agent, :command), task: task, options: opts.except(:on_event, :usage_observer) },
               fds: { 4 => writer, 5 => commands }
             )

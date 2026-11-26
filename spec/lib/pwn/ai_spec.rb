@@ -8,6 +8,11 @@ describe PWN::AI do
     expect(help_response).not_to be_nil
   end
 
+  it 'exposes the runtime sandbox separately from the plugin sandbox' do
+    expect(PWN::AI::Sandbox.workspace).to eq(File.join(Dir.home, '.pwn', 'workspaces', 'runtime'))
+    expect(PWN::AI::Sandbox).not_to equal(PWN::Plugins::Sandbox)
+  end
+
   it 'does not expose plan-usage helpers' do
     expect(described_class).not_to respond_to(:normalize_plan_usage)
     expect(described_class).not_to respond_to(:plan_usage)

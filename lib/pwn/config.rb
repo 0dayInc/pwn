@@ -744,11 +744,11 @@ module PWN
     #
     # On-disk layout (spec):
     #   ~/.pwn/skills/<name>/SKILL.md      ← required entrypoint, YAML frontmatter
-    #   ~/.pwn/skills/<name>/scripts/      ← optional executables (was flat *.rb)
+    #   ~/.pwn/skills/<name>/scripts/      ← optional files; ignored by the catalog
     #   ~/.pwn/skills/<name>/references/   ← optional supporting docs
     #   ~/.pwn/skills/<name>/assets/       ← optional binary assets
     #
-    # Legacy shim (read-only, still loaded so nothing breaks on upgrade):
+    # Legacy flat files are cataloged as data, including Ruby source:
     #   ~/.pwn/skills/<name>.{md,txt,rb,skill,yml,yaml}
     #
     # Frontmatter (SKILL.md, `---` YAML block at top of file):
@@ -761,6 +761,22 @@ module PWN
 
     SKILL_ENTRY = 'SKILL.md'
     SKILL_NAME_RE = /\A[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?\z/
+
+    # Keep the directory with the entries, including when none were found.
+    class SkillCatalog < Hash
+      attr_reader :root
+
+      def initialize(root)
+        super()
+        @root = root.freeze
+      end
+    end
+
+    # Returns nil for an absent catalog or a plain Hash supplied by an embedder.
+    public_class_method def self.active_skill_root
+      catalog = PWN::Skills if defined?(PWN::Skills)
+      catalog.root if catalog.is_a?(SkillCatalog)
+    end
 
     # Supported Method Parameters::
     # pwn_skills_path = PWN::Config.pwn_skills_path(
@@ -1047,10 +1063,9 @@ module PWN
       fm = parsed[:frontmatter]
       desc = (fm['description'] || fm[:description]).to_s.strip
       desc = parsed[:body].to_s.lines.first.to_s.strip.sub(/^#+\s*/, '')[0, 200] if desc.empty?
-      scripts = Dir.glob(File.join(dir, 'scripts', '*.rb'))
       fmt = module_skill_rel?(rel: rel_dir) ? :module : :agentskills
-      meta = {
-        type: scripts.any? ? :ruby : :instruction,
+      skills[key] = {
+        type: :instruction,
         format: fmt,
         path: entry,
         dir: dir,
@@ -1060,14 +1075,6 @@ module PWN
         references: parse_skill_references(content: content),
         allowed_tools: Array(fm['allowed-tools'] || fm[:'allowed-tools'] || fm['allowed_tools'])
       }
-      scripts.each do |rb|
-        require rb
-      rescue LoadError, SyntaxError, StandardError => e
-        meta[:loaded] = false
-        meta[:error] = e.message
-      end
-      meta[:loaded] = true unless meta.key?(:loaded) || scripts.empty?
-      skills[key] = meta
       skills
     end
 
@@ -1076,22 +1083,22 @@ module PWN
     #   pwn_skills_path: 'optional - Path to skills folder.  Defaults to ~/.pwn/skills'
     # )
     #
-    # Loads skills into the PWN::Skills constant. Two on-disk shapes are
-    # accepted so upgrades are seamless:
+    # Indexes skill files as data in PWN::Skills. No Ruby is executed:
     #
     #   agentskills.io  →  <root>/**/SKILL.md          (recursive; written by write_skill)
     #   module skills   →  <root>/pwn/**/SKILL.md
     #   legacy flat     →  <root>/<name>.{md,txt,rb,skill,yml,yaml}
     #
-    # Each entry: { type:, format:, path:, dir:, content:, description:,
-    #               references:, frontmatter:, loaded:?, error:? }
+    # Entries include type, format, path, dir, content, description, frontmatter
+    # and references. SKILL.md entries are instructions even when scripts/ exists.
+    # Flat .rb entries retain their source with type: :ruby and loaded: false.
     public_class_method def self.load_skills(opts = {})
       pwn_skills_path = opts[:pwn_skills_path] || (PWN.const_defined?(:Env) && PWN::Env.is_a?(Hash) && PWN::Env[:pwn_skills_path]) || self.pwn_skills_path
       FileUtils.mkdir_p(pwn_skills_path) if pwn_skills_path && !Dir.exist?(pwn_skills_path.to_s)
 
-      skills = {}
-      return skills unless pwn_skills_path && Dir.exist?(pwn_skills_path.to_s)
+      return {} unless pwn_skills_path && Dir.exist?(pwn_skills_path.to_s)
 
+      skills = SkillCatalog.new(File.realpath(pwn_skills_path))
       each_skill_md(root: pwn_skills_path) do |entry, rel_dir|
         ingest_skill_md(skills: skills, entry: entry, rel_dir: rel_dir)
       end
@@ -1117,16 +1124,11 @@ module PWN
           references: parse_skill_references(content: content)
         }
 
-        if ext == '.rb'
-          begin
-            require skill_file
-            skills[key] = base.merge(type: :ruby, loaded: true)
-          rescue LoadError, SyntaxError, StandardError => e
-            skills[key] = base.merge(type: :ruby, loaded: false, error: e.message)
-          end
-        else
-          skills[key] = base.merge(type: :instruction)
-        end
+        skills[key] = if ext == '.rb'
+                        base.merge(type: :ruby, loaded: false)
+                      else
+                        base.merge(type: :instruction)
+                      end
       end
 
       PWN.send(:remove_const, :Skills) if PWN.const_defined?(:Skills)
@@ -1252,11 +1254,13 @@ module PWN
           source: 'optional - source value consumed by #install_default_skills'
         )
 
-        # Run load skills and return its result
+        # Index skill documents and legacy Ruby source without executing them
         #{self}.load_skills(
-          pwn_skills_path: 'optional - Path to skills folder.  Defaults to ~/.pwn/skills',
-          references: 'optional - frontmatter:, loaded:?, error:? }'
+          pwn_skills_path: 'optional - Path to skills folder.  Defaults to ~/.pwn/skills'
         )
+
+        # Absolute root of the published skill catalog, or nil if unknown
+        #{self}.active_skill_root
 
         # Run pwn memory path and return its result
         #{self}.pwn_memory_path

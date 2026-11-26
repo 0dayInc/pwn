@@ -125,6 +125,25 @@ module HarnessEvaluation
     capture(env.merge('PWN_HARNESS_READY' => ready), command, cwd, seconds, ready_path: ready, startup_seconds: startup)
   end
 
+  # These offline component checks do not execute a protected tool. Run them
+  # even when the installed package must refuse to start protected workers.
+  def self.runtime_faults(options)
+    root = Dir.mktmpdir('runtime-faults-', options.fetch(:output))
+    env = { 'HOME' => root, 'PATH' => isolated_path, 'LANG' => 'C.UTF-8',
+            'GEM_HOME' => options[:gem_home] || Gem.dir,
+            'GEM_PATH' => options[:gem_path] || Gem.path.join(File::PATH_SEPARATOR) }
+    source = options[:source_root] || ROOT
+    command = [RbConfig.ruby, '-I', File.join(source, 'lib'), File.join(source, 'spec/support/harness/runtime_faults.rb'), root]
+    process = capture(env, command, root, 30)
+    File.write(File.join(root, 'process.json'), JSON.pretty_generate(process))
+    faults = begin
+      JSON.parse(process[:stdout])
+    rescue JSON::ParserError
+      { outcome: process[:resource_cap] ? 'INCOMPLETE' : 'ERROR', artifact_root: root }
+    end
+    { runtime_faults: faults, runtime_fault_process: process.slice(:exit_status, :resource_cap) }
+  end
+
   def self.run(options)
     manifest_path = options[:source_root] ? File.join(options[:source_root], 'spec/fixtures/harness/manifest.json') : MANIFEST
     manifest_bytes = File.binread(manifest_path)
@@ -169,19 +188,7 @@ module HarnessEvaluation
         tokens: nil, cost: nil, usage_status: 'unknown: fake provider does not report tokens or bill',
         artifact_root: root, command: command }.merge(result).merge(grade)
     end
-    fault_root = Dir.mktmpdir('runtime-faults-', output_root)
-    fault_env = { 'HOME' => fault_root, 'PATH' => isolated_path, 'LANG' => 'C.UTF-8',
-                  'GEM_HOME' => options[:gem_home] || Gem.dir,
-                  'GEM_PATH' => options[:gem_path] || Gem.path.join(File::PATH_SEPARATOR) }
-    fault_source = options[:source_root] || ROOT
-    fault_run = capture(fault_env, [ruby, '-I', File.join(fault_source, 'lib'),
-                                    File.join(fault_source, 'spec/support/harness/runtime_faults.rb'), fault_root], fault_root, 30)
-    File.write(File.join(fault_root, 'process.json'), JSON.pretty_generate(fault_run))
-    faults = begin
-      JSON.parse(fault_run[:stdout])
-    rescue JSON::ParserError
-      { outcome: fault_run[:resource_cap] ? 'INCOMPLETE' : 'ERROR', artifact_root: fault_root }
-    end
+    components = runtime_faults(options)
     require_relative 'cli_faults'
     require_relative 'experiments'
     require_relative 'swarm_acceptance'
@@ -192,10 +199,9 @@ module HarnessEvaluation
     session_acceptance = HarnessSessionAcceptance.run(options.merge(output: File.join(output_root, 'session-acceptance')))
     report = { schema: 'pwn-harness-evaluation-v2', manifest_sha256: lock, adapters_sha256: adapter_lock,
                environment: { ruby: RUBY_DESCRIPTION, platform: RUBY_PLATFORM, dependencies: Gem.loaded_specs.transform_values(&:version).transform_values(&:to_s) },
-               runtime_faults: faults, runtime_fault_process: fault_run.slice(:exit_status, :resource_cap),
                cli_faults: cli_faults, experiments: experiments, swarm_acceptance: swarm_acceptance, session_acceptance: session_acceptance, model_quality: 'NOT_RUN',
                model_comparison: { outcome: 'NOT_RUN', reason: 'No live budget approved; pinned model and adapter parity pending.' },
-               ablations: manifest.fetch('ablations'), faults_pending: manifest.fetch('faults_pending'), results: rows }
+               ablations: manifest.fetch('ablations'), faults_pending: manifest.fetch('faults_pending'), results: rows }.merge(components)
     File.write(File.join(output_root, 'results.json'), JSON.pretty_generate(report))
     report
   end

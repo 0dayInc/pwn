@@ -5,7 +5,7 @@ require 'fileutils'
 require 'json'
 require 'tmpdir'
 
-describe PWN::Plugins::AISandbox do
+describe PWN::AI::Sandbox do
   it 'should display information for authors' do
     expect(described_class).to respond_to :authors
   end
@@ -14,7 +14,7 @@ describe PWN::Plugins::AISandbox do
     expect(described_class).to respond_to :help
   end
 
-  it 'enforces read-only roots in real workers while preserving outside writes and host cwd' do
+  it 'enforces read-only roots in real workers while preserving outside writes and host cwd', :requires_landlock do
     Dir.mktmpdir('pwn-boundary') do |root|
       protected = File.join(root, 'source')
       workspace = File.join(root, 'work')
@@ -46,7 +46,7 @@ describe PWN::Plugins::AISandbox do
     end
   end
 
-  it 'writes only in the runtime workspace unless the original request names another path' do
+  it 'writes only in the runtime workspace unless the original request names another path', :requires_landlock do
     Dir.mktmpdir('pwn-boundary') do |root|
       source = File.join(root, 'source')
       workspace = File.join(root, 'runtime')
@@ -77,7 +77,7 @@ describe PWN::Plugins::AISandbox do
     end
   end
 
-  it 'allows mv onto an extensionless destination named by the original request' do
+  it 'allows mv onto an extensionless destination named by the original request', :requires_landlock do
     Dir.mktmpdir('pwn-boundary') do |root|
       source = File.join(root, 'source')
       workspace = File.join(root, 'runtime')
@@ -98,7 +98,7 @@ describe PWN::Plugins::AISandbox do
     end
   end
 
-  it 'creates a named file when the destination parent contains an unreadable directory' do
+  it 'creates a named file when the destination parent contains an unreadable directory', :requires_landlock do
     Dir.mktmpdir('pwn-boundary') do |root|
       source = File.join(root, 'source')
       workspace = File.join(root, 'runtime')
@@ -123,7 +123,7 @@ describe PWN::Plugins::AISandbox do
     end
   end
 
-  it 'fails closed on unsupported kernels and existing external hardlink aliases' do
+  it 'denies writes through existing external hardlink aliases', :requires_landlock do
     Dir.mktmpdir('pwn-boundary') do |root|
       source = File.join(root, 'source')
       work = File.join(root, 'work')
@@ -134,14 +134,29 @@ describe PWN::Plugins::AISandbox do
       result = described_class.protect_call(roots: [source], workspace: work) { File.write(File.join(work, 'alias'), 'bad') }
       expect(result[:success]).to be false
       expect(File.read(path)).to eq('original')
-      File.unlink(File.join(work, 'alias'))
-      allow(described_class).to receive(:repository_restrict!).and_raise(NotImplementedError, 'kernel unsupported')
-      expect { described_class.protect_call(roots: [source], workspace: work) { File.write(path, 'bad') } }.to raise_error(described_class::NotStarted, /kernel unsupported/)
-      expect(File.read(path)).to eq('original')
     end
   end
 
-  it 'keeps nested dispatch and detached subprocesses inside the inherited boundary' do
+  it 'refuses to start even a workspace write when kernel protection is unavailable' do
+    Dir.mktmpdir('pwn-boundary') do |root|
+      source = File.join(root, 'source')
+      work = File.join(root, 'work')
+      FileUtils.mkdir_p([source, work])
+      marker = File.join(work, 'started')
+      reason = PwnSpecLandlock.unavailable_reason
+      unless reason
+        # Exercise denial on capable hosts too; never stub a successful restriction.
+        reason = 'NotImplementedError: kernel unsupported'
+        allow(described_class).to receive(:repository_restrict!).and_raise(NotImplementedError, 'kernel unsupported')
+      end
+      expect do
+        described_class.protect_call(roots: [source], workspace: work, write_roots: [work]) { File.write(marker, 'started') }
+      end.to raise_error(described_class::NotStarted, "repository protection: #{reason}")
+      expect(File).not_to exist(marker)
+    end
+  end
+
+  it 'keeps nested dispatch and detached subprocesses inside the inherited boundary', :requires_landlock do
     Dir.mktmpdir('pwn-boundary') do |root|
       source = File.join(root, 'source')
       work = File.join(root, 'work')
@@ -165,7 +180,7 @@ describe PWN::Plugins::AISandbox do
     end
   end
 
-  it 'protects controller writes after a worker redirects checkpoint ancestry' do
+  it 'protects controller writes after a worker redirects checkpoint ancestry', :requires_landlock do
     Dir.mktmpdir('pwn-controller-boundary') do |root|
       source = File.join(root, 'source')
       work = File.join(root, 'work')
@@ -174,7 +189,7 @@ describe PWN::Plugins::AISandbox do
         require 'pwn'
         require 'json'
         source, work = ARGV
-        PWN::Plugins::AISandbox.define_singleton_method(:protected_roots) { [source, '/opt/pwn'] }
+        PWN::AI::Sandbox.define_singleton_method(:protected_roots) { [source, '/opt/pwn'] }
         runtime = PWN::AI::Agent::RequestRuntime.new(request: 'Create a report', session_id: 'boundary', artifact_root: File.join(work, 'state'), trace: false, retrieve: false)
         Thread.current[:pwn_request_runtime] = runtime
         directory = File.dirname(runtime.checkpoint_path)
@@ -196,7 +211,7 @@ describe PWN::Plugins::AISandbox do
     end
   end
 
-  it 'brokers actual spawn and ask without granting state redirection or handler bypass' do
+  it 'brokers actual spawn and ask without granting state redirection or handler bypass', :requires_landlock do
     Dir.mktmpdir('pwn-swarm-control') do |root|
       work = File.join(root, 'work')
       home = File.join(root, 'home')

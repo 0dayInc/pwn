@@ -19,14 +19,27 @@ module PWN
         class MemoryWriteNotStarted < StandardError; end
 
         OUTCOMES = %w[complete incomplete blocked cancelled verification_error].freeze
-        attr_reader :original_request, :request, :session_id, :request_id, :contract, :amendments, :outcome, :checkpoint_path, :engine, :last_provider_attempts
+        # Only literal operands can be quoted. The rest must be an entire
+        # affirmative directive; free text before "to" can itself be an example.
+        SKILL_OPERAND = %r{(?<!\S)(?:(?<quote>["'`])(?<quoted>(?:~?/|\.\.?/)[[:alnum:]\x20_./+-]+|[\w+-]+\.[[:alnum:]]+)\k<quote>|
+                           (?<bare>(?:~?/|\.\.?/)[[:alnum:]_./+-]+|[\w+-]+\.[[:alnum:]]+))}x
+        SKILL_DOCUMENT = /(?:(?:the|a|an|my|our|this|these)\s+)?(?:(?:new|local|supporting|reference|skill)\s+){0,3}
+                          (?:notes?|document|template|file|report|summary|skill|(?:guide|reference)(?!\s+to\b))|
+                          (?:the|my|our)\s+(?!(?:no|not|never|without|if|unless)\b)[\w-]+\s+(?:notes?\s+)?skill/ix
+        SKILL_READ = /\A(?:please\s+)?(?:read|inspect|review)\s+(?:(?:the\s+)?file\s+)?\x00\z/i
+        SKILL_WRITE = /\A(?:please\s+)?
+                       (?:(?:write|save|store|create|edit|update|modify|append|put|export|generate)\s+(?:#{SKILL_DOCUMENT}\s+)?
+                          (?:(?:(?<inside>under|inside|within|beneath)|to|at|as|in|into)\s+)?|
+                          copy\s+(?:from\s+)?\x00\s+(?:to|into)\s+)
+                       (?:(?<container>(?:(?:the|a)\s+)?(?:directory|folder))\s+(?:(?:at|named)\s+)?)?\x00\z/ix
+        attr_reader :original_request, :request, :session_id, :request_id, :contract, :amendments, :outcome, :checkpoint_path, :engine, :last_provider_attempts, :submission_id, :submission_report
 
         def initialize(opts = {})
           @session_id = opts[:session_id].to_s
           @request_id = (opts[:request_id] || SecureRandom.uuid).to_s.freeze
           @original_request = PWN::AI::Agent::Result.utf8_text(text: opts[:request]).freeze
           @request = @original_request
-          @cwd = Thread.current[:pwn_solve_workspace] || PWN::Plugins::AISandbox.task_directory
+          @cwd = Thread.current[:pwn_solve_workspace] || PWN::AI::Sandbox.task_directory
           @amendments = [].freeze
           @observations = {}
           @events = []
@@ -47,8 +60,8 @@ module PWN
           @retrieve = opts.fetch(:retrieve, true)
           root = opts[:artifact_root] || File.join(PWN::Sessions.sessions_dir, 'requests')
           @checkpoint_path = File.join(root, Digest::SHA256.hexdigest(@session_id), "#{Digest::SHA256.hexdigest(@request_id)}.json")
-          restore! if opts[:resume]
-          rebuild_contract!
+          prior_destinations = restore! if opts[:resume]
+          rebuild_contract!(prior_destinations)
           @profile = opts[:profile]
           @router = Profiles.new(profiles: opts[:profiles] || {})
           @engine = @router.lookup(name: @profile)[:provider] if @profile && !@explicit_route
@@ -62,7 +75,9 @@ module PWN
         end
 
         # A resumed execution cannot inherit an earlier terminal success.
-        def start!
+        def start!(submission_id: nil)
+          @submission_id = submission_id
+          @submission_report = nil
           @outcome = nil
           checkpoint!
         end
@@ -93,7 +108,7 @@ module PWN
         # to the caller; the enclosing namespace is the child's cancellation owner.
         def mission_snapshot
           @mutex.synchronize do
-            state = instance_variables.reject { |key| %i[@mutex @cancel @memory @router].include?(key) }.to_h { |key| [key, instance_variable_get(key)] }
+            state = instance_variables.reject { |key| %i[@mutex @cancel @memory @router @submission_report].include?(key) }.to_h { |key| [key, instance_variable_get(key)] }
             state[:memory] = @memory.instance_variables.to_h { |key| [key, @memory.instance_variable_get(key)] }
             state[:router] = @router.instance_variables.to_h { |key| [key, @router.instance_variable_get(key)] }
             state
@@ -102,6 +117,11 @@ module PWN
 
         private_class_method def self.from_mission_snapshot(opts = {})
           state = opts.fetch(:state).dup
+          # The tagged transport preserves types, not frozen containers. Keep
+          # the host's decision; never reclassify a file in the worker.
+          contract = state.fetch(:@contract)
+          contract.fetch(:skill_destinations).freeze
+          contract.freeze
           runtime = allocate
           { memory: EngagementMemory, router: Profiles }.each do |key, klass|
             object = klass.allocate
@@ -278,10 +298,12 @@ module PWN
           raise ArgumentError, 'evidence must name an original or amended requirement' if requirement.empty? || !source || !@request.include?(requirement)
           raise ArgumentError, 'unsupported evidence kind' unless %w[http command answer].include?(opts[:kind].to_s)
 
+          transcript = opts[:kind].to_s == 'answer' && opts[:locator] == 'chat:reply'
+          passed = opts[:passed] == true && evidence_target_matches?(opts) unless transcript
           row = { id: SecureRandom.uuid, request_id: @request_id, source_id: source[:id], requirement: requirement,
                   offset: source[:text].index(requirement), requirement_sha256: Digest::SHA256.hexdigest(requirement),
                   scope_sha256: Digest::SHA256.hexdigest(@request), kind: opts[:kind].to_s, locator: opts[:locator],
-                  sha256: opts.fetch(:sha256), passed: opts[:passed] == true && evidence_target_matches?(opts), provenance: 'host_verifier',
+                  sha256: opts.fetch(:sha256), passed: passed, provenance: transcript ? 'session_transcript' : 'host_verifier',
                   observed_at: Time.now.utc.iso8601(9), max_age: opts[:max_age] || (300 if opts[:kind].to_s == 'http') }
           @mutex.synchronize do
             @evidence << Marshal.load(Marshal.dump(row))
@@ -420,7 +442,7 @@ module PWN
 
             state = 'failed'
             { success: false, error: e.message, saved: false, execution_state: 'not_started' }
-          rescue PWN::Plugins::AISandbox::NotStarted => e
+          rescue PWN::AI::Sandbox::NotStarted => e
             state = 'rejected'
             action[:diagnostic] = e.message
             { success: false, error: e.message, execution_state: 'not_started' }
@@ -438,7 +460,13 @@ module PWN
           status = opts.fetch(:status).to_s
           raise ArgumentError, 'invalid request outcome' unless OUTCOMES.include?(status)
 
-          @outcome = { status: status, unmet: Array(opts[:unmet]), at: Time.now.utc.iso8601 }.freeze
+          # Only the native report used at this terminal boundary; never replay
+          # a report from a discarded candidate, steering segment or checkpoint.
+          @submission_report = opts[:verification_report] if @submission_id
+          @outcome = { status: status, unmet: Array(opts[:unmet]), at: Time.now.utc.iso8601,
+                       stage: opts.fetch(:stage, status == 'cancelled' ? 'cancellation' : 'finalization').to_s,
+                       goal_status: opts.fetch(:goal_status, status).to_s,
+                       submission_id: @submission_id, request_id: @request_id }.freeze
           checkpoint!
           @outcome
         end
@@ -562,16 +590,71 @@ module PWN
           end
         end
 
-        def rebuild_contract!
+        def skill_path?(path, library)
+          path == library || path.start_with?("#{library}/")
+        end
+
+        def skill_destination_kind(path, directory)
+          stat = File.lstat(path)
+          return :directory if stat.directory?
+
+          :file if stat.file? && !directory
+        rescue Errno::ENOENT
+          directory ? :directory : :file
+        rescue SystemCallError
+          nil
+        end
+
+        # A catalog grant must match the whole operator instruction. The general
+        # artifact scanner recognizes mentions as well as destinations.
+        def skill_destinations(library)
+          return {} unless @amendments.empty? && @request == @original_request && !@original_request.include?("\0")
+          return {} unless @original_request.include?(library) || @original_request.include?('~/')
+
+          text = @original_request.strip
+          text = text.delete_suffix('.') unless text.end_with?('/.', '..')
+          operands = []
+          shape = text.gsub(SKILL_OPERAND) do
+            operands << (Regexp.last_match[:quoted] || Regexp.last_match[:bare])
+            "\0"
+          end
+          shape.split(/\s*;\s*|\s+and\s+(?:then\s+)?/i, -1).each_with_object({}) do |clause, destinations|
+            literal = operands.shift(clause.count("\0")).last
+            next if SKILL_READ.match?(clause)
+
+            match = SKILL_WRITE.match(clause)
+            return {} unless match
+            next unless literal.start_with?('/', '~/')
+            return {} if literal.split('/').intersect?(%w[. ..]) || literal.include?('//')
+
+            path = File.expand_path(literal)
+            next unless skill_path?(path, library)
+
+            directory = path == library || literal.end_with?('/') || match[:container] || match[:inside]
+            kind = skill_destination_kind(path, directory)
+            return {} if !kind || (destinations.key?(path) && destinations[path] != kind)
+
+            destinations[path] = kind
+          end
+        end
+
+        def rebuild_contract!(prior_destinations = nil)
+          library = File.expand_path(PWN::Config.pwn_skills_path)
+          destinations = skill_destinations(library)
+          # A checkpoint can only narrow freshly parsed wording. In particular
+          # a missing file that became a directory must not gain a subtree.
+          destinations.select! { |path, kind| prior_destinations[path] == kind.to_s } if prior_destinations
+          paths = TurnFinalizer.output_paths(request: @request, cwd: @cwd)
+          paths.reject! { |path| skill_path?(path, library) && !destinations.key?(path) }
           @contract = { id: @request_id, request: @request, cwd: @cwd,
-                        required_artifacts: TurnFinalizer.output_paths(request: @request, cwd: @cwd).map(&:freeze).freeze,
+                        required_artifacts: (paths | destinations.keys).map(&:freeze).freeze, skill_destinations: destinations.freeze,
                         started_at: @started_at }.freeze
         end
 
         def checkpoint!
           return if @worker_copy
 
-          PWN::Plugins::AISandbox.control_directory(path: File.dirname(@checkpoint_path)) do |directory|
+          PWN::AI::Sandbox.control_directory(path: File.dirname(@checkpoint_path)) do |directory|
             path = File.join(directory, File.basename(@checkpoint_path))
             File.open("#{path}.lock", File::RDWR | File::CREAT | File::NOFOLLOW, 0o600) do |lock|
               raise IOError, 'checkpoint lock must be a singly linked regular file' unless lock.stat.file? && lock.stat.nlink == 1
@@ -603,7 +686,7 @@ module PWN
           end
           data = { version: 1, generation: @generation, session_id: @session_id, request_id: @request_id, original_request: @original_request,
                    request: @request, amendments: @amendments, cwd: @cwd, started_at: @started_at.iso8601(9),
-                   observations: rows, outcome: @outcome, events: @events, effects: @effects, evidence: @evidence,
+                   observations: rows, outcome: @outcome, events: @events, effects: @effects, evidence: @evidence, skill_destinations: @contract.fetch(:skill_destinations),
                    enabled_toolsets: @enabled_toolsets, verification_contract: @verification_contract }
           temp = "#{path}.#{SecureRandom.hex(8)}.tmp"
           File.open(temp, File::WRONLY | File::CREAT | File::EXCL, 0o600) do |file|
@@ -635,6 +718,7 @@ module PWN
           @observations = data.fetch(:observations).to_h do |path, row|
             [path.to_s, row.merge(head: Base64.strict_decode64(row[:head]), tail: Base64.strict_decode64(row[:tail]))]
           end
+          data.fetch(:skill_destinations, {}).transform_keys(&:to_s)
         end
 
         def record(event:, data:)
@@ -670,6 +754,8 @@ module PWN
 
             # RequestRuntime instances own immutable original_request, ordered amendments,
             # an effective request, a revision-bound host observation ledger and outcome.
+            # contract[:skill_destinations] is a frozen map of explicitly named default
+            # catalog paths (expanded absolute String keys) to :file or :directory.
             # new accepts request:, session_id:, request_id:, artifact_root:, resume:,
             # profile:, profiles:, window:, tool_cap:, trace:, retrieve:,
             # enabled_toolsets:, verification_contract:, provider_config:, engine:,

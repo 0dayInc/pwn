@@ -38,6 +38,18 @@ ai:
 PWN::Env[:ai][:active] = :ollama
 ```
 
+### Web search for Grok questions
+
+To let Grok look up current information on a conversational turn, use the
+`pwn-vault` REPL command and add `server_tools: [web_search]` under the existing
+`ai` → `grok` section. The setting is opt-in: omitting it or setting it to `[]`
+does not enable search. An explicit `ai.agent.toolsets: []` also disables it.
+
+Grok runs the search on its Responses endpoint; pwn-ai does not run a local
+browser or shell for it. Offering search is not proof that the model used it.
+`auto_extrospect` records environment changes; turning it on does not enable
+Grok web search.
+
 ## OpenAI OAuth enrollment and persistence
 
 To prefer subscription OAuth, set `ai.openai.oauth.enroll: true` through
@@ -82,13 +94,27 @@ The harness adapts to the *class* of engine, not the model name:
 | **PromptBuilder.budget** | full MEMORY / METRICS / MISTAKES / LEARNING / EXTRO blocks | tightened via `ai.ollama.prompt_budget` (extro off by default) |
 | **MEMORY ranking** | relevance-ranked when a local Ollama `embed_model` is reachable, else newest-first | relevance-ranked via `PWN::MemoryIndex` (`~/.pwn/memory.idx`) |
 | **Tool schemas shipped** | Loop normally requests core-only schemas; explicit Registry callers may request more | `CORE_TOOLS` + top-K keyword matches when `ai.agent.tool_router` is on (default on). Ties also honor `tool_preference`. |
-| **Pre-pass** | none | `plan_first` numbered tool plan before first dispatch |
+| **Pre-pass** | Can run when `plan_first` is enabled or calibration or budget history calls for planning | `plan_first` defaults on when no value is configured |
 | **Intent route** | always | `request_intent` only (greeting / howto / recall cheap paths). There is no request type. Every other turn gets a TaskSummarizer compass and CORE_TOOLS. |
 | **Few-shot** | none | `Learning.exemplars_for(request)` splices a prior successful trace |
 | **Dispatch parsing** | strict | tolerant - Levenshtein tool-name repair + JSON5-ish arg cleanup, each repair fingerprinted into `Mistakes` |
 | **Post-answer** | `auto_introspect` (deferred by default) | `auto_introspect` **+** `fact_check_local_final` (auto `extro_verify` on CVE/version-shaped claims). Deferred after the reply; specs/cron stay inline. |
 | **Metrics bucket** | `metrics.json[:tools][name][:engines][:<engine>]` | same - the `TOOL EFFECTIVENESS` block is per-engine so local telemetry never blends with frontier |
 | **Prefix cache** | Anthropic `cache_control` · OpenAI `prompt_cache_key` · Grok `x-grok-conv-id` · Gemini `systemInstruction` split (`ai.agent.prompt_cache`, default on) | none - Ollama / Open WebUI have no prefix-cache request field |
+
+The `TASK` card is a proposed outline, not a record of tool execution. When it
+recognizes an explicit list in the request, it shows those steps without adding
+a reporting step. If the provider rejects the planning request (HTTP 403), pwn-ai
+stopped before dispatching the first local tool. The warning includes a
+recognized provider error code and a supported request ID when available. Use
+the ID or timestamp to look up the rejection in the provider's request log. A
+403 alone does not identify a model-access, account, or policy problem.
+
+For Grok, if xAI says your subscription does not include the reasoning effort
+sent with the request, pwn-ai names that effort in the warning. Use `/model grok`
+to choose another effort. A model limitation is reported separately. If xAI
+does not explain the denial, pwn-ai does not guess your subscription tier.
+It does not print the raw error body or retry with a different setting.
 
 ## Teacher-student reflection
 

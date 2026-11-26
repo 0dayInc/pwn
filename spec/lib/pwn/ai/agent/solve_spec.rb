@@ -38,7 +38,7 @@ RSpec.describe 'Swarm solve' do # rubocop:disable Metrics/BlockLength -- end-to-
     end
   end
 
-  it 'executes a real worktree mission through the provider fixture, board and typed human apply' do
+  it 'executes a real worktree mission through the provider fixture, board and typed human apply', :requires_landlock do
     allow(Dir).to receive(:home).and_return(@tmp)
     allow(Pry).to receive(:history).and_return(Pry::History.new(file_path: File.join(@tmp, 'history')))
     [%w[init -q], %w[config user.email fixture@example.invalid], %w[config user.name Fixture], %w[commit --allow-empty -qm baseline]].each do |args|

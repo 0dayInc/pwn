@@ -26,6 +26,74 @@ describe PWN::AI::Grok do
     expect(src).to match(/openai_wire_messages/)
   end
 
+  describe 'hosted retrieval on a conversational turn' do
+    include_context 'pwn tmp sandbox'
+
+    let(:sid) { PWN::Sessions.create[:id] }
+    let(:request) { 'What does the current public bulletin say? Answer here in chat.' }
+
+    before do
+      PWN::Env[:ai][:active] = :grok
+      PWN::Env[:ai][:grok] = { model: 'fixture-model', system_role_content: 'Original role.', server_tools: %w[web_search code_interpreter] }
+      expect(PWN::AI::Agent::Dispatch).not_to receive(:call)
+    end
+
+    it 'describes only the lookup on the wire and delivers its public output items' do
+      expect(described_class).to receive(:grok_rest_call).once do |call|
+        expect(call[:rest_call]).to eq('responses')
+        body = call.fetch(:http_body)
+        expect(body.fetch(:tools)).to eq([{ type: 'web_search' }])
+        expect(body.fetch(:input).first.fetch(:content)).to start_with('Original role.')
+        system = body.fetch(:input).filter_map { |row| row[:content] if row[:role] == 'system' }.join("\n")
+        expect(system).to include('Original role.', 'web_search')
+        expect(system).not_to include('No tools on this turn', 'code_interpreter')
+        JSON.generate(output: [
+                        { type: 'reasoning', summary: [{ text: 'private' }] },
+                        { type: 'web_search_call', status: 'completed' },
+                        { type: 'message', role: 'assistant', status: 'completed', content: [
+                          { type: 'output_text', text: 'Public ' }, { type: 'output_text', text: 'reply.' }
+                        ] }
+                      ])
+      end
+
+      expect(PWN::AI::Agent::Loop.run(request: request, session_id: sid)).to eq('Public reply.')
+      expect(PWN::Sessions.load(session_id: sid).last).to include(role: 'assistant', content: 'Public reply.')
+    end
+
+    it 'describes a missing source without offering one when the operator disables tools' do
+      expect(described_class).to receive(:grok_rest_call).once do |call|
+        expect(call[:rest_call]).to eq('chat/completions')
+        body = call.fetch(:http_body)
+        expect(body).not_to have_key(:tools)
+        system = body.fetch(:messages).filter_map { |row| row[:content] if row[:role] == 'system' }.join("\n")
+        expect(system).to include('No online source')
+        expect(system).not_to include('web_search')
+        reply = { pwn_turn: 'partial', text: 'Please supply the source text.', remaining: 'source' }
+        JSON.generate(choices: [{ message: { role: 'assistant', content: JSON.generate(reply) } }])
+      end
+
+      outcome = nil
+      text = PWN::AI::Agent::Loop.run(request: request, session_id: sid, enabled_toolsets: [], on_outcome: ->(row) { outcome = row })
+      expect(text).to eq('Please supply the source text.')
+      expect(outcome).to include(status: 'incomplete', goal_status: 'partial')
+    end
+
+    it 'does not accept unfinished hosted output as a public answer' do
+      expect(described_class).to receive(:grok_rest_call).once.and_return(JSON.generate(status: 'incomplete', output_text: 'unfinished fixture'))
+      expect do
+        described_class.chat_with_tools(messages: [{ role: 'user', content: request }], server_tools: ['web_search'])
+      end.to raise_error(RuntimeError, /hosted response did not complete/)
+    end
+
+    it 'does not stringify internal output when a hosted response has no public text' do
+      raw = JSON.generate(output_text: { metadata: 'private' }, output: [{ type: 'reasoning', content: [{ text: 'private' }] }])
+      expect(described_class).to receive(:grok_rest_call).once.and_return(raw)
+      expect do
+        described_class.chat_with_tools(messages: [{ role: 'user', content: request }], server_tools: ['web_search'])
+      end.to raise_error(RuntimeError, /no public assistant text/)
+    end
+  end
+
   describe '.chat_with_tools HTTP failures' do
     let(:messages) { [{ role: 'user', content: 'hello' }] }
     let(:body) { '{"error":"Invalid schema: tools[0].function.parameters requires properties"}' }
@@ -56,6 +124,91 @@ describe PWN::AI::Grok do
         branches = artifact_read.fetch('function').fetch('parameters').fetch('anyOf')
         expect(branches).not_to be_empty
         expect(branches).to all(include('type' => 'object'))
+      end
+    end
+
+    context 'when a model request is forbidden' do
+      def denial(fields, effort: 'high', hosted: false, content_type: 'application/json')
+        raw = fields.is_a?(String) ? fields : JSON.generate(fields)
+        reply = instance_double(RestClient::Response, code: 403, body: raw, headers: { content_type: content_type })
+        allow(RestClient::Request).to receive(:execute).and_raise(RestClient::Forbidden.new(reply))
+        described_class.chat_with_tools(messages: messages, model: 'grok-4.7', reasoning_effort: effort, server_tools: (['web_search'] if hosted))
+        raise 'expected the request to stay forbidden'
+      rescue RestClient::Forbidden => e
+        expect(e.response).to equal(reply)
+        e.message
+      end
+
+      it 'distinguishes a model limitation from a subscription restriction' do
+        ['The selected model does not support the requested reasoning_effort.', 'Model grok-4.7 does not support parameter reasoning_effort.'].each do |reason|
+          text = denial({ error: { message: "#{reason} Check your subscription details." } })
+          expect(text).to include('The selected Grok model does not support the "high" reasoning effort.')
+          expect(text).not_to include('subscription')
+        end
+      end
+
+      it 'reads the error parameter, provider message or explicit code without publishing any of them verbatim' do
+        reasons = [
+          { error: { param: 'reasoning.effort', message: 'Not available on your current plan. Private detail.' } },
+          { code: 'permission-denied', error: 'Your subscription tier does not support high reasoning effort. Private detail.' },
+          { error: { code: 'reasoning_effort_requires_higher_tier', message: 'Private detail.' } },
+          { error: { param: 'reasoning_effort', code: 'subscription_required' } },
+          { error: { code: 'insufficient_scope', message: 'This reasoning effort is not available for your subscription.' } },
+          { error: 'The high reasoning effort is only available to SuperGrok Heavy subscribers.' }
+        ]
+        reasons.each do |fields|
+          message = denial(fields)
+          expect(message).to include('Your current Grok subscription does not include the "high" reasoning effort.')
+          expect(message).not_to include('Private detail')
+        end
+      end
+
+      it 'reports an unsupported effort without guessing who restricted it' do
+        message = denial({ error: { code: 'unsupported_reasoning_effort' } })
+        expect(message).to include('Grok rejected the "high" reasoning effort without specifying why.')
+        expect(message).not_to include('subscription')
+        explanation = denial({ error: { code: 'unsupported_reasoning_effort', message: 'Your plan does not allow high reasoning effort.' } })
+        expect(explanation).to include('Your current Grok subscription')
+      end
+
+      it 'recognizes an explicit plain-text reason but not a proxy error page' do
+        reason = 'Reasoning effort high is not included in your plan. Private fixture detail.'
+        expect(denial(reason, content_type: 'text/plain; charset=utf-8')).to include('Your current Grok subscription')
+        expect(denial(reason, content_type: 'text/html')).not_to match(/subscription|Private fixture detail/)
+      end
+
+      it 'names the serialized level even when it differs from the input option' do
+        message = denial({ error: { param: 'reasoning_effort', message: 'Your plan does not include this setting.' } }, effort: 'none')
+        expect(message).to include('Your current Grok subscription does not include the "low" reasoning effort.')
+        expect(RestClient::Request).to have_received(:execute).once do |call|
+          expect(JSON.parse(call.fetch(:payload)).fetch('reasoning_effort')).to eq('low')
+        end
+      end
+
+      it 'does not infer an effort restriction from unrelated, ambiguous, or unreadable errors' do
+        unrelated = [
+          { error: { message: 'Your subscription does not include this model. Request contained reasoning_effort=high.' } },
+          { error: { message: 'Your plan supports high reasoning effort. Access to this endpoint is denied.' } },
+          { error: { param: 'model', message: 'Not available on your current plan.' } },
+          { error: { message: 'Reasoning effort low is unavailable on this plan.' } },
+          { error: { code: 'model_not_found', message: 'Reasoning effort high is not supported on your plan.' } },
+          { error: { message: 'Your plan does not support reasoning effort reporting.' } },
+          { error: { code: 'insufficient_quota', message: 'Private detail.' } },
+          '{invalid', "\xff".b, JSON.generate(message: 'x' * 20_000)
+        ]
+        unrelated.each do |fields|
+          expect(denial(fields)).to eq('Grok denied the request (HTTP 403). Check access to the selected model and endpoint.')
+        end
+      end
+
+      it 'does not blame a configured effort on a hosted request that omitted it' do
+        message = denial({ error: 'Reasoning effort high is not available on your current subscription.' }, hosted: true)
+        expect(message).to include('HTTP 403')
+        expect(message).not_to match(/subscription|effort/)
+        expect(RestClient::Request).to have_received(:execute).once do |call|
+          expect(call.fetch(:url)).to end_with('/responses')
+          expect(JSON.parse(call.fetch(:payload)).keys).not_to include('reasoning', 'reasoning_effort')
+        end
       end
     end
 

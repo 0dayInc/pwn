@@ -21,6 +21,541 @@ module PWN
       # Direct Learning.auto_introspect calls (specs, cron, tools) stay inline
       # so existing ORM contracts still get a synchronous return value.
       module TurnFinalizer
+        PATH_LITERAL = %r{["'`]((?:~/|/|\./|\.\./)[^"'`\n]+|[^"'`\n]+\.[A-Za-z0-9]+)["'`]|(?<![\w:/])((?:~/|/|\./|\.\./)[\w.+/-]+|[\w+-]+\.[A-Za-z0-9]+)}
+        WRITE_VERBS = %w[write save store output export create update modify edit generate put produce deliver mv move copy cp rename].freeze
+        TO_DESTINATION = %w[summarize summarise translate convert extract append redirect].freeze
+        FILE_CONTEXT = /\b(?:#{Regexp.union(WRITE_VERBS + TO_DESTINATION).source}|read|compare|inspect|review|analy[sz]e|from|using|into|to)\b/i
+
+        # A directory is not a file artifact. Only the operator's frozen skill
+        # destination can use this witness. Inventory metadata, never catalog
+        # bodies; a final check opens only the documents in the host receipt.
+        class SkillDirectory
+          MAX_ENTRIES = 8192
+          MAX_DEPTH = 12
+          MAX_DOCUMENTS = 16
+          MAX_BYTES = 1 << 20
+          FLAGS = File::RDONLY | File::NOFOLLOW | File::NONBLOCK
+          EXCLUDED = %w[assets scripts templates].freeze
+
+          # Read-only fd-relative traversal. Never mkdir, follow a symlink, or
+          # cross a mount below HOME (including a same-device bind mount).
+          class PinnedTree
+            def at(path, missing: false, &block)
+              raise IOError if path.count('/') > 128
+
+              if path == '/'
+                @mount = nil
+                return yield('/')
+              end
+
+              at(File.dirname(path), missing: missing) do |parent|
+                child = File.join(parent, File.basename(path))
+                begin
+                  stat = File.lstat(child)
+                rescue Errno::ENOENT
+                  raise unless missing
+
+                  next
+                end
+                descend(child, stat) do |pinned, file|
+                  @mount = mount_id(file) if path == Dir.home
+                  block.call(pinned)
+                end
+              end
+            end
+
+            def descend(path, stat)
+              raise IOError unless stat.directory?
+
+              File.open(path, FLAGS) do |file|
+                actual = file.stat
+                raise IOError unless actual.directory? && actual.dev == stat.dev && actual.ino == stat.ino
+                raise IOError if @mount && !same_mount?(file)
+
+                result = yield "/proc/self/fd/#{file.fileno}", file
+                named = File.lstat(path)
+                raise IOError unless named.directory? && named.dev == actual.dev && named.ino == actual.ino
+
+                result
+              end
+            end
+
+            def same_mount?(file)
+              mount_id(file) == @mount
+            end
+
+            private
+
+            def mount_id(file)
+              File.read("/proc/self/fdinfo/#{file.fileno}", 4096)[/^mnt_id:\s*(\d+)$/, 1] || raise(IOError)
+            end
+          end
+          private_constant :PinnedTree
+
+          def initialize(path, library, contract)
+            @path = path
+            @library = library
+            @contract = contract
+            @tree = PinnedTree.new
+            @entries = {}
+            @remaining = MAX_ENTRIES
+          end
+
+          attr_reader :path, :contract, :entries, :action, :identity
+
+          def snapshot
+            # Only the inner dispatcher brackets a single action. Do not use
+            # the wider Loop watch window or a baseline from another action.
+            @action = Thread.current[:pwn_request_runtime].events.last
+            return unless @action && @action[:phase] == 'start' && !@action[:action_id].to_s.empty?
+            return unless %w[shell pwn_eval].include?(@action[:tool]) && direct_turn?
+
+            @tree.at(@path, missing: true) do |pinned|
+              @identity = directory_id(pinned)
+              inventory(pinned, '', 0)
+            end
+            @entries.freeze
+            self
+          rescue SystemCallError, IOError, ArgumentError, EncodingError
+            nil # An incomplete inventory is NOT an empty pre-write directory.
+          end
+
+          def changes(before, action_id, tool)
+            return unless before.is_a?(SkillDirectory) && before.contract.equal?(@contract) && before.path == @path
+            return unless before.action == @action && @action.values_at(:action_id, :tool) == [action_id, tool]
+            # Moving a tree of existing documents is not a document write.
+            return if before.identity && before.identity != @identity
+            return unless before.entries.each_key.all? { |name| @entries.key?(name) }
+
+            changed = @entries.reject { |name, stat| before.entries[name] == stat }
+            # No pre-write digest for an entire catalog: a same-inode, same-size
+            # edit cannot be distinguished from touch. Name the file for that case.
+            return if changed.any? { |name, stat| before.entries[name]&.first(3) == stat.first(3) }
+
+            readback(changed)
+          end
+
+          def matches?(observed)
+            docs = observed[:skill_documents]
+            return false unless direct_turn? && docs.is_a?(Array) && docs.size.between?(1, MAX_DOCUMENTS) && docs.all?(Hash)
+
+            events = Thread.current[:pwn_request_runtime].events.select { |event| event[:action_id] == observed[:action_id] }
+            return false unless events.map { |e| e[:phase] } == %w[start end] && events.last[:state] == 'completed' && events.all? { |e| e[:tool] == observed[:tool] }
+
+            current = readback(docs.to_h { |doc| [doc[:path], doc[:stat]] })
+            current && current == observed.slice(*current.keys)
+          end
+
+          private
+
+          def direct_turn?
+            !Thread.current[:pwn_loop_nested] && !Thread.current[:pwn_solve_tools] && !Thread.current[:pwn_swarm_depth].to_i.positive?
+          end
+
+          def signature(stat)
+            [stat.dev, stat.ino, stat.size, stat.mtime.to_r.to_s, stat.ctime.to_r.to_s]
+          end
+
+          def directory_id(pinned)
+            stat = File.stat(pinned)
+            [stat.dev, stat.ino]
+          end
+
+          def inventory(pinned, prefix, depth)
+            raise IOError if depth > MAX_DEPTH
+
+            stamp = signature(File.stat(pinned))
+            Dir.each_child(pinned) do |name|
+              raise IOError if (@remaining -= 1).negative?
+              next if name.start_with?('.') || EXCLUDED.include?(name)
+
+              child = File.join(pinned, name)
+              relative = prefix + name
+              stat = File.lstat(child)
+              if stat.directory?
+                @tree.descend(child, stat) { |dir| inventory(dir, "#{relative}/", depth + 1) }
+              else
+                raise IOError unless stat.file? && stat.nlink == 1
+
+                @entries[relative] = signature(stat) if owner(relative)
+              end
+            end
+            raise IOError unless signature(File.stat(pinned)) == stamp
+          end
+
+          # A canonical entry or a text reference, never an arbitrary script,
+          # attachment, hidden path or directory named by tool stdout.
+          def owner(name)
+            return unless name.is_a?(String) && name.valid_encoding? && !name.match?(/[[:cntrl:]]/)
+
+            parts = File.join(@path, name).delete_prefix("#{@library}/").split('/', -1)
+            return if name.start_with?('/') || parts.any? { |part| part.empty? || part.start_with?('.') || EXCLUDED.include?(part) }
+
+            refs = parts.index('references')
+            return parts[0...refs] if refs&.positive? && %w[.md .txt].include?(File.extname(parts.last).downcase)
+
+            parts[0...-1] if !refs && parts.size > 1 && parts.last == 'SKILL.md'
+          end
+
+          def readback(changed)
+            return unless changed.size.between?(1, MAX_DOCUMENTS)
+
+            owners = changed.keys.map { |name| owner(name) }.uniq
+            return unless owners.size == 1 && owners.first
+
+            identity = @tree.at(@path) { |pinned| directory_id(pinned) }
+            return if @identity && @identity != identity
+
+            docs = changed.sort.map { |name, stat| document(name, stat) }
+            # The runtime persists head/tail for file receipts. Never attach
+            # samples from a directory or publish an inventory of unrelated docs.
+            { skill_directory_id: identity, skill_documents: docs, sha256: Digest::SHA256.hexdigest(JSON.generate(docs)),
+              skill_request: Digest::SHA256.hexdigest(@contract.fetch(:request)), head: '', tail: '' }
+          rescue SystemCallError, IOError, ArgumentError, EncodingError
+            nil
+          end
+
+          def document(name, expected)
+            path = File.join(@path, name)
+            @tree.at(File.dirname(path)) do |dir|
+              child = File.join(dir, File.basename(path))
+              stat = File.lstat(child)
+              raise IOError unless matching_file?(stat, expected) && stat.size.between?(1, MAX_BYTES)
+
+              File.open(child, FLAGS) do |file|
+                raise IOError unless @tree.same_mount?(file) && matching_file?(file.stat, expected)
+
+                bytes = file.binmode.read(stat.size + 1).to_s.force_encoding(Encoding::UTF_8)
+                raise IOError unless bytes.bytesize == stat.size && bytes.valid_encoding? && !bytes.include?("\0") && bytes.match?(/\S/)
+                raise IOError unless matching_file?(file.stat, expected) && matching_file?(File.lstat(child), expected)
+
+                { path: name, stat: expected, sha256: Digest::SHA256.hexdigest(bytes) }
+              end
+            end
+          end
+
+          def matching_file?(stat, expected)
+            stat.file? && stat.nlink == 1 && signature(stat) == expected
+          end
+        end
+        private_constant :SkillDirectory
+
+        # Bounded, local document work. Only a verb and its file operands qualify;
+        # an additional action or an ambiguous target stays on the ordinary path.
+        # Keep coverage in the controller for this turn, never in the model prompt.
+        class InputPages
+          LIST = /\A\s*(?:please\s+)?(?:read|compare|inspect|review|summari[sz]e|analy[sz]e)\s+
+                  (?:(?:the|these|both)\s+)?(?<files>files?\s*:?\s*)?\x00
+                  (?:\s*(?:,\s*(?:and\s+)?|and|to|with|against|versus|vs\.?)\s*\x00)*
+                  (?:\s*[,;]?\s*(?:and\s+)?(?:reply|answer|respond)\s+in\s+(?:(?:the|this)\s+)?chat)?\s*[.!?]?\s*\z/ix
+
+          public_class_method def self.for_turn(opts = {})
+            runtime = opts[:runtime]
+            return if opts[:nested] || opts[:unattended] || opts[:solve_handoff]
+            return unless runtime && runtime.request == opts[:request] && runtime.contract[:required_artifacts].empty?
+
+            for_request(request: opts[:request], cwd: runtime.contract.fetch(:cwd))
+          end
+
+          public_class_method def self.for_request(opts = {})
+            paths = operands(request: opts.fetch(:request))
+            new(paths, opts.fetch(:cwd)) if paths
+          end
+
+          public_class_method def self.operands(opts = {})
+            request = opts.fetch(:request)
+            return if request.include?("\0") || request.match?(%r{\b[a-z][a-z\d+.-]*://}i)
+
+            paths = []
+            bare_name = false
+            shape = request.gsub(PATH_LITERAL) do
+              quoted, bare = Regexp.last_match.captures
+              bare_name ||= !quoted && !bare.start_with?('/', './', '../', '~/')
+              paths << (quoted || bare.sub(/[.,;:]+\z/, ''))
+              "\0"
+            end
+            list = LIST.match(shape)
+            # A bare dotted name is ambiguous unless the operator called it a file.
+            paths if list && (!bare_name || list[:files])
+          end
+
+          def initialize(paths, cwd)
+            @cwd = cwd
+            @pages = paths.to_h { |path| [File.expand_path(path, cwd), nil] }
+          end
+
+          # Only the registered reader's successful result counts. A proposed
+          # call, a grep preview, or an unrelated tool printing JSON is not a page.
+          def observe(name, raw)
+            return unless name == 'artifact_read'
+
+            result = JSON.parse(raw, symbolize_names: true)
+            return unless result.is_a?(Hash) && result[:success] == true && result[:effect] == 'read'
+
+            page = result[:result]
+            return unless page.is_a?(Hash) && page[:path].is_a?(String) && page[:body].is_a?(String)
+
+            path = File.expand_path(page[:path], @cwd)
+            first, last, size = page.values_at(:offset, :next_offset, :total_bytes)
+            return unless @pages.key?(path) && [first, last, size].all?(Integer) && first.between?(0, last) && last <= size && page[:bytes] == last - first
+
+            state = @pages[path]
+            state = @pages[path] = { size: size, ranges: {} } unless state && state[:size] == size
+            state[:ranges][first] = [last, state[:ranges].fetch(first, first)].max
+          rescue JSON::ParserError, ArgumentError
+            nil
+          end
+
+          def unmet
+            @pages.filter_map do |path, state|
+              offset = next_missing(state)
+              "input_unread:#{path} (next byte #{offset})" if offset
+            end
+          end
+
+          private
+
+          def next_missing(state)
+            return 0 unless state
+
+            offset = 0
+            state[:ranges].sort.each do |first, last|
+              break if first > offset
+
+              offset = [offset, last].max
+            end
+            offset unless offset == state[:size]
+          end
+        end
+
+        # A visible reply that does not certify the requested work. A partial
+        # chat draft is presentation only, never an action or a learning label.
+        class TurnNotice < String
+          CHAT_DESTINATION = /\b(?:in (?:this |the )?chat|in (?:your|the) (?:reply|response)|here in (?:your|the) reply)\b/i
+
+          # Another prose answer isn't a changed observation of a missing file.
+          class Gap
+            def initialize(opts, nested)
+              @public_draft = !nested && !opts[:solve_handoff] && !opts[:force_tools] && !opts[:verification_contract]
+            end
+
+            def stop_reason(unmet, no_tools, runtime)
+              return 'no_available_tools' if no_tools
+
+              paths = runtime.contract[:required_artifacts]
+              return unless unmet.any? { |row| row.start_with?('input_unread:') || paths.include?(row.to_s.partition(':').last) }
+
+              observed = runtime.observations.slice(*paths).transform_values { |row| row[:sha256] }
+              state = [unmet.uniq.sort, observed]
+              return 'unchanged_evidence' if @last == state
+
+              @last = state
+              nil
+            end
+
+            def notice(runtime, unmet, reason, msg)
+              draft = msg[:content].to_s if @public_draft && !msg[:_thinking_promoted]
+              TurnNotice.new.unfinished(runtime: runtime, unmet: unmet, reason: reason, candidate: draft)
+            end
+          end
+
+          def unfinished(runtime:, unmet:, reason:, candidate: nil)
+            summary = case reason
+                      when 'no_available_tools' then 'No tools are available in this request.'
+                      when 'unchanged_evidence' then 'The outstanding requirement is unchanged; there is no new evidence to check.'
+                      else 'No specific unmet requirement was identified to retry.'
+                      end
+            outstanding = Array(runtime.contract[:required_artifacts]).select do |path|
+              unmet.any? { |row| row.to_s.partition(':').last == path }
+            end
+            self << "[pwn-ai] blocked: #{summary}"
+            unread = unmet.grep(/\Ainput_unread:/).map { |row| row.delete_prefix('input_unread:') }
+            self << if unread.any?
+                      " Input not fully read: #{unread.join(', ')}."
+                    elsif outstanding.empty?
+                      ' The requested work was not verified.'
+                    else
+                      " File delivery was not verified: #{outstanding.join(', ')}."
+                    end
+            partial = outstanding.any? && candidate && runtime.request.match?(CHAT_DESTINATION)
+            if partial
+              self << "\n\nChat draft (not evidence of file delivery):\n"
+              self << candidate.lines.map { |line| "> #{line}" }.join
+            end
+            runtime.finish!(status: 'blocked', goal_status: partial ? 'partial' : 'blocked', stage: 'finalization', unmet: unmet + [reason])
+            self
+          end
+        end
+
+        # An operator-facing reply is a deliverable, not an observation of an
+        # external effect. The same object governs the main hop and its final.
+        class Conversation
+          TEXT = /\A(?:compose|draft|translate|paraphrase|rephrase|convert|write (?:me|us)|how many|what is the number of)\b/i
+          # A stated writing format specifies the medium, not the topic. A
+          # bare 'write a report' remains ambiguous about the destination.
+          WRITING_FORMAT = /\Awrite\b[^;\n]*?\b(?:words?|sentences?|paragraphs?|notes?|poems?|letters?|captions?)\b/i
+          QUESTION = /\A(?:what|which|when|where|why|who|how|is|are|will|does|do|can (?:we|I)|should (?:we|I))\b/i
+          EXTERNAL = %r{https?://|[/\\]|\b(?:files?|folder|directory|repo(?:sitory)?|on\s+disk|hostname|machine|subnet|shell|server|processes|devices|installed|running|logs?|backups?|database|configuration|settings|calendar)\b|
+            \b(?:save|store|export|publish|send|upload|download|email|execute|install|schedule|scan|wait|monitor)\b}ix
+          INSTRUCTIONS = <<~TEXT
+            The operator's request is the goal; a proposed plan is not an additional deliverable.
+            Return your public reply as JSON: {"pwn_turn":"answer", "text":"the answer"}.
+            If an essential input is missing, use "needs_input"; if only part is ready, use "partial".
+            For either, give the useful portion and a precise question or next requirement in text, and name it in "remaining".
+            Use the supplied conversation. Do not ask twice, invent a current source, or claim an external action from prose.
+          TEXT
+
+          def select(opts)
+            return if %i[nested force_tools verification_contract runtime unattended mission_id solve_handoff min_seconds steering_history require_resumable request_id].any? { |key| opts[key] }
+            return if opts[:trusted_context] || opts[:core_only] == false
+            return if Thread.current[:pwn_request_runtime] || Thread.current[:pwn_swarm_depth].to_i.positive? || TurnFinalizer.user_path?
+
+            text = opts[:request].to_s.strip
+            return if text.empty? || text.match?(OpenGoal::CONTINUE_RX) || text.match?(EXTERNAL) || text.match?(Loop::BROWSER_REQUEST_RX)
+            return if InputPages.operands(request: text)
+            return unless Loop.request_intent(request: text) == :act && !Loop.catalog_lookup?(request: text)
+            return unless TurnFinalizer.output_paths(request: text).empty?
+
+            clause = text.sub(/\A(?:(?:could|can|would) you )?(?:please )?/i, '')
+            @no_sources = opts[:enabled_toolsets] == []
+            question = QUESTION.match?(clause)
+            # A chat destination says where to answer, not where a fact comes from.
+            @text_only = TEXT.match?(clause) || WRITING_FORMAT.match?(clause) || (!question && clause.match?(TurnNotice::CHAT_DESTINATION))
+            effects = @text_only ? clause.sub(/\A(?:write|create)\b/i, '') : clause
+            return if effects.match?(Loop::ACT_REQUEST_RX) || effects.sub(/\Ahow many\b/i, '').match?(Loop::LOOKUP_REQUEST_RX)
+            return if Mission.active_id
+
+            sid = opts[:session_id]
+            current = OpenGoal.for_session(session_id: sid) unless sid.to_s.empty?
+            return if current && !current[:reply_question]
+
+            if current && follows_question?(current, sid)
+              @pending = current
+              @text_only ||= current[:reply_medium] == 'text'
+            end
+            self if @pending || @text_only || question
+          end
+
+          def text_only?
+            @text_only
+          end
+
+          def permits_reply?(runtime)
+            runtime && !runtime.verification_contract && runtime.contract[:required_artifacts].empty? && runtime.blocker.nil?
+          end
+
+          def unprocessed?(msg)
+            msg[:_thinking_promoted] || Array(msg[:tool_calls]).any?
+          end
+
+          # Only already-configured provider retrieval, never local functions
+          # or a code interpreter. A source is optional, not a plan obligation.
+          def sources(engine, config, model)
+            return [] if text_only? || @no_sources
+            return [] unless engine == :grok || PWN::AI::ServerTools.mixable?(engine: engine, model: model)
+
+            Array(config[:server_tools]).map(&:to_s) & PWN::AI::ServerTools::WIRE.fetch(engine, {}).keys & %w[web_search web_fetch google_search x_search]
+          end
+
+          def with_instructions(messages, sources:)
+            medium = if text_only?
+                       'The requested result is text. No external actions are available.'
+                     elsif sources.empty?
+                       'No online source is enabled for this turn. If current information is needed and missing, return partial and ask for the relevant source text.'
+                     else
+                       "Provider-hosted sources available now: #{sources.join(', ')}. Use them when the answer needs a lookup and cite the source used. No local functions are available."
+                     end
+            follow_up = ' If this message supplies the requested input and your reply answers or advances that earlier goal, also set "continues":true.' if @pending
+            first_turn = messages.take_while { |row| %w[system developer].include?((row[:role] || row['role']).to_s) }.length
+            messages.dup.insert(first_turn, { role: 'system', content: "#{INSTRUCTIONS}#{medium}#{follow_up}" })
+          end
+
+          def unprocessed(runtime, msg)
+            text = msg[:content].to_s unless msg[:_thinking_promoted]
+            visible = text.to_s.match?(Loop::DisplayReply::BLANK) ? 'No public answer was available.' : decode(text).fetch(:text)
+            notice = TurnNotice.new(visible)
+            pending = Array(msg[:tool_calls]).any?
+            notice << "\n\nAn action from this reply was not processed." if pending
+            save(runtime, 'notice', notice)
+            runtime.finish!(status: 'incomplete', stage: 'provider', unmet: [pending ? 'unprocessed_action' : 'public_reply_missing'])
+            notice
+          end
+
+          # Preview contains public text and a pending bit, never a runnable provider message.
+          def present_preview(runtime, preview, on_notice)
+            return finish(runtime, preview.text) if preview.answer?
+
+            runtime.check_cancelled!
+            visible = decode(preview.text).fetch(:text)
+            save(runtime, 'notice', preview.present(nil, public_text: visible))
+            runtime.finish!(status: 'incomplete', stage: 'provider', unmet: [preview.pending ? 'unprocessed_action' : 'public_reply_missing'])
+            preview.present(on_notice, public_text: visible)
+          end
+
+          def finish(runtime, content)
+            runtime.check_cancelled!
+            disposition = decode(content)
+            reply = disposition.fetch(:text)
+            state = disposition.fetch(:pwn_turn)
+            sid = runtime.session_id
+            continues = @pending && disposition[:continues] == true
+            row = save(runtime, 'assistant', reply)
+            if state == 'answer'
+              runtime.observe_evidence!(kind: 'answer', requirement: runtime.original_request, locator: 'chat:reply', sha256: Digest::SHA256.hexdigest(row.fetch(:content))) if row && text_only?
+              runtime.finish!(status: 'complete')
+              OpenGoal.clear!(answered_id: @pending[:request_id]) if continues
+            else
+              awaiting = state == 'needs_input'
+              runtime.finish!(status: 'incomplete', goal_status: awaiting ? 'awaiting_input' : 'partial', stage: awaiting ? 'clarification' : 'finalization', unmet: [disposition[:remaining]])
+              unless sid.empty?
+                OpenGoal.begin!(request: runtime.original_request, session_id: sid, answered_id: (@pending[:request_id] if continues),
+                                reply_question: (Digest::SHA256.hexdigest(row.fetch(:content)) if awaiting && row), reply_medium: text_only? ? 'text' : 'information')
+              end
+            end
+            reply
+          end
+
+          private
+
+          # Direct callers need not have a transcript. A returned string and a
+          # persisted row are different observations; never invent the latter.
+          def save(runtime, role, text)
+            PWN::Sessions.append(session_id: runtime.session_id, role: role, content: text) unless runtime.session_id.empty?
+          rescue IOError, SystemCallError
+            nil
+          end
+
+          def follows_question?(goal, sid)
+            rows = PWN::Sessions.load(session_id: sid).last(2)
+            return false unless rows in [{ role: 'user', content: String }, { role: 'assistant', content: String }]
+
+            previous = goal[:reply_after] || Digest::SHA256.hexdigest(goal.fetch(:request))
+            Digest::SHA256.hexdigest(rows.first[:content].strip) == previous && Digest::SHA256.hexdigest(rows.last[:content]) == goal[:reply_question]
+          end
+
+          def decode(text)
+            if text.lstrip.start_with?('{')
+              row = begin
+                JSON.parse(text, symbolize_names: true)
+              rescue JSON::ParserError
+                nil # Unframed JSON can itself be the requested answer.
+              end
+              return row if framed?(row)
+            end
+            # Older models can return ordinary prose. Display it verbatim, but
+            # don't certify an unlabelled question as the answer it asks for.
+            return { pwn_turn: 'needs_input', text: text, remaining: text.strip } if text.rstrip.end_with?('?')
+
+            { pwn_turn: 'answer', text: text }
+          end
+
+          def framed?(row)
+            return false unless row.is_a?(Hash) && row[:text].is_a?(String) && !row[:text].match?(Loop::DisplayReply::BLANK)
+
+            row[:pwn_turn] == 'answer' || (%w[needs_input partial].include?(row[:pwn_turn]) && row[:remaining].is_a?(String) && !row[:remaining].strip.empty?)
+          end
+        end
+
         MUTEX = Mutex.new
         THREADS = [] # rubocop:disable Style/MutableConstant
         MAX_TRACKED = 16
@@ -208,8 +743,9 @@ module PWN
           request = opts[:request].to_s
           paths = []
           intent = nil
+          operation = nil
           previous_end = 0
-          request.to_enum(:scan, %r{["'`]((?:~/|/|\./|\.\./)[^"'`\n]+|[^"'`\n]+\.[A-Za-z0-9]+)["'`]|(?<![\w:/])((?:~/|/|\./|\.\./)[\w.+/-]+|[\w+-]+\.[A-Za-z0-9]+)}).each do
+          request.to_enum(:scan, PATH_LITERAL).each do
             match = Regexp.last_match
             literal = match[1] || match[2].sub(/[.,;:]+\z/, '')
             # Unquoted dotted initials followed by a period are prose (i.e.,
@@ -218,19 +754,34 @@ module PWN
 
             prefix = request[previous_end...match.begin(0)]
             previous_end = match.end(0)
-            intent = prefix.scan(/\b(write|save|store|output|export|create|update|modify|edit|generate|put|produce|deliver|into|mv|move|copy|cp|rename|to|read|inspect|review|analy[sz]e|summari[sz]e|from|using)\b/i).flatten.last&.downcase || intent
-            next unless %w[write save store output export create update modify edit generate put produce deliver into mv move copy cp rename to].include?(intent)
+            prefix.downcase.scan(FILE_CONTEXT).each do |word|
+              case word
+              when 'from', 'using' then intent = :input
+              when 'into', 'to' then intent = operation
+              when *TO_DESTINATION
+                operation = :output
+                intent = :input
+              else intent = operation = WRITE_VERBS.include?(word) ? :output : :input
+              end
+            end
+            next unless intent == :output
 
             paths << File.expand_path(literal, opts[:cwd] || Dir.pwd)
           end
           paths.uniq
         end
 
-        # Host-only snapshot; never parse an artifact claim from tool stdout.
+        # Only committed destinations may be sampled during a turn. A known
+        # missing file has a nil baseline; an unobservable file has NO baseline.
         public_class_method def self.artifact_snapshot(opts = {})
-          Array(opts[:paths]).to_h do |literal|
+          contract = Thread.current[:pwn_artifact_contract]
+          Array(opts[:paths]).each_with_object({}) do |literal, rows|
             path = File.expand_path(literal.to_s)
-            [path, artifact_readback(path: path)]
+            next if contract && !contract[:required_artifacts].include?(path)
+
+            directory = skill_directory_for(path: path)
+            row = directory ? directory.snapshot : artifact_readback(path: path)
+            rows[path] = row unless row == :unavailable
           end
         end
 
@@ -240,9 +791,12 @@ module PWN
           return {} unless opts[:success] == true && opts[:effect].to_s == 'write'
 
           before = opts[:before] || {}
-          observed = artifact_snapshot(paths: opts[:paths]).select do |path, row|
-            row && before.key?(path) && before[path] != row
-          end
+          observed = artifact_snapshot(paths: opts[:paths]).filter_map do |path, row|
+            next unless row && before.key?(path) && before[path] != row
+
+            row = row.changes(before[path], opts[:action_id], opts[:tool]) if row.is_a?(SkillDirectory)
+            [path, row] if row
+          end.to_h
           observed = observed.transform_values do |row|
             contract = Thread.current[:pwn_artifact_contract]
             row = row.merge(action_id: opts[:action_id], tool: opts[:tool]) if opts[:action_id]
@@ -253,27 +807,75 @@ module PWN
           observed
         end
 
-        private_class_method def self.artifact_readback(opts = {})
-          File.open(opts[:path], File::RDONLY | File::NONBLOCK) do |file|
-            stat = file.stat
-            return nil unless stat.file? && stat.size.positive?
+        private_class_method def self.skill_directory_for(opts = {})
+          path = opts.fetch(:path)
+          contract = Thread.current[:pwn_artifact_contract]
+          return unless contract && contract.dig(:skill_destinations, path) == :directory
+          return unless Thread.current[:pwn_request_runtime]&.contract.equal?(contract) && contract[:required_artifacts].include?(path)
 
+          library = File.join(Dir.home, '.pwn', 'skills')
+          SkillDirectory.new(path, library, contract) if path == library || path.start_with?("#{library}/")
+        end
+
+        private_class_method def self.artifact_readback(opts = {})
+          path = opts.fetch(:path)
+          begin
+            stat = File.lstat(path)
+          rescue Errno::ENOENT, Errno::ENOTDIR
+            return nil
+          end
+          return :unavailable unless stat.file?
+          return nil unless stat.size.positive?
+
+          with_artifact_file(path: path, stat: stat) do |file|
+            file.binmode
             head = file.read(4096).to_s
             file.seek([stat.size - 4096, 0].max)
             tail = file.read(4096).to_s
             file.rewind
             digest = Digest::SHA256.new
-            while (chunk = file.read(65_536))
+            remaining = stat.size
+            while remaining.positive?
+              chunk = file.read([remaining, 65_536].min)
+              return :unavailable unless chunk && !chunk.empty?
+
               digest.update(chunk)
+              remaining -= chunk.bytesize
             end
-            current = file.stat
-            return nil unless [current.ino, current.size, current.mtime, current.ctime] == [stat.ino, stat.size, stat.mtime, stat.ctime]
+            next :unavailable unless same_artifact?(expected: stat, actual: file.stat) && same_artifact?(expected: stat, actual: File.lstat(path))
 
             { stat: { size: stat.size, ino: stat.ino, dev: stat.dev, mtime: stat.mtime.to_r.to_s, ctime: stat.ctime.to_r.to_s },
               head: head, tail: tail, sha256: digest.hexdigest }
           end
-        rescue Errno::ENOENT, Errno::ENOTDIR
-          nil
+        rescue SystemCallError, IOError
+          :unavailable # No receipt for this path; independent outputs still count.
+        end
+
+        private_class_method def self.same_artifact?(opts = {})
+          expected = opts.fetch(:expected)
+          actual = opts.fetch(:actual)
+          actual.file? && expected.dev == actual.dev && expected.ino == actual.ino && expected.size == actual.size &&
+            expected.mtime == actual.mtime && expected.ctime == actual.ctime
+        end
+
+        private_class_method def self.with_artifact_file(opts = {})
+          path = opts.fetch(:path)
+          stat = opts.fetch(:stat)
+          flags = File::RDONLY | File::NONBLOCK
+          read_regular = lambda do |file|
+            next :unavailable unless same_artifact?(expected: stat, actual: file.stat)
+
+            yield file
+          end
+          return File.open(path, flags | File::NOFOLLOW, &read_regular) unless RUBY_PLATFORM.include?('linux')
+
+          # O_PATH pins the inode without opening a device driver. Reopen
+          # that descriptor for bytes, never a potentially replaced pathname.
+          File.open(path, 0x200000 | File::NOFOLLOW) do |pin|
+            next :unavailable unless same_artifact?(expected: stat, actual: pin.stat)
+
+            File.open("/proc/self/fd/#{pin.fileno}", flags, &read_regular)
+          end
         end
 
         public_class_method def self.arbitrate(opts = {})
@@ -283,15 +885,19 @@ module PWN
           paths = Array(opts[:paths]).map { |path| File.expand_path(path.to_s) }
           paths += required_artifacts(request: request)
           paths.uniq!
-          ledger = evidence_ledger(messages: messages)
+          ledger = evidence_ledger(messages: messages, request: request, paths: paths)
           unmet = []
           paths.each do |path|
             row = ledger[path]
+            if skill_directory_for(path: path)
+              unmet << { criterion: 'skill_document_unverified', detail: path } unless row&.dig(:evidence, :skill_documents)
+              next
+            end
             unless File.file?(path)
               unmet << { criterion: 'artifact_missing', detail: path }
               next
             end
-            unmet << { criterion: 'empty_artifact', detail: path } if File.size(path) < 2
+            unmet << { criterion: 'empty_artifact', detail: path } if File.empty?(path)
             unmet << { criterion: 'write_missing', detail: path } unless row && row[:write]
             unmet << { criterion: 'readback_missing', detail: path } unless row && row[:read]
             # Filesystem timestamps can lag Time.now by a clock tick. A bound
@@ -330,23 +936,32 @@ module PWN
 
         public_class_method def self.evidence_ledger(opts = {})
           ledger = {}
+          contract = Thread.current[:pwn_artifact_contract]
+          paths = Array(opts[:paths] || contract&.dig(:required_artifacts) || required_artifacts(request: opts[:request]))
+          paths &= contract[:required_artifacts] if contract
           runtime = Thread.current[:pwn_request_runtime]
           messages = Array(opts[:messages])
-          messages += [{ role: 'tool', artifact_observations: runtime.observations }] if runtime
+          host = { role: 'tool', artifact_observations: runtime.observations } if runtime
+          messages += [host] if host
           messages.each do |msg|
             next unless msg.is_a?(Hash) && msg[:role].to_s == 'tool'
 
             next unless msg[:artifact_observations].is_a?(Hash)
 
             msg[:artifact_observations].each do |path, observed|
-              next unless observed.is_a?(Hash)
-
-              contract = Thread.current[:pwn_artifact_contract]
+              next unless paths.include?(path) && observed.is_a?(Hash)
               next if contract && observed[:artifact_turn_id] != contract[:id]
 
-              current = artifact_readback(path: path)
-              readback = observed.except(:artifact_turn_id, :action_id, :tool, :child_request_id, :child_turn_id, :child_provenance)
-              next unless current && current == readback
+              directory = skill_directory_for(path: path)
+              if directory
+                next unless msg.equal?(host) && opts.fetch(:request, contract[:request]) == contract[:request] && directory.matches?(observed)
+              else
+                next if observed.key?(:skill_documents)
+
+                current = artifact_readback(path: path)
+                readback = observed.except(:artifact_turn_id, :action_id, :tool, :child_request_id, :child_turn_id, :child_provenance)
+                next unless current && current == readback
+              end
 
               ledger[path] = { write: true, read: true, evidence: observed }
             end
@@ -409,6 +1024,19 @@ module PWN
             # Extract explicit output literals, excluding source/read paths.
             #{self}.output_paths(request: 'required - original user request', cwd: 'optional - relative path base')
 
+            # Track input pages for an interactive turn with no file delivery.
+            #{self}::InputPages.for_turn(
+              request: 'required - original operator request', runtime: 'required - runtime that owns the request',
+              nested: 'optional - true for a nested turn', unattended: 'optional - true for an unattended turn',
+              solve_handoff: 'optional - true when handing work to the solver'
+            )
+
+            # Build a page tracker for an explicit local file read.
+            #{self}::InputPages.for_request(request: 'required - original operator request', cwd: 'required - directory for resolving input paths')
+
+            # Return the literal input filenames in an unambiguous read request.
+            #{self}::InputPages.operands(request: 'required - original operator request')
+
             # Precommit immutable required_artifacts for this turn before tools run.
             #{self}.commit_artifacts!(request: 'required - original user request', cwd: 'optional - initial relative path base', inherit: 'optional - reuse the owning turn contract for a nested call')
 
@@ -416,9 +1044,11 @@ module PWN
             #{self}.required_artifacts(request: 'required - original user request', cwd: 'optional - relative path base outside a turn')
 
             # Snapshot named destinations immediately before a tool runs.
+            # Operator-named default skill directories inventory bounded metadata only.
             #{self}.artifact_snapshot(paths: 'required - destination paths')
 
             # Host-only post-dispatch write delta and stat/head-tail readback.
+            # Skill directory receipts contain only changed document paths, metadata and digests.
             # Keep this result in internal tool-message artifact_observations.
             #{self}.observe_artifacts(
               paths: 'required - destination paths', before: 'required - artifact_snapshot result',
@@ -437,7 +1067,9 @@ module PWN
 
             # Build path → {write,read} from host-owned artifact_observations only.
             #{self}.evidence_ledger(
-              messages: 'optional - Array of role/content hashes'
+              messages: 'optional - Array of role/content hashes',
+              request: 'optional - original request defining output paths outside a turn',
+              paths: 'optional - absolute output paths to recheck, limited by the active turn'
             )
 
             # True when write-then-readback evidence satisfies the original request.

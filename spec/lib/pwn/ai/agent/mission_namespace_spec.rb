@@ -244,6 +244,79 @@ RSpec.describe 'PWN::AI::Agent::MissionNamespace compiler-free process ownership
     expect(restored[:time].utc_offset).to eq(value[:time].utc_offset)
   end
 
+  it 'transfers old Ruby skill records as data without adding them to bootstrap requires' do
+    Dir.mktmpdir('mission-catalog-') do |root|
+      trusted = File.join(root, 'application.rb')
+      legacy = File.join(root, 'skills', 'notes.rb')
+      package = File.join(root, 'skills', 'guide')
+      scripts = File.join(package, 'scripts')
+      FileUtils.mkdir_p(scripts)
+      FileUtils.touch([trusted, legacy, File.join(scripts, 'example.rb')])
+      catalog = {
+        notes: { type: :ruby, loaded: true, format: :legacy, path: legacy },
+        guide: { type: :ruby, loaded: true, format: :agentskills, dir: package }
+      }
+      stub_const('PWN::Skills', catalog)
+      stub_const('PWN::Env', {})
+      namespace = PWN::AI::Agent::MissionNamespace
+      allow(namespace).to receive(:bootstrap_requires).and_return([trusted])
+      snapshot = nil
+      expect_any_instance_of(namespace).to receive(:start_supervisor) do |_mission, payload|
+        snapshot = namespace.decode(JSON.parse(payload))
+      end
+      namespace.new(descriptor: { operation: :legacy })
+      expect(snapshot.fetch(:requires)).to eq([trusted])
+      expect(snapshot.fetch(:skills)).to eq(catalog)
+    end
+  end
+
+  it 'restores the root and contents of empty and populated catalogs in fresh workers' do
+    Dir.mktmpdir('mission-catalog-') do |root|
+      library = File.join(root, 'library')
+      trusted = File.join(root, 'application.rb')
+      File.write(trusted, <<~RUBY)
+        PWN::AI::Agent::MissionNamespace.define_singleton_method(:execute) do |descriptor|
+          File.write(descriptor.fetch(:report), JSON.generate([PWN::Config.active_skill_root, PWN::Skills]))
+        end
+      RUBY
+      stub_const('PWN::Env', {})
+      stub_const('PWN::Skills', {})
+      namespace = PWN::AI::Agent::MissionNamespace
+      allow(namespace).to receive(:bootstrap_requires).and_return([trusted])
+
+      %w[first second].each do |name|
+        catalog = PWN::Config.load_skills(pwn_skills_path: library)
+        # This file is data for the next load, not part of this snapshot.
+        File.write(File.join(library, "#{name}.rb"), "raise 'catalog data was executed'\n")
+        report = File.join(root, "#{name}.json")
+        mission = namespace.new(descriptor: { operation: :command, report: report }, containment: :host)
+        mission.wait
+        expect(mission.status).to be_success
+        expect(JSON.parse(File.read(report))).to eq(JSON.parse(JSON.generate([library, catalog])))
+      ensure
+        mission&.close
+      end
+    end
+  end
+
+  it 'rejects explicit bootstrap files from the writable skills directory before starting a supervisor' do
+    Dir.mktmpdir('mission-preload-') do |home|
+      allow(Dir).to receive(:home).and_return(home)
+      library = File.join(home, '.pwn', 'skills')
+      FileUtils.mkdir_p(library)
+      local = File.join(library, 'example.rb')
+      FileUtils.touch(local)
+      alias_path = File.join(home, 'example.rb')
+      File.symlink(local, alias_path)
+      namespace = PWN::AI::Agent::MissionNamespace
+      allow_any_instance_of(namespace).to receive(:start_supervisor) { raise 'unexpected supervisor start' }
+      [local, alias_path].each do |path|
+        allow(namespace).to receive(:bootstrap_requires).and_return([path])
+        expect { namespace.new(descriptor: { operation: :legacy }) }.to raise_error(namespace::Unavailable, /outside the writable skills library/)
+      end
+    end
+  end
+
   it 'starts a command without a user namespace' do
     mission = PWN::AI::Agent::MissionNamespace.new(descriptor: { operation: :command, argv: ['/bin/true'] }, containment: :host)
     expect(mission.wait).to eq(:reaped)
@@ -302,14 +375,14 @@ RSpec.describe 'PWN::AI::Agent::MissionNamespace compiler-free process ownership
     waiter&.kill&.join
   end
 
-  it 'enforces the filesystem boundary through a fresh descriptor worker' do
+  it 'enforces the filesystem boundary through a fresh descriptor worker', :requires_landlock do
     Dir.mktmpdir('mission-source-') do |root|
       source = File.join(root, 'source')
       work = File.join(root, 'work')
       FileUtils.mkdir_p([source, work])
       File.write(File.join(source, 'keep'), 'original')
-      result = PWN::Plugins::AISandbox.protect_call(roots: [source], workspace: work, write_roots: [work],
-                                                    handler: { name: 'shell', args: { command: "printf allowed > result; printf bad > #{source}/keep", timeout: 5 } })
+      result = PWN::AI::Sandbox.protect_call(roots: [source], workspace: work, write_roots: [work],
+                                             handler: { name: 'shell', args: { command: "printf allowed > result; printf bad > #{source}/keep", timeout: 5 } })
       expect(result[:stderr]).to include('Permission denied')
       expect(File.read(File.join(source, 'keep'))).to eq('original')
       expect(File.read(File.join(work, 'result'))).to eq('allowed')

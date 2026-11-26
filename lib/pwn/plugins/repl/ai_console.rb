@@ -276,7 +276,6 @@ module PWN
         # Cancellation never raises asynchronously into a tool.
         class Control < PWN::AI::Agent::Loop::Steering
           class Stopped < Exception; end # rubocop:disable Lint/InheritException
-          class PreviewShown < Stopped; end
 
           def stopping?
             @stopping == true
@@ -573,6 +572,40 @@ module PWN
           end
         end
 
+        # Parent-only observation. A receipt write never owns the request or its text.
+        class SubmissionDelivery
+          attr_reader :id
+
+          def initialize
+            @store = PWN::AI::Agent::Submission
+            @id = @store.optional { @store.open! }
+          end
+
+          def displayed!
+            @displayed = true
+            acknowledge
+          end
+
+          # Only recover a pending outcome, never replace the child's decision.
+          def finish!(status: :incomplete, stage: :controller)
+            return unless @id
+
+            @store.optional { @store.abandon!(submission_id: @id, status: status, stage: stage) }
+            acknowledge
+          end
+
+          private
+
+          def acknowledge
+            return unless @id && !@acknowledged
+
+            @acknowledged = @store.optional do
+              @store.delivery!(submission_id: @id, delivery: @displayed ? :displayed : :not_displayed)
+              true
+            end
+          end
+        end
+
         # Own the terminal, event pump and the lifetime of exactly one request.
         class Console # rubocop:disable Metrics/ClassLength -- cohesive single-owner terminal state machine
           COLORS = { operator: :operator, task: :task, thinking: :notice, tool: :tool, result: :result, assistant: :assistant, notice: :notice, warning: :warning }.freeze
@@ -746,16 +779,29 @@ module PWN
                 text.fetch(:config, {}).each do |key, value|
                   @pry.config.public_send("#{key}=", value) if %i[pwn_ai_session_id pwn_ai_debug pwn_ai_trace].include?(key)
                 end
+              when :assistant, :terminal_warning
+                shown = add(type == :assistant ? :assistant : :warning, text)
+                @mission_submission&.displayed! if shown && generation && generation == @mission_generation
+              when :workspace_busy
+                next unless generation && generation == @mission_generation && @mission_submission
+
+                reject_submission(@mission_submission, text)
+                @mission_submission = nil
               when :usage
                 @usage.record(text)
               when :mission_done
+                next unless generation && generation == @mission_generation
+
                 @worker.join
+                @mission_generation = nil
                 finish_request_metrics
                 @running = false
                 @memory_review = nil
                 @control&.close
                 @control = nil
                 @mission = nil
+                @mission_submission&.finish!
+                @mission_submission = nil
               when :operator_loaded
                 generation, data = text
                 if @operator_view && @operator_view[:generation] == generation
@@ -854,19 +900,6 @@ module PWN
             %i[pwn_ai_session_id pwn_ai_debug pwn_ai_trace pwn_ai_speak pwn_ai_agent].to_h { |key| [key, @pry.config.public_send(key)] }
           end
 
-          def with_stream_preview(events)
-            previous = Thread.current[:pwn_stream_preview]
-            Thread.current[:pwn_stream_preview] = lambda do |provider, text, pending|
-              visible = text.gsub(/[\x00-\x08\x0B-\x1F\x7F-\u009F]/, '')
-              events << [:assistant, visible] unless visible.empty?
-              status = pending ? 'A requested action was not processed.' : 'No actions from this reply were processed.'
-              raise Control::PreviewShown, "#{provider} reply recovered for display only. #{status} This turn has ended."
-            end
-            yield
-          ensure
-            Thread.current[:pwn_stream_preview] = previous
-          end
-
           def mission_request_child(data, writer, commands)
             request, generation, session_id, title_config = data.values_at(:request, :generation, :session_id, :title_config)
             events = MissionEvents.new(writer, generation)
@@ -892,11 +925,15 @@ module PWN
             ensure
               review.close
             end
+            error_event = :terminal_warning
             begin
               workspace = File.realpath(Dir.pwd)
               lock_path = File.join(Dir.tmpdir, "pwn-solve-#{Digest::SHA256.hexdigest(workspace)}.lock")
               File.open(lock_path, File::RDWR | File::CREAT | File::NOFOLLOW, 0o600) do |lease|
-                raise IOError, 'Workspace busy: another mission owns this directory.' unless lease.flock(File::LOCK_EX | File::LOCK_NB)
+                unless lease.flock(File::LOCK_EX | File::LOCK_NB)
+                  events << [:workspace_busy, 'IOError: Workspace busy: another mission owns this directory.']
+                  next
+                end
 
                 events << [:session_title, PWN::Sessions.provisional_title(session_id: session_id, request: request)]
                 on_tool = lambda do |name, args, result|
@@ -907,24 +944,30 @@ module PWN
                     events << [:result, result.to_s]
                   end
                 end
-                final = with_stream_preview(events) do
-                  previous = Thread.current[:pwn_review_memory]
+                previous = Thread.current[:pwn_review_memory]
+                final = begin
                   Thread.current[:pwn_review_memory] = review.method(:call)
-                  PWN::AI::Agent::Loop.run(request: request, session_id: session_id,
+                  PWN::AI::Agent::Loop.run(request: request, session_id: session_id, submission_id: data[:submission_id],
                                            enabled_toolsets: PWN::Env.dig(:ai, :agent, :toolsets),
+                                           on_notice: ->(notice) { events << [:warning, notice] },
                                            on_tool: on_tool, steering: control, debug: @pry.config.pwn_ai_debug,
                                            trace: @pry.config.pwn_ai_trace, debug_tee: output)
                 ensure
                   Thread.current[:pwn_review_memory] = previous
                 end
+                if final.is_a?(PWN::AI::Agent::Loop::TurnNotice)
+                  events << [:terminal_warning, final.to_s]
+                  next # Do not spend another provider call on a blocked turn.
+                end
                 promoted = Thread.current[:pwn_thinking_promoted] && final.to_s.strip == Thread.current[:pwn_last_thinking].to_s.strip
                 events << [:assistant, final.to_s] unless promoted
+                error_event = :warning # Post-turn title failures are diagnostics, not delivery.
                 events << [:session_title, PWN::Sessions.refresh_title(session_id: session_id, ai_config: title_config, on_error: ->(kind) { events << [:warning, "Session title refresh unavailable (#{kind}); previous title retained."] })]
               end
-            rescue Control::PreviewShown => e
-              events << [:warning, e.message]
             rescue StandardError, Interrupt, Control::Stopped => e
-              warning = if e.respond_to?(:http_code) && e.http_code == 403
+              warning = if e.is_a?(PWN::AI::Grok::AccessDenied)
+                          e.message
+                        elsif e.respond_to?(:http_code) && e.http_code == 403
                           'Access denied (HTTP 403). Check that your account can use the selected model and endpoint.'
                         else
                           "#{e.class}: #{e.message}"
@@ -933,7 +976,7 @@ module PWN
                 file = File.basename(origin.path.to_s)
                 warning += " (#{file}:#{origin.lineno})" if file.ascii_only? && file.match?(/\A[\w-]{1,80}\.rb\z/)
               end
-              events << [:warning, warning]
+              events << [error_event, warning]
             ensure
               review.close
               command_reader.kill.join
@@ -974,9 +1017,16 @@ module PWN
             end
           end
 
-          def start_mission_request(request)
-            return add(:warning, 'A mission is still running; cancel and reap it first.') if busy?
+          def reject_submission(submission, warning, status: :blocked)
+            submission.displayed! if add(:warning, warning)
+            submission.finish!(status: status, stage: :admission)
+          end
 
+          def start_mission_request(request)
+            submission = SubmissionDelivery.new
+            return reject_submission(submission, 'A mission is still running; cancel and reap it first.') if busy?
+
+            @mission_submission = submission
             @mission_generation = SecureRandom.uuid
             generation = @mission_generation
             session_id = @pry.config.pwn_ai_session_id
@@ -992,8 +1042,8 @@ module PWN
             commands, sender = PWN::AI::Agent::MissionNamespace.control_socket_pair
             commands.shutdown(Socket::SHUT_WR)
             @control = MissionControl.new(sender)
-            @mission = PWN::Plugins::AISandbox::MissionProcess.new(
-              descriptor: { operation: :console, request: request, generation: generation, session_id: session_id, title_config: title_config, config: mission_config },
+            @mission = PWN::AI::Sandbox::MissionProcess.new(
+              descriptor: { operation: :console, request: request, generation: generation, session_id: session_id, submission_id: @mission_submission.id, title_config: title_config, config: mission_config },
               fds: { 4 => writer, 5 => @input, 6 => commands }
             )
             writer.close
@@ -1004,7 +1054,7 @@ module PWN
             @worker = Thread.new do
               reader.each_line do |line|
                 tag, type, text = JSON.parse(line, symbolize_names: true)
-                next unless tag == generation && %w[task thinking tool result assistant notice warning session_title usage memory_review memory_review_closed].include?(type)
+                next unless tag == generation && %w[task thinking tool result assistant notice warning terminal_warning workspace_busy session_title usage memory_review memory_review_closed].include?(type)
 
                 @events << [type.to_sym, text, tag]
               end
@@ -1019,9 +1069,9 @@ module PWN
           rescue StandardError => e
             [reader, writer, commands, sender].compact.each { |io| io.close unless io.closed? }
             @mission&.close
-            @mission = @control = nil
+            @mission = @control = @mission_submission = @mission_generation = nil
             @running = false
-            add(:warning, "Mission not started: #{e.message}")
+            reject_submission(submission, "Mission not started: #{e.message}", status: :incomplete)
           end
 
           def cancel_mission
@@ -1037,6 +1087,9 @@ module PWN
             @mission = @control = nil
             @running = false
             finish_request_metrics
+            # The cancellation banner is not delivery of the discarded child reply.
+            @mission_submission&.finish!(status: :cancelled, stage: :cancellation)
+            @mission_submission = nil
             add(:warning, 'Mission cancelled; all owned processes reaped. Completed work is not undone.')
           end
 
@@ -1056,7 +1109,7 @@ module PWN
             begin_request_metrics
             add(:operator, request)
             reader, writer = IO.pipe
-            @mission = PWN::Plugins::AISandbox::MissionProcess.new(
+            @mission = PWN::AI::Sandbox::MissionProcess.new(
               descriptor: { operation: :slash, request: request, generation: generation, baseline_ai: baseline_ai, config: mission_config, cleanup: cleanup },
               fds: { 4 => writer, 5 => @input }
             )
@@ -1176,7 +1229,7 @@ module PWN
               open_system_role
             elsif line.match?(%r{\A/(?:maintenance(?:\s|$)|mcp(?:\s|$)|cron\s+run(?:\s|$)|model(?:\s|$)|sessions\s+cleanup(?:\s|$))})
               start_request(line, command: true)
-            elsif line.start_with?('/') || line.start_with?('ai.profile ', 'ai.memory ')
+            elsif local_command?(line)
               if line.match?(%r{\A/sessions[[:space:]]+resume(?:[[:space:]]|$)})
                 return add(:warning, 'Cannot switch sessions while swarm jobs are active.') if @swarm&.busy?
 
@@ -1222,6 +1275,10 @@ module PWN
             add(:warning, 'Memory decision not delivered: mission control channel closed.')
           end
 
+          def local_command?(line)
+            line.start_with?('/', 'ai.profile ', 'ai.memory ')
+          end
+
           def busy_command(line)
             if line.match?(%r{\A/steer(?:\s|$)})
               if @control.nil?
@@ -1241,7 +1298,8 @@ module PWN
             elsif line.start_with?('/swarm') && %w[status tail steer cancel pause resume help agents].include?(line.split[1])
               run_swarm(line)
             else
-              add(:warning, 'Request running. Settings and new requests wait until idle. Use /steer, /input, /swarm status|steer|cancel, /clear, or /verbose.')
+              warning = 'Request running. Settings and new requests wait until idle. Use /steer, /input, /swarm status|steer|cancel, /clear, or /verbose.'
+              local_command?(line) ? add(:warning, warning) : reject_submission(SubmissionDelivery.new, warning)
             end
           end
 

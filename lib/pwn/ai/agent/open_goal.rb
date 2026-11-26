@@ -57,21 +57,39 @@ module PWN
           }
           runtime = Thread.current[:pwn_request_runtime]
           row.merge!(request_id: runtime.request_id, checkpoint_path: runtime.checkpoint_path) if runtime
-          atomic_write(path: goal_file, row: row)
-          atomic_write(path: File.join(File.dirname(goal_file), 'current.json'), row: row) if runtime
+          path = goal_file
+          if opts[:answered_id]
+            waiting = pending_reply(opts)
+            return :held unless waiting
+
+            row = waiting.merge(updated_at: row[:updated_at], reply_after: Digest::SHA256.hexdigest(request))
+            path = File.join(File.dirname(path), "#{Digest::SHA256.hexdigest(waiting.fetch(:request_id))}.json")
+          end
+          row.merge!(reply_question: opts[:reply_question], reply_medium: opts[:reply_medium]) if runtime && opts[:reply_medium]
+          atomic_write(path: path, row: row)
+          atomic_write(path: File.join(File.dirname(path), 'current.json'), row: row) if runtime
           row
         end
 
         public_class_method def self.clear!(opts = {})
           return :ok unless opts.is_a?(Hash)
-          return :ok unless File.file?(goal_file)
+
+          path = goal_file
+          id = Thread.current[:pwn_request_runtime]&.request_id
+          if (answered = opts[:answered_id])
+            return :held unless pending_reply(opts)
+
+            id = answered
+            path = File.join(File.dirname(path), "#{Digest::SHA256.hexdigest(id)}.json")
+          end
+          return :ok unless File.file?(path)
           return :held if mission_open?
 
-          File.delete(goal_file)
-          pointer = File.join(File.dirname(goal_file), 'current.json')
+          File.delete(path)
+          pointer = File.join(File.dirname(path), 'current.json')
           if Thread.current[:pwn_request_runtime] && File.file?(pointer)
             row = JSON.parse(File.read(pointer), symbolize_names: true)
-            File.delete(pointer) if row[:request_id] == Thread.current[:pwn_request_runtime].request_id
+            File.delete(pointer) if row[:request_id] == id
           end
           :ok
         rescue StandardError
@@ -108,11 +126,14 @@ module PWN
             #{self}.begin!(
               request: 'required - request value consumed by #begin!',
               session_id: 'optional - session id value consumed by #begin!',
-              mission_id: 'optional - durable mission id consumed by #begin!'
+              mission_id: 'optional - durable mission id consumed by #begin!',
+              answered_id: 'optional - retain this immediately preceding conversational goal when another input is needed',
+              reply_question: 'optional - digest of a saved question awaiting operator input',
+              reply_medium: 'optional - text or information delivery for that pending answer'
             )
 
-            # Run clear and return its result
-            #{self}.clear!
+            # Close only the owning request or its immediately answered conversational question.
+            #{self}.clear!(answered_id: 'optional - exact pending conversational request id in the current session')
 
             # Run resume and return its result
             #{self}.resume?(
@@ -123,6 +144,12 @@ module PWN
             #{self}.authors
           "
           constants.sort
+        end
+
+        private_class_method def self.pending_reply(opts = {})
+          runtime = Thread.current[:pwn_request_runtime]
+          row = for_session(session_id: runtime.session_id) if runtime
+          row if row && row[:request_id] == opts[:answered_id] && row[:reply_question] && row[:mission_id].to_s.empty?
         end
 
         private_class_method def self.atomic_write(opts = {})

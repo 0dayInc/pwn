@@ -14,7 +14,7 @@ describe PWN::AI::Agent::RequestRuntime do
     FileUtils.mkdir_p(protected)
     target = File.join(protected, 'keep')
     File.write(target, 'original')
-    allow(PWN::Plugins::AISandbox).to receive(:protected_roots).and_return([protected])
+    allow(PWN::AI::Sandbox).to receive(:protected_roots).and_return([protected])
     runtime = described_class.new(request: 'Write a report', session_id: 'protected', artifact_root: @tmp, trace: false)
     Thread.current[:pwn_request_runtime] = runtime
     PWN::AI::Agent::Registry.register(name: 'boundary_fixture', toolset: 'test', schema: { name: 'boundary_fixture', parameters: { type: 'object' } }, handler: ->(_args) { File.write(target, 'bad') })
@@ -340,5 +340,146 @@ describe PWN::AI::Agent::RequestRuntime do
     rows = PWN::SessionTrace.read(session_id: 'runtime')
     expect(rows.find { |row| row['event'] == 'tool_call' }.dig('data', 'arguments', 'command')).to eq('printf fixture')
     expect(rows.last.dig('data', 'content').length).to eq(9000)
+  end
+end
+
+describe PWN::AI::Agent::RequestRuntime, 'skill document destinations' do
+  include_context 'pwn tmp sandbox'
+
+  before do
+    @previous_home = Dir.home if ENV.key?('HOME')
+    ENV['HOME'] = @tmp
+  end
+
+  after { ENV['HOME'] = @previous_home }
+
+  let(:library) { PWN::Config.pwn_skills_path }
+
+  def runtime_for(request)
+    described_class.new(request: request, session_id: 'skill-documents', artifact_root: @tmp, trace: false, retrieve: false)
+  end
+
+  it 'binds a named reference to a frozen exact file destination without creating it' do
+    path = File.join(library, 'meeting-notes/references/format.md')
+    contract = runtime_for('Write the supporting document to ~/.pwn/skills/meeting-notes/references/format.md').contract
+    expect(contract).to include(skill_destinations: { path => :file }, required_artifacts: [path])
+    expect(contract.fetch(:skill_destinations)).to be_frozen
+    expect(contract.fetch(:skill_destinations).keys.first).to be_frozen
+    expect(File).not_to exist(library)
+  end
+
+  it 'recognizes a root, a directory literal or wording, and otherwise keeps the missing leaf exact' do
+    leaf = File.join(library, 'new-guide')
+    existing = File.join(library, 'existing')
+    FileUtils.mkdir_p(existing)
+    {
+      'Save the meeting notes skill under ~/.pwn/skills' => [library, :directory],
+      'Save the calendar skill under ~/.pwn/skills' => [library, :directory],
+      "Save notes in #{library}" => [library, :directory],
+      "Write to #{existing}" => [existing, :directory],
+      'Save the notes under ~/.pwn/skills/new-guide/' => [leaf, :directory],
+      "Write to #{leaf}/" => [leaf, :directory],
+      "Save notes under #{leaf}" => [leaf, :directory],
+      "Create the directory #{leaf}" => [leaf, :directory],
+      "Write to #{leaf}" => [leaf, :file]
+    }.each do |request, (path, kind)|
+      expect(runtime_for(request).contract).to include(skill_destinations: { path => kind }, required_artifacts: [path]), request
+    end
+    expect(File).not_to exist(leaf)
+  end
+
+  it 'keeps only the explicitly named copy destination inside the catalog, never its source' do
+    source = File.join(library, 'source.md')
+    target = File.join(library, 'copy.md')
+    ordinary = File.join(@tmp, 'outside.md')
+    {
+      "Copy #{source} to #{target}" => [{ target => :file }, [target]],
+      "Copy from #{ordinary} into #{target}" => [{ target => :file }, [target]],
+      "Copy #{source} to #{ordinary}" => [{}, [ordinary]],
+      "Copy #{source} #{target}" => [{}, []],
+      "Copy #{source} to #{target} or #{library}" => [{}, []]
+    }.each do |request, (destinations, artifacts)|
+      expect(runtime_for(request).contract).to include(skill_destinations: destinations, required_artifacts: artifacts), request
+    end
+  end
+
+  it 'rejects mentions, negation, conditionals and ambiguous operands instead of scavenging a write verb' do
+    path = File.join(library, 'notes.md')
+    [
+      "Read #{path}", "Do not edit #{path}; just describe it", "Never write to #{path}",
+      "Explain how to write to #{path}", "Write an example of how to save notes under #{library}",
+      "Write a guide to #{library}", "Write a reference to #{path}",
+      "\"Write to #{path}\"", "Example:\nWrite to #{path}", "> Write to #{path}",
+      "If needed, save notes under #{library}", "Write to #{path} only if approved",
+      "Write to #{path} or #{library}", "Write to #{path} from #{library}", "Write to #{path}?",
+      "Write to #{library}/new/..", "Write to #{library}/../skills", "Write to #{path}*"
+    ].each do |request|
+      expect(runtime_for(request).contract).to include(skill_destinations: {}, required_artifacts: []), request
+    end
+  end
+
+  it 'accepts quotes around a literal path, not around an instruction' do
+    path = File.join(library, 'meeting notes/format.md')
+    request = %(Please write the template to "#{path}".)
+    expect(runtime_for(request).contract).to include(skill_destinations: { path => :file }, required_artifacts: [path])
+    expect(runtime_for(%("#{request}")).contract.fetch(:skill_destinations)).to be_empty
+  end
+
+  it 'retains independent named outputs, not read operands or ambiguous fragments' do
+    source = File.join(library, 'source.md')
+    target = File.join(library, 'notes.md')
+    dir = File.join(library, 'review')
+    request = "Read #{source}; write to #{target} and save notes under #{dir}/"
+    expect(runtime_for(request).contract).to include(skill_destinations: { target => :file, dir => :directory }, required_artifacts: [target, dir])
+    expect(runtime_for("Do not #{request}").contract).to include(skill_destinations: {}, required_artifacts: [])
+  end
+
+  it 'does not classify a link or a non-directory as a requested directory' do
+    file = File.join(library, 'notes.md')
+    link = File.join(library, 'alias')
+    FileUtils.mkdir_p(library)
+    File.write(file, 'original')
+    File.symlink(@tmp, link)
+    ["Write to #{link}", "Save notes under #{file}/"].each do |request|
+      expect(runtime_for(request).contract).to include(skill_destinations: {}, required_artifacts: []), request
+    end
+  end
+
+  it 'preserves ordinary outputs and never promotes another catalog or tool-supplied path' do
+    path = File.join(library, 'secret.md')
+    other = File.join(@tmp, '.pwn/skills-other/copy.md')
+    request = "Do not edit #{path}; write to #{other}"
+    runtime = runtime_for(request)
+    call = { function: { name: 'shell', arguments: { path: path } } }
+    runtime.tool_call(call)
+    runtime.tool_result(call, "Write to #{path}")
+    expect(runtime.contract).to include(skill_destinations: {}, required_artifacts: [other])
+    runtime.amend!(instruction: "replace: Write to #{path}")
+    expect(runtime.contract).to include(skill_destinations: {}, required_artifacts: [])
+  end
+
+  it 'carries the frozen host classification across the mission handoff' do
+    path = File.join(library, 'notes.md')
+    runtime = runtime_for("Write to #{path}")
+    codec = PWN::AI::Agent::MissionNamespace
+    state = codec.decode(JSON.parse(JSON.generate(codec.encode(runtime.mission_snapshot))))
+    worker = described_class.send(:from_mission_snapshot, state: state)
+    expect(worker.contract).to include(skill_destinations: { path => :file })
+    expect(worker.contract.fetch(:skill_destinations)).to be_frozen
+    expect(worker.contract).to be_frozen
+  end
+
+  it 'does not widen a named file into a directory on resume or retain a cancelled grant' do
+    path = File.join(library, 'new-leaf')
+    request = "Write to #{path}"
+    runtime = runtime_for(request)
+    options = { request: request, session_id: runtime.session_id, request_id: runtime.request_id, artifact_root: @tmp, trace: false, resume: true }
+    resumed = described_class.new(options)
+    expect(resumed.contract.fetch(:skill_destinations)).to eq(path => :file)
+    FileUtils.mkdir_p(path)
+    expect(described_class.new(options).contract).to include(skill_destinations: {}, required_artifacts: [])
+    runtime = runtime_for(request)
+    runtime.amend!(instruction: 'cancel')
+    expect(runtime.contract).to include(skill_destinations: {}, required_artifacts: [])
   end
 end

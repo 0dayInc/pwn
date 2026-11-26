@@ -4,8 +4,8 @@ require 'pwn'
 require 'json'
 
 source, work, mode = ARGV
-original_roots = PWN::Plugins::AISandbox.protected_roots
-PWN::Plugins::AISandbox.define_singleton_method(:protected_roots) { [source, *original_roots] }
+original_roots = PWN::AI::Sandbox.protected_roots
+PWN::AI::Sandbox.define_singleton_method(:protected_roots) { [source, *original_roots] }
 runtime = PWN::AI::Agent::RequestRuntime.new(request: 'Audit controller isolation', session_id: 'stateboundary', artifact_root: File.join(Dir.home, '.pwn', 'requests'), trace: false, retrieve: false)
 Thread.current[:pwn_request_runtime] = runtime
 # Independent finite writer inventory: include stores that do not exist yet,
@@ -21,7 +21,7 @@ if mode == 'aliased'
   File.symlink(target, path)
 end
 files.each { |name| File.write(File.join(base, name), '{}') }
-output = File.join(PWN::Plugins::AISandbox.workspace, 'allowed.txt')
+output = File.join(PWN::AI::Sandbox.workspace, 'allowed.txt')
 PWN::AI::Agent::Registry.register(name: 'state_boundary_fixture', toolset: 'fixture', schema: { name: 'state_boundary_fixture', parameters: { type: 'object' } }, handler: lambda { |_args|
   attempts = {}
   directories.each do |name|

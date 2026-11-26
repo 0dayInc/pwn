@@ -2,7 +2,7 @@
 
 > **PWN** (/pōn/) - an open-source offensive-security automation framework and
 > continuous-security-integration platform written in Ruby.
-> 108 plugins · 48 SAST modules · 85 AWS wrappers · 22 WWW drivers · 56 CLI
+> 107 plugins · 48 SAST modules · 85 AWS wrappers · 22 WWW drivers · 56 CLI
 > executables · 6 LLM engines · a self-improving multi-agent AI · one REPL.
 
 **Repo root:** `/opt/pwn` · **This wiki:** `/opt/pwn/documentation/` ·
@@ -51,7 +51,7 @@
 
 | | |
 |---|---|
-| [Plugins (108)](Plugins.md) | Every `PWN::Plugins::*` module by category |
+| [Plugins (107)](Plugins.md) | Every `PWN::Plugins::*` module by category |
 | &nbsp;&nbsp;↳ [BurpSuite](BurpSuite.md) ⭐ | Preferred web proxy / scanner |
 | &nbsp;&nbsp;↳ [TransparentBrowser](Transparent-Browser.md) | Headless / visible browser automation |
 | &nbsp;&nbsp;↳ [NmapIt](NmapIt.md) | Network discovery |

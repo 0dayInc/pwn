@@ -635,7 +635,7 @@ module PWN
             contract_sha256: Digest::SHA256.hexdigest(JSON.generate(contract)), contract: contract }
         end
 
-        public_class_method def self.stats
+        public_class_method def self.stats(opts = {})
           rows   = outcomes(limit: 10_000)
           total  = rows.length
           claims = rows.count { |row| row[:claimed_completion] == true }
@@ -659,6 +659,7 @@ module PWN
           heur_ok = heur.count { |r| r[:success] == true }
           {
             total_outcomes: total,
+            submissions: (Submission.optional { Submission.stats } if opts.fetch(:include_submissions, true)),
             completion_claims: claims,
             checked_completion_claims: checked_claims,
             false_completions: false_completions,
@@ -737,7 +738,7 @@ module PWN
             end
             line
           end
-          s   = stats
+          s   = stats(include_submissions: false)
           jm  = s[:judge_mean]
           d   = s[:proxy_distrust].to_f
           rate = d > 0.05 ? s[:adjusted_success_rate] : s[:success_rate]
@@ -1164,6 +1165,7 @@ module PWN
             stages_run << :policy
             Policy.finish(
               session_id: session_id,
+              close_role: Thread.current[TurnFinalizer::INLINE_KEY] ? :deferred : :learning,
               score: v[:training_score],
               attribution: v.dig(:verification, :runner_version) == 1 ? v.dig(:verification, :attribution) : nil,
               confidence: v[:confidence],
@@ -2527,7 +2529,9 @@ module PWN
             )
 
             # Run stats and return its result
-            #{self}.stats
+            #{self}.stats(
+              include_submissions: 'optional - include the private submission totals; false skips the receipt scan used only for reporting'
+            )
 
             # Run to context and return its result
             #{self}.to_context(

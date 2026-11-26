@@ -3,6 +3,101 @@
 require 'spec_helper'
 require 'stringio'
 
+describe PWN::Plugins::Log, 'trace filter' do
+  it 'filters only the provider-window poll, not cancellation, steering or polls on other owners' do
+    steering = PWN::AI::Agent::Loop::Steering.new(input: nil, output: nil)
+    traceable = lambda do |owner, method_id|
+      event = instance_double(TracePoint, self: steering, defined_class: owner, method_id: method_id)
+      described_class.send(:traceable?, tp: event)
+    end
+    window = steering.method(:cancel_requested?).owner
+    expect(traceable.call(window, :cancel_requested?)).to be(false)
+    expect(traceable.call(window, :request_model_cancel)).to be(true)
+    expect(traceable.call(steering.class, :submit)).to be(true)
+    expect(traceable.call(steering.class, :checkpoint)).to be(true)
+    expect(traceable.call(PWN::AI::Agent::Dispatch, :cancel_requested?)).to be(true)
+  end
+
+  it 'omits historical budget rows from the tty and file while retaining current debug output', :aggregate_failures do
+    require 'pty'
+    agent_loop = PWN::AI::Agent::Loop
+    stale = { last_seen: '2001-01-01T00:00:00Z', tool: 'agent_loop', shape: 'budget_exhausted',
+              error: 'Permission denied: fixture-old-path', sample_args: 'fixture-old-argument' }
+
+    Dir.mktmpdir do |dir|
+      PTY.open do |screen, tty|
+        path = described_class.start_debug(path: File.join(dir, 'trace.log'), tee: tty, trace: true)
+        agent_loop.send(:mistake_ts, mistake: stale)
+        agent_loop.send(:budget_hit?, mistake: stale)
+        agent_loop.send(:debug_provider_hop, elapsed: 0.25, hop_exit: 'returned')
+        described_class.note_exception!(error: Errno::EACCES.new('fixture-current-path'))
+
+        # Delimit the capture independently of whether the logger wrote anything.
+        tty.write('end-of-fixture')
+        tty.flush
+        [screen.gets('end-of-fixture'), File.read(path)].each do |output|
+          expect(output).to include('Loop.debug_provider_hop', 'Errno::EACCES', 'fixture-current-path')
+          expect(output).not_to include('Loop.mistake_ts', 'Loop.budget_hit?', stale[:error], stale[:sample_args])
+        end
+      ensure
+        described_class.stop_debug
+      end
+    end
+  end
+
+  it 'closes the new file and lease if securing the debug file is denied' do
+    Dir.mktmpdir do |dir|
+      path = File.join(dir, 'trace.log')
+      File.open(path, 'a', 0o600) do |opened|
+        allow(File).to receive(:open).and_call_original
+        expect(File).to receive(:open).with(path, 'a', 0o600).and_return(opened)
+        expect(opened).to receive(:chmod).with(0o600).and_raise(Errno::EPERM)
+        expect { described_class.start_debug(path: path) }.to raise_error(Errno::EPERM)
+        expect(opened).to be_closed
+        File.open("#{path}.lease", File::RDWR) { |lease| expect(lease.flock(File::LOCK_EX | File::LOCK_NB)).to eq(0) }
+      end
+    ensure
+      described_class.stop_debug
+    end
+  end
+
+  it 'leaves same-named methods on other trace owners visible' do
+    dispatch = PWN::AI::Agent::Dispatch
+    %i[mistake_ts budget_hit?].each do |method_id|
+      event = instance_double(TracePoint, self: dispatch, defined_class: dispatch.singleton_class, method_id: method_id)
+      expect(described_class.send(:traceable?, tp: event)).to be(true)
+    end
+  end
+
+  it 'traces reply stages and the provider exit without rendering response arguments' do
+    agent_loop = PWN::AI::Agent::Loop
+    preview = 'fixture-private-preview'
+    messages = [{ role: 'user', content: 'fixture-private-message' }]
+    previous_promoted = Thread.current[:pwn_thinking_promoted]
+    # Isolate the new helpers from intentional history and request-source traces.
+    allow(agent_loop).to receive(:append_session)
+    allow(agent_loop).to receive(:request_unsatisfied?).and_return(false)
+
+    Dir.mktmpdir('reply-trace') do |dir|
+      path = described_class.start_debug(path: File.join(dir, 'trace.log'), trace: true)
+      window = agent_loop::ReplyWindow.new(steering: nil, nested: false, handoff: false)
+      reply = window.model(messages: messages) { Thread.current[:pwn_stream_preview].call('fixture', preview, true) }
+      reply.define_singleton_method(:inspect) { 'fixture-opaque-signal' }
+      agent_loop.send(:finish_display_reply, reply: reply, messages: messages)
+      agent_loop.send(:empty_final_nudge, request: 'fixture', messages: messages)
+      agent_loop.send(:debug_provider_hop, elapsed: 0.25, hop_exit: 'returned')
+
+      body = File.read(path)
+      expect(body).to include('Loop::ReplyWindow.model', 'Loop::DisplayReply.initialize', 'Loop.finish_display_reply',
+                              'Loop.empty_final_nudge', 'provider hop elapsed_s=0.25 exit=returned')
+      expect(body).not_to include(preview, 'fixture-private-message', 'fixture-opaque-signal')
+    ensure
+      described_class.stop_debug
+      Thread.current[:pwn_thinking_promoted] = previous_promoted
+    end
+  end
+end
+
 describe PWN::Plugins::Log do
   it 'should display information for authors' do
     authors_response = PWN::Plugins::Log

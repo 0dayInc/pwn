@@ -130,7 +130,7 @@ RSpec.describe 'AI learning dispatch result review' do
 
   it 'preserves typed application failure across the sandbox boundary', :sandbox_outcome_boundary do
     PWN::Env[:ai][:sandbox] = 'permissive'
-    expect(PWN::Plugins::AISandbox.mode).to eq(:permissive)
+    expect(PWN::AI::Sandbox.mode).to eq(:permissive)
     raw = dispatch('pwn_eval', code: '{success: false}', timeout: 3)
     expect(JSON.parse(raw).dig('result', 'execution_success')).to be(true)
     expect(JSON.parse(raw).dig('result', 'application_status')).to eq('failed')
